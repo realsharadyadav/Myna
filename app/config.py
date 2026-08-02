@@ -27,6 +27,12 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
+# Web search grounding (agent.expand_concept, see app/web_search.py). Exa is
+# used when configured — built for LLM grounding use cases, better relevance
+# than a generic search engine. Falls back to free/keyless DuckDuckGo (ddgs)
+# without it, same graceful-degradation pattern as everything else here.
+EXA_API_KEY = os.getenv("EXA_API_KEY", "")
+
 # Reverse geocoding (OpenStreetMap Nominatim - free, rate-limited)
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/reverse"
 NOMINATIM_USER_AGENT = "myna-hyperlocal-finder/1.0"
