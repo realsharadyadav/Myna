@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from .. import agent, dishes, embeddings, models, schemas, synonyms
+from .. import agent, dishes, embeddings, models, schedule, schemas, synonyms
 from ..database import get_db, get_default_search_model
 from ..geo import haversine_km
 
@@ -82,17 +82,45 @@ def _rows_for_term(db: Session, term: str, item_pool, shop_by_id):
     return [found[iid] for iid in found.keys()]
 
 
-def _to_result(item, shop, lat, long, matched_term="", coverage_count=1, coverage_total=1):
-    dist = haversine_km(lat, long, shop.lat, shop.long)
+def _stop_views(shop, lat, long):
+    """Rank a mobile vendor's stops for this customer.
+
+    A thela has no address to walk to — it has rounds. The stop we point the
+    customer at is the one they can actually meet: a stop the vendor is
+    standing at right now wins, otherwise the soonest round, nearest first
+    within each bucket. The rest travel along on the card so "or Friday in
+    Gali 9, 400 m away" is still visible.
+    """
+    views = []
+    for s in shop.stops:
+        view = schedule.stop_view(s)
+        view["distance_km"] = round(haversine_km(lat, long, s.lat, s.long), 2)
+        views.append(view)
+    views.sort(key=lambda v: (v["rank"], v["distance_km"]))
+    return views
+
+
+def _shop_position(shop, lat, long, stop):
+    """Where this shop *is*, for distance and directions: its address for a
+    fixed shop, the matched stop for a cart."""
+    if stop:
+        return stop["lat"], stop["long"], stop["distance_km"]
+    return shop.lat, shop.long, round(haversine_km(lat, long, shop.lat, shop.long), 2)
+
+
+def _to_result(item, shop, lat, long, matched_term="", coverage_count=1, coverage_total=1, stop=None):
+    shop_lat, shop_long, dist = _shop_position(shop, lat, long, stop)
     return schemas.SearchResult(
         shop_id=shop.shop_id,
         shop_name=shop.name,
         shopkeeper=shop.shopkeeper,
-        address=shop.address,
+        address=(stop["label"] or stop["address"]) if stop else shop.address,
         phone=shop.phone,
-        shop_lat=shop.lat,
-        shop_long=shop.long,
-        distance_km=round(dist, 2),
+        shop_lat=shop_lat,
+        shop_long=shop_long,
+        distance_km=dist,
+        shop_type=shop.shop_type or "fixed",
+        stop=schemas.StopOut(**stop) if stop else None,
         item_id=item.item_id,
         item_name=item.name,
         item_category=item.category,
@@ -119,6 +147,13 @@ def _run_pipeline(q: str, lat: float, long: float, db: Session, mode: str = ""):
     )
     item_pool = [item for item, _shop in catalogue]
     shop_by_id = {shop.shop_id: shop for _item, shop in catalogue}
+    # Stops are ranked once per shop, not once per matched item.
+    stops_by_shop = {
+        sid: _stop_views(shop, lat, long)
+        for sid, shop in shop_by_id.items()
+        if shop.shop_type == "mobile"
+    }
+    best_stop = {sid: views[0] for sid, views in stops_by_shop.items() if views}
 
     flat: list[schemas.SearchResult] = []
     shops_covered: dict[int, set[str]] = {}
@@ -131,41 +166,56 @@ def _run_pipeline(q: str, lat: float, long: float, db: Session, mode: str = ""):
                 continue
             shops_covered.setdefault(shop.shop_id, set()).add(term)
             per_shop_items.setdefault(shop.shop_id, []).append((term, item, shop))
-            flat.append(_to_result(item, shop, lat, long, matched_term=term))
+            flat.append(_to_result(item, shop, lat, long, matched_term=term,
+                                   stop=best_stop.get(shop.shop_id)))
 
     total = len(terms)
     for r in flat:
         r.coverage_count = len(shops_covered[r.shop_id])
         r.coverage_total = total
-    flat.sort(key=lambda r: (-r.coverage_count, r.distance_km))
+    flat.sort(key=lambda r: (-r.coverage_count, _availability_rank(r.stop), r.distance_km))
 
     shop_results: list[schemas.ShopSearchResult] = []
     for shop_id, rows in per_shop_items.items():
         shop = rows[0][2]
         coverage = len(shops_covered[shop_id])
+        stop = best_stop.get(shop_id)
         items = [
             _to_result(item, shop, lat, long, matched_term=term,
-                       coverage_count=coverage, coverage_total=total)
+                       coverage_count=coverage, coverage_total=total, stop=stop)
             for term, item, _s in rows
         ]
         items.sort(key=lambda r: (r.matched_term, r.item_name))
+        shop_lat, shop_long, dist = _shop_position(shop, lat, long, stop)
         shop_results.append(
             schemas.ShopSearchResult(
                 shop_id=shop.shop_id,
                 shop_name=shop.name,
                 shopkeeper=shop.shopkeeper,
-                address=shop.address,
+                address=(stop["label"] or stop["address"]) if stop else shop.address,
                 phone=shop.phone,
-                shop_lat=shop.lat,
-                shop_long=shop.long,
-                distance_km=round(haversine_km(lat, long, shop.lat, shop.long), 2),
+                shop_lat=shop_lat,
+                shop_long=shop_long,
+                distance_km=dist,
                 coverage_count=coverage,
                 coverage_total=total,
+                shop_type=shop.shop_type or "fixed",
+                stop=schemas.StopOut(**stop) if stop else None,
+                stops=[schemas.StopOut(**v) for v in stops_by_shop.get(shop_id, [])],
                 items=items,
             )
         )
-    shop_results.sort(key=lambda s: (-s.coverage_count, s.distance_km))
+    # Coverage first (unchanged), then what you can buy right now: fixed shops
+    # and carts standing at their stop, then today's rounds, then later in the
+    # week — nearest first inside each group.
+    shop_results.sort(key=lambda s: (-s.coverage_count, _availability_rank(s.stop), s.distance_km))
     return terms, method, flat, shop_results
+
+
+def _availability_rank(stop) -> int:
+    """0 for anything you can reach now (a fixed shop, or a cart at its stop),
+    1 for a round later today, 2 for another day."""
+    return stop.rank if stop is not None else schedule.AVAILABLE_NOW
 
 
 @router.get("/dishes", response_model=dict)
@@ -239,6 +289,8 @@ def search_one_tap(
             shop_name=r.shop_name if r else "",
             distance_km=r.distance_km if r else 0.0,
             in_stock=r is not None,
+            shop_type=r.shop_type if r else "fixed",
+            availability=r.stop.status_text if (r and r.stop) else "",
         )
         for term in terms
         for r in [best.get(term)]

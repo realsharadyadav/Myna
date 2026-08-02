@@ -21,6 +21,7 @@ Then open:
 
 ## Features (Phase 1 scope)
 
+- **Thela / cart vendors (no fixed place)** — a vendor who moves around registers as a *thela* and adds **rounds** instead of one address: each round is a spot plus its timing ("Gali no. 4, har mangalwar 10 se 12", or every day 6–9 AM). Customers see the round they can actually reach — "Here now · till 12 PM" — with directions to that corner, plus the vendor's other rounds and when they come next. Search puts what you can buy right now first: fixed shops and carts standing at a stop, then today's rounds, then later in the week
 - **Shop onboarding** — signage photo → AI reads shop name (Claude Vision), GPS auto-capture, address auto-filled via OpenStreetMap reverse geocoding, manual override everywhere
 - **Item add (semi-auto)** — item photo → AI suggests name/category → shopkeeper confirms → listed as available
 - **Item edit/delete** anytime
@@ -42,6 +43,7 @@ Then open:
 | `GEMINI_API_KEY` | _(empty)_ | Gemini Vision (e.g. 2.5 Flash) for signage/item recognition. |
 | `MYNA_DATABASE_URL` | _(falls back to `DATABASE_URL`, then SQLite)_ | Postgres URL. Checked first; `DATABASE_URL` (auto-set by Render/Heroku) is the fallback. |
 | `DATABASE_URL` | `sqlite:///./myna.db` | Postgres URL supplied by hosting platform, or a manual override. |
+| `MYNA_TIMEZONE` | `Asia/Kolkata` | Timezone that thela/cart round timings are read in. |
 | `UPLOAD_DIR` | `./uploads` | Where item/shop photos are stored. Swap for Cloudinary/Supabase in production. |
 
 > **AI works without any API key** — name/category fields just stay manual. Set any provider key to enable AI suggestions.
@@ -56,13 +58,14 @@ app/
   models.py          shops + items tables
   schemas.py         Pydantic request/response models
   geo.py             Haversine distance + Nominatim reverse geocode
+  schedule.py        Mobile-vendor rounds: "when is he here" + human timings
   ai.py              Multi-provider AI (Anthropic / Groq / Gemini) — vision + text
   agent.py           Agentic search pipeline: query→items parsing, dish/concept expansion (LLM + fallback)
   dishes.py          Curated dish→ingredients glossary (zero-config dish mode)
   vision_check.py    Generates a test shop board and checks a model really reads it
   storage.py         Image upload saving
   routers/
-    shops.py         Shop CRUD, onboarding photo, geocode endpoint
+    shops.py         Shop CRUD, onboarding photo, geocode endpoint, vendor stops
     items.py         Item CRUD, AI suggest endpoint
     search.py        Customer search (item mode + dish mode, coverage ranking)
     admin.py         Owner panel API (stats, shop list, moderation, LLM status)
@@ -82,6 +85,8 @@ run.sh               Creates venv, installs deps, starts uvicorn
 | `POST` | `/api/shops` | Register a shop (lat/long required; address auto-geocoded if blank) |
 | `GET/PATCH` | `/api/shops/{id}` | Fetch / update shop |
 | `POST` | `/api/shops/{id}/photo` | Upload shop signage photo |
+| `GET/POST` | `/api/shops/{id}/stops` | List / add a mobile vendor's rounds (place + day + time window). Adding one marks the shop `mobile` |
+| `PATCH/DELETE` | `/api/shops/{id}/stops/{stop_id}` | Edit / remove a round |
 | `GET` | `/api/search/shops?q&lat&long&limit` | Agentic pipeline output grouped per shop (coverage score + matched items) |
 | `GET` | `/api/search/one-tap?q&lat&long&limit` | Pipeline + instant shopping list (one product per requested item) |
 | `POST` | `/api/shops/onboard/photo` | AI-read shop name from signage photo |
@@ -139,6 +144,7 @@ Payments/monetization (Phase 3), full-auto shelf scanning, native mobile app (Ph
 ## Known MVP limitations
 
 - Shopkeeper "auth" is just a `localStorage` shop_id — fine for single-device pilot onboarding, needs real auth before wider rollout.
+- Vendor rounds are a weekly pattern (day + time window) — no one-off "aaj nahi aa raha" override, and no live GPS tracking; the card shows the schedule the vendor typed.
 - Item matching is substring-based (`ILIKE %q%`); upgrade to trigram/tsvector search when catalogue grows.
 - SQLite for local dev; set `DATABASE_URL` to Postgres for deployment (Haversine runs in Python, so no PostGIS needed).
 - Nominatim is rate-limited (~1 req/s) — fine at MVP volume.

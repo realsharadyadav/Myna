@@ -237,6 +237,27 @@
   .shop-name { font-weight: 800; font-size: 1.02rem; letter-spacing: -.01em; }
   .shop-sub { font-size: .8rem; color: var(--ink-soft); margin-top: 2px; }
   .shop-addr { font-size: .78rem; color: var(--ink-faint); margin-top: 3px; line-height: 1.4; }
+
+  /* ---------- thela / cart vendors: they're found by timing, not address ---------- */
+  .cart-tag {
+    font-size: .64rem; font-weight: 850; letter-spacing: .04em; padding: 2px 7px; border-radius: 999px;
+    background: var(--brand-soft); color: var(--brand-ink); margin-left: 6px; vertical-align: 2px; white-space: nowrap;
+  }
+  [data-theme="dark"] .cart-tag { color: var(--brand-deep); }
+  .when-row {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 7px;
+    font-size: .78rem; color: var(--ink-soft);
+  }
+  .live {
+    font-size: .7rem; font-weight: 850; padding: 3px 9px; border-radius: 999px;
+    background: var(--surface-2); color: var(--ink-soft);
+  }
+  .live.now { background: var(--ok-soft); color: var(--ok); }
+  .rounds {
+    margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line-strong);
+    font-size: .76rem; color: var(--ink-faint); line-height: 1.5;
+  }
+  .rounds b { color: var(--ink-soft); font-weight: 750; }
   .cover {
     flex: 0 0 auto; text-align: center; background: var(--surface-2); border: 1px solid var(--line);
     border-radius: 14px; padding: 7px 10px; min-width: 62px;
@@ -387,6 +408,7 @@
       <div class="how-card"><span>🗺️</span><b>Nearby, not online</b><p>Real kirana shops around you, nearest first.</p></div>
       <div class="how-card"><span>🍲</span><b>Cook anything</b><p>Name a dish, get every ingredient and who stocks it.</p></div>
       <div class="how-card"><span>✅</span><b>One trip, not four</b><p>Shops that cover most of your list rank first.</p></div>
+      <div class="how-card"><span>🛒</span><b>Thele bhi milte hain</b><p>Carts without a fixed address show their spot and timing — "here now till 12".</p></div>
     </section>
   </main>
 
@@ -609,7 +631,8 @@ function renderResults(q, data) {
           <div class="li-body">
             <div class="li-name">${esc(title(i.item))}</div>
             <div class="li-sub ${i.in_stock ? '' : 'none'}">${i.in_stock
-              ? esc(i.product) + ' · ' + esc(i.shop_name)
+              ? esc(i.product) + ' · ' + (i.shop_type === 'mobile' ? '🛒 ' : '') + esc(i.shop_name)
+                + (i.availability ? ' · ' + esc(i.availability) : '')
               : 'Not stocked nearby'}</div>
           </div>
           ${i.in_stock
@@ -635,14 +658,22 @@ function renderResults(q, data) {
     const missing = terms.filter(t => !covered.has(t));
     const pct = s.coverage_total ? Math.round(100 * s.coverage_count / s.coverage_total) : 100;
     const full = s.coverage_count >= s.coverage_total;
+    // A thela has no address to send you to — shop_lat/long already point at
+    // the round we're showing, so directions land on the right corner.
+    const cart = s.shop_type === 'mobile' && s.stop;
+    const otherRounds = cart ? (s.stops || []).filter(r => r.stop_id !== s.stop.stop_id) : [];
     const maps = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(s.shop_lat + ',' + s.shop_long)}`;
     return `<div class="card" style="animation-delay:${Math.min(idx, 6) * 40}ms">
       <div class="shop-top">
         <div class="avatar" aria-hidden="true">${esc((s.shop_name || '?').trim().charAt(0).toUpperCase())}</div>
         <div class="shop-id">
-          <div class="shop-name">${esc(s.shop_name)}</div>
+          <div class="shop-name">${esc(s.shop_name)}${cart ? '<span class="cart-tag">🛒 THELA</span>' : ''}</div>
           ${s.shopkeeper ? `<div class="shop-sub">${esc(s.shopkeeper)}</div>` : ''}
           <div class="shop-addr">📍 ${esc(s.address)} · ${s.distance_km} km</div>
+          ${cart ? `<div class="when-row">
+            <span class="live ${s.stop.status === 'here_now' ? 'now' : ''}">${esc(s.stop.status_text)}</span>
+            <span>${esc(s.stop.when)}</span>
+          </div>` : ''}
         </div>
         <div class="cover ${full ? 'full' : ''}">
           <b>${s.coverage_count}/${s.coverage_total}</b><small>items</small>
@@ -663,6 +694,10 @@ function renderResults(q, data) {
       </div>
       ${missing.length ? `<div class="missing">Not here: ${missing.slice(0, 4).map(m => esc(title(m))).join(', ')}${
           missing.length > 4 ? ` +${missing.length - 4} more` : ''}</div>` : ''}
+      ${otherRounds.length ? `<div class="rounds">🛒 Also stands at: ${otherRounds.slice(0, 3).map(r =>
+          `<b>${esc(r.label || r.address || 'another spot')}</b> — ${esc(r.when)}${
+            r.distance_km != null ? ` · ${r.distance_km} km` : ''}`).join('<br>')}${
+          otherRounds.length > 3 ? `<br>+${otherRounds.length - 3} more rounds` : ''}</div>` : ''}
       <div class="actions">
         <a class="action primary" href="${esc(maps)}" target="_blank" rel="noopener">🧭 Directions</a>
         ${s.phone ? `<a class="action" href="tel:${encodeURIComponent(s.phone)}">📞 Call</a>` : ''}
