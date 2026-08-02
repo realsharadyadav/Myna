@@ -135,6 +135,37 @@ assert all(i["in_stock"] for i in data["shopping_list"])
 assert data["shopping_list"][0]["product"] == "Parle-G Gold 100g"
 print("PASS one-tap search (shopping list)")
 
+# 9h. Dish mode — a dish name expands into its ingredients (curated glossary,
+# since no API key is configured in tests), and shops carry coordinates so the
+# app can link to directions.
+res = client.get("/api/search/one-tap", params={
+    "q": "how to make poha", "lat": 19.076, "long": 72.878, "mode": "dish"})
+data = res.json()
+assert data["method"] == "dish-curated", data["method"]
+assert "poha" in data["items"] and "haldi" in data["items"]
+assert [i["item"] for i in data["shopping_list"]] == data["items"]
+print("PASS dish mode expands a dish into ingredients")
+
+res = client.get("/api/search/dishes")
+assert "poha" in res.json()["dishes"]
+print("PASS popular dishes endpoint")
+
+res = client.get("/api/search/shops", params={"q": "parle", "lat": 19.076, "long": 72.878})
+top = res.json()["shops"][0]
+assert top["shop_lat"] and top["shop_long"]
+assert top["items"][0]["shop_lat"] == top["shop_lat"]
+print("PASS shop coordinates travel with search results")
+
+# 9i. Substring matching is word-aware: "haldi" must not match "Haldiram".
+from app.routers.search import _matches_alias
+assert _matches_alias("Haldiram Bhujia", {"haldi"}) is False
+assert _matches_alias("Everest Haldi Powder", {"haldi"}) is True
+assert _matches_alias("Onions 1kg", {"onion"}) is True
+assert _matches_alias("Green Chillies", {"chilli"}) is True
+assert _matches_alias("Parle-G Gold 100g", {"parle"}) is True
+assert _matches_alias("Silk Chocolate", {"milk"}) is False
+print("PASS word-aware substring matching")
+
 # 10. Update + delete item
 res = client.patch(f"/api/shops/{shop_id}/items/{item_id}", json={"name": "Parle-G Gold 200g"})
 assert res.json()["name"] == "Parle-G Gold 200g"
@@ -369,6 +400,14 @@ res = client.get("/api/search/shops", params={"q": "parle and salt", "lat": 19.0
 data = res.json()
 assert data["method"] == "fallback"
 print("PASS search parser falls back without API keys")
+
+# 37b. Without an LLM, a space-separated list ("milk bread eggs") must still be
+# split into items — that's how the app's own suggestion chips are phrased.
+res = client.get("/api/search/shops", params={"q": "milk bread eggs", "lat": 19.076, "long": 72.878})
+assert res.json()["items"] == ["milk", "bread", "eggs"], res.json()["items"]
+res = client.get("/api/search/shops", params={"q": "amul milk", "lat": 19.076, "long": 72.878})
+assert res.json()["items"] == ["amul milk"]   # short phrases stay one product
+print("PASS space-separated lists split without an LLM")
 
 # 38. Embedding model field exists on items
 res = client.get("/api/admin/items?q=Amul")

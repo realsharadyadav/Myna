@@ -1,13 +1,37 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="Myna">
   <defs>
-    <linearGradient id="brand" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#00c2b2"/>
-      <stop offset="100%" stop-color="#5b7cfa"/>
+    <linearGradient id="mynaSun" x1="10%" y1="0%" x2="90%" y2="100%">
+      <stop offset="0%" stop-color="#FFD75E"/>
+      <stop offset="55%" stop-color="#FFC21A"/>
+      <stop offset="100%" stop-color="#F5A300"/>
     </linearGradient>
+    <clipPath id="mynaTile">
+      <rect width="100" height="100" rx="24"/>
+    </clipPath>
   </defs>
-  <rect width="100" height="100" rx="22" fill="url(#brand)"/>
-  <!-- location pin -->
-  <path d="M50,20 C63,20 74,30.5 74,43 C74,58 58,75 50,84 C42,75 26,58 26,43 C26,30.5 37,20 50,20 Z" fill="#ffffff"/>
-  <!-- bird-in-flight silhouette, cut from the pin so the brand gradient shows through -->
-  <path d="M33,42 C39,33 45,40 50,35 C55,40 61,33 67,42 C60,38 55,44 50,39 C45,44 40,38 33,42 Z" fill="url(#brand)"/>
+
+  <!-- brand tile -->
+  <rect width="100" height="100" rx="24" fill="url(#mynaSun)"/>
+
+  <!-- the map underneath: streets running through the neighbourhood -->
+  <g clip-path="url(#mynaTile)" fill="none" stroke="#ffffff" stroke-linecap="round" opacity=".3">
+    <path d="M-4 76 C 18 70 28 86 50 82 S 84 86 104 72" stroke-width="4.5"/>
+    <path d="M12 -4 C 16 18 6 28 8 48" stroke-width="4.5"/>
+    <path d="M88 -2 C 84 20 94 30 92 52" stroke-width="4.5"/>
+    <path d="M-4 30 C 14 26 22 34 34 30" stroke-width="3.5" opacity=".8"/>
+    <path d="M68 24 C 80 20 88 26 104 22" stroke-width="3.5" opacity=".8"/>
+  </g>
+
+  <!-- location pin: where the shop is -->
+  <path d="M50 88 C50 88 23 60.5 23 40 A27 27 0 1 1 77 40 C77 60.5 50 88 50 88 Z" fill="#ffffff"/>
+
+  <!-- the shop inside it: striped awning over a shopfront -->
+  <path d="M32.5 37.5 L37 26.5 L63 26.5 L67.5 37.5 Z" fill="url(#mynaSun)"/>
+  <g fill="#ffffff">
+    <circle cx="38.3" cy="37.5" r="5.6"/>
+    <circle cx="50" cy="37.5" r="5.6"/>
+    <circle cx="61.7" cy="37.5" r="5.6"/>
+  </g>
+  <rect x="35.5" y="40.5" width="29" height="18.5" rx="3" fill="url(#mynaSun)"/>
+  <rect x="44.5" y="46.5" width="11" height="12.5" rx="1.8" fill="#ffffff"/>
 </svg>

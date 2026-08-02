@@ -2,218 +2,262 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Myna — Shopkeeper</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#FFC21A">
+<title>Myna — List your shop</title>
 <link rel="icon" type="image/svg+xml" href="/myna-logo.svg">
+<link rel="apple-touch-icon" href="/myna-logo.svg">
 <script src="/config.js"></script>
 <style>
   :root {
-    --bg-0: #f4f7fb;
-    --bg-1: #e9eef7;
-    --glass: rgba(255,255,255,.72);
-    --glass-border: rgba(255,255,255,.9);
-    --card-shadow: 0 8px 32px rgba(30,42,80,.10), 0 2px 8px rgba(30,42,80,.06);
-    --text: #182033;
-    --text-soft: #5a6b8c;
-    --text-faint: #8a97b3;
-    --input-bg: rgba(255,255,255,.85);
-    --input-border: rgba(120,140,180,.25);
-    --accent: #00b3a4;
-    --accent-2: #5b7cfa;
-    --btn-text: #ffffff;
-    --brand: linear-gradient(135deg,#00b3a4,#5b7cfa);
-    --msg: #8a97b3;
-    --danger: #e5484d;
-    --danger-bg: rgba(229,72,77,.12);
-    --divider: rgba(120,140,180,.18);
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --surface-2: #fff8e3;
+    --surface-3: #fffbf0;
+    --line: #f0e7d2;
+    --line-strong: #e6d9b8;
+    --ink: #1b1a17;
+    --ink-soft: #6b6455;
+    --ink-faint: #9c9484;
+    --brand: #ffc21a;
+    --brand-soft: #ffe9a8;
+    --brand-strong: #f5a300;
+    --brand-ink: #4a3400;
+    --ok: #17914f;
+    --ok-soft: #e6f6ec;
+    --danger: #cf4141;
+    --danger-soft: #fdecec;
+    --shadow-sm: 0 1px 2px rgba(60,50,20,.06), 0 2px 8px rgba(60,50,20,.05);
+    --shadow-md: 0 2px 6px rgba(60,50,20,.06), 0 10px 28px -12px rgba(90,70,20,.22);
+    --shadow-brand: 0 8px 20px -8px rgba(245,163,0,.55);
+    --radius: 20px;
   }
   [data-theme="dark"] {
-    --bg-0: #0b1020;
-    --bg-1: #101830;
-    --glass: rgba(23,32,60,.66);
-    --glass-border: rgba(120,150,220,.16);
-    --card-shadow: 0 8px 32px rgba(0,0,0,.45), 0 2px 8px rgba(0,0,0,.3);
-    --text: #e7ecf6;
-    --text-soft: #a7b4cc;
-    --text-faint: #7c8aa8;
-    --input-bg: rgba(10,16,34,.6);
-    --input-border: rgba(120,150,220,.22);
-    --accent: #00d4c0;
-    --accent-2: #7c99ff;
-    --brand: linear-gradient(135deg,#00d4c0,#7c99ff);
-    --msg: #7c8aa8;
-    --danger: #ff6b6b;
-    --danger-bg: rgba(255,107,107,.14);
-    --divider: rgba(120,150,220,.16);
+    --bg: #14130f;
+    --surface: #1e1c16;
+    --surface-2: #26231a;
+    --surface-3: #221f18;
+    --line: #332f22;
+    --line-strong: #443f2d;
+    --ink: #f7f2e6;
+    --ink-soft: #bab2a0;
+    --ink-faint: #8b8474;
+    --brand: #ffc93d;
+    --brand-soft: #4a3a10;
+    --brand-strong: #ffb300;
+    --brand-ink: #2a1d00;
+    --ok: #4ecb84;
+    --ok-soft: #16301f;
+    --danger: #ff7a7a;
+    --danger-soft: #3a1d1d;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
+    --shadow-md: 0 2px 6px rgba(0,0,0,.35), 0 14px 30px -14px rgba(0,0,0,.7);
+    --shadow-brand: 0 8px 20px -8px rgba(255,180,0,.35);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html { -webkit-text-size-adjust: 100%; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-    background:
-      radial-gradient(1200px 600px at 15% -10%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 60%),
-      radial-gradient(1000px 500px at 110% 10%, color-mix(in srgb, var(--accent-2) 12%, transparent), transparent 55%),
-      linear-gradient(160deg, var(--bg-0), var(--bg-1));
-    color: var(--text);
-    min-height: 100vh;
-    transition: background .4s ease, color .4s ease;
+    background: var(--bg);
+    background-image: radial-gradient(120% 55% at 50% -12%, rgba(255,194,26,.26), transparent 62%);
+    background-repeat: no-repeat; background-attachment: fixed;
+    color: var(--ink); min-height: 100dvh; line-height: 1.45; overflow-x: hidden;
   }
-  header {
-    position: sticky; top: 0; z-index: 10;
-    backdrop-filter: blur(18px) saturate(160%);
-    -webkit-backdrop-filter: blur(18px) saturate(160%);
-    background: color-mix(in srgb, var(--bg-0) 72%, transparent);
-    border-bottom: 1px solid var(--glass-border);
-    padding: 14px 20px;
+  [data-theme="dark"] body { background-image: radial-gradient(120% 55% at 50% -14%, rgba(255,194,26,.15), transparent 62%); }
+
+  .topbar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 40;
+    padding: max(10px, env(safe-area-inset-top)) 16px 10px;
+    background: transparent; border-bottom: 1px solid transparent;
+    transition: background .25s ease, border-color .25s ease;
   }
-  .header-inner { max-width: 640px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-  .brand { display: flex; align-items: center; gap: 12px; }
-  .brand img { width: 42px; height: 42px; filter: drop-shadow(0 0 10px color-mix(in srgb, var(--accent) 50%, transparent)); }
-  .brand h1 { font-size: 1.25rem; font-weight: 800; letter-spacing: -.02em;
-    background: var(--brand); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-  .theme-toggle {
-    width: 44px; height: 44px; border-radius: 14px; cursor: pointer; border: 1px solid var(--glass-border);
-    background: var(--glass); color: var(--text); font-size: 1.15rem; display: grid; place-items: center;
-    box-shadow: var(--card-shadow); transition: transform .15s ease, background .3s ease;
+  .topbar.is-stuck {
+    background: color-mix(in srgb, var(--bg) 78%, transparent);
+    backdrop-filter: blur(18px) saturate(180%); -webkit-backdrop-filter: blur(18px) saturate(180%);
+    border-bottom-color: var(--line);
   }
-  .theme-toggle:hover { transform: translateY(-2px) scale(1.05); }
-  .theme-toggle:active { transform: scale(.95); }
-  main { max-width: 640px; margin: 0 auto; padding: 20px 16px 48px; }
+  .topbar-inner { max-width: 680px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .brand { display: flex; align-items: center; gap: 9px; min-width: 0; }
+  .brand img { width: 34px; height: 34px; border-radius: 11px; box-shadow: var(--shadow-sm); }
+  .brand .name { font-size: 1.05rem; font-weight: 850; letter-spacing: -.02em; white-space: nowrap; }
+  .brand .name span { color: var(--brand-strong); }
+  .icon-btn {
+    width: 40px; height: 40px; flex: 0 0 40px; border-radius: 13px; cursor: pointer;
+    border: 1px solid var(--line); background: color-mix(in srgb, var(--surface) 82%, transparent);
+    color: var(--ink); font-size: 1.05rem; display: grid; place-items: center;
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); transition: transform .15s ease;
+  }
+  .icon-btn:active { transform: scale(.93); }
+
+  main { max-width: 680px; margin: 0 auto; padding: 78px 16px calc(96px + env(safe-area-inset-bottom)); }
+  .hero { text-align: center; padding: 6px 0 2px; }
+  .hero h1 { font-size: clamp(1.5rem, 6.4vw, 1.95rem); font-weight: 850; letter-spacing: -.035em; line-height: 1.15; }
+  .hero h1 em { font-style: normal; color: var(--brand-strong); }
+  .hero p { margin-top: 8px; color: var(--ink-soft); font-size: .93rem; }
 
   .card {
-    background: var(--glass);
-    border: 1px solid var(--glass-border);
-    border-radius: 22px;
-    padding: 20px;
-    margin-bottom: 14px;
-    backdrop-filter: blur(16px) saturate(140%);
-    -webkit-backdrop-filter: blur(16px) saturate(140%);
-    box-shadow: var(--card-shadow);
-    transition: background .4s ease, border-color .4s ease;
-    animation: rise .35s ease backwards;
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 18px; margin-top: 14px; box-shadow: var(--shadow-sm);
+    animation: rise .32s cubic-bezier(.2,.7,.3,1) backwards;
   }
-  #itemsCard { animation-delay: .06s; }
-  #listCard { animation-delay: .12s; }
-  h2 { font-size: 1.02rem; margin-bottom: 6px; font-weight: 800; letter-spacing: -.01em; }
-  label { display: block; font-size: .78rem; font-weight: 700; margin: 14px 0 6px; color: var(--text-soft); text-transform: uppercase; letter-spacing: .06em; }
-  input[type=text], input[type=tel] {
-    width: 100%; padding: 13px 14px; border: 1.5px solid var(--input-border); border-radius: 14px; font-size: 1rem;
-    background: var(--input-bg); color: var(--text); transition: border-color .2s ease, box-shadow .2s ease;
-  }
-  input[type=text]::placeholder, input[type=tel]::placeholder { color: var(--text-faint); }
-  input[type=text]:focus, input[type=tel]:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent); }
-  input[type=file] { width: 100%; margin-top: 4px; font-size: .85rem; color: var(--text-soft); }
-  input[type=file]::file-selector-button {
-    padding: 10px 16px; border: 1.5px solid var(--input-border); border-radius: 12px; background: var(--input-bg);
-    color: var(--text); font-weight: 600; cursor: pointer; margin-right: 10px; transition: border-color .2s ease;
-  }
-  input[type=file]::file-selector-button:hover { border-color: var(--accent); }
-  button {
-    padding: 13px; border: none; border-radius: 14px; font-size: .95rem; font-weight: 700; cursor: pointer; margin-top: 12px; width: 100%;
-    background: var(--brand); color: var(--btn-text);
-    box-shadow: 0 10px 24px -10px color-mix(in srgb, var(--accent) 55%, transparent);
-    transition: transform .15s ease, box-shadow .15s ease, opacity .15s ease;
-  }
-  button:hover { transform: translateY(-2px); }
-  button:active { transform: translateY(0) scale(.98); }
-  button.secondary { background: transparent; color: var(--accent); border: 1.5px solid color-mix(in srgb, var(--accent) 45%, transparent); box-shadow: none; }
-  button.secondary:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
-  button.danger { background: var(--danger-bg); color: var(--danger); border: 1px solid transparent; padding: 7px 12px; width: auto; margin: 0; font-size: .78rem; box-shadow: none; }
-  button.danger:hover { border-color: var(--danger); }
-  button.small { padding: 7px 12px; width: auto; margin: 0; font-size: .78rem; }
-  button:disabled { opacity: .55; transform: none; box-shadow: none; }
-  .hint { font-size: .78rem; color: var(--text-soft); margin-top: 8px; line-height: 1.45; }
-  .item-row { display: flex; gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--divider); }
-  .item-row:last-child { border-bottom: none; }
-  .item-row img { width: 52px; height: 52px; object-fit: cover; border-radius: 14px; background: var(--input-bg); flex-shrink: 0; }
-  .item-row .info { flex: 1; min-width: 0; }
-  .item-row .name { font-weight: 700; font-size: .95rem; }
-  .item-row .cat { font-size: .75rem; color: var(--text-faint); margin-top: 1px; }
-  .msg { text-align: center; color: var(--msg); padding: 18px 0; font-size: .9rem; }
-  .hidden { display: none; }
-  .link { text-align: center; margin: 22px 0 0; font-size: .86rem; color: var(--text-soft); }
-  .link a { color: var(--accent); font-weight: 600; text-decoration: none; }
-  .link a:hover { text-decoration: underline; }
-  .badge { display: inline-block; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); padding: 3px 10px; border-radius: 999px; font-size: .72rem; font-weight: 700; border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+  @keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+  #itemsCard { animation-delay: .05s; }
+  #listCard { animation-delay: .1s; }
 
-  @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-  @media (max-width: 480px) { .brand h1 { font-size: 1.05rem; } .card { border-radius: 18px; padding: 16px; } }
+  .step { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+  .step .num {
+    width: 26px; height: 26px; flex: 0 0 26px; border-radius: 9px; display: grid; place-items: center;
+    background: linear-gradient(160deg, var(--brand), var(--brand-strong)); color: var(--brand-ink);
+    font-size: .82rem; font-weight: 850;
+  }
+  .step h2 { font-size: 1.02rem; font-weight: 850; letter-spacing: -.02em; }
+  .badge {
+    margin-left: auto; font-size: .72rem; font-weight: 800; padding: 5px 11px; border-radius: 999px;
+    background: var(--brand-soft); color: var(--brand-ink); max-width: 45%; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap;
+  }
+  [data-theme="dark"] .badge { color: var(--brand); }
+
+  label { display: block; font-size: .74rem; font-weight: 800; margin: 16px 0 7px; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .07em; }
+  input[type=text], input[type=tel] {
+    width: 100%; padding: 14px; border: 1.5px solid var(--line-strong); border-radius: 15px; font-size: 1rem;
+    background: var(--surface); color: var(--ink); font-family: inherit;
+    transition: border-color .2s ease, box-shadow .2s ease;
+  }
+  input::placeholder { color: var(--ink-faint); }
+  input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 4px var(--brand-soft); }
+  input[type=file] { width: 100%; font-size: .84rem; color: var(--ink-soft); }
+  input[type=file]::file-selector-button {
+    padding: 12px 16px; border: 1.5px solid var(--line-strong); border-radius: 13px; background: var(--surface-2);
+    color: var(--ink); font-weight: 750; font-family: inherit; cursor: pointer; margin-right: 10px;
+  }
+  input[type=file]::file-selector-button:hover { border-color: var(--brand); }
+
+  button {
+    width: 100%; min-height: 48px; padding: 14px; border: 0; border-radius: 15px; font-family: inherit;
+    font-size: .95rem; font-weight: 800; cursor: pointer; margin-top: 12px;
+    background: linear-gradient(160deg, var(--brand), var(--brand-strong)); color: var(--brand-ink);
+    box-shadow: var(--shadow-brand); transition: transform .15s ease, opacity .2s ease;
+  }
+  button:active { transform: scale(.985); }
+  button:disabled { opacity: .5; box-shadow: none; }
+  button.secondary { background: var(--surface); color: var(--ink); border: 1.5px solid var(--line-strong); box-shadow: none; }
+  button.secondary:active { background: var(--surface-2); }
+  button.small { width: auto; min-height: 38px; margin: 0; padding: 8px 14px; font-size: .8rem; border-radius: 11px; }
+  button.danger { background: var(--danger-soft); color: var(--danger); box-shadow: none; }
+
+  .hint { font-size: .8rem; color: var(--ink-soft); margin-top: 9px; line-height: 1.45; }
+  .hint.ok { color: var(--ok); font-weight: 650; }
+  .item-row { display: flex; gap: 12px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line); }
+  .item-row:first-child { border-top: 0; padding-top: 4px; }
+  .item-row img, .item-row .thumb {
+    width: 48px; height: 48px; flex: 0 0 48px; border-radius: 14px; object-fit: cover;
+    background: var(--surface-2); display: grid; place-items: center; font-size: 1.1rem; color: var(--ink-faint);
+  }
+  .item-row .info { flex: 1; min-width: 0; }
+  .item-row .name { font-weight: 750; font-size: .95rem; }
+  .item-row .cat { font-size: .75rem; color: var(--ink-faint); margin-top: 1px; }
+  .state { text-align: center; padding: 26px 12px; color: var(--ink-soft); font-size: .9rem; }
+  .state .big { font-size: 1.9rem; }
+  .hidden { display: none; }
+
+  .tabbar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: flex; justify-content: center; gap: 6px;
+    padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
+    background: color-mix(in srgb, var(--bg) 82%, transparent);
+    backdrop-filter: blur(18px) saturate(180%); -webkit-backdrop-filter: blur(18px) saturate(180%);
+    border-top: 1px solid var(--line);
+  }
+  .tab {
+    flex: 1; max-width: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 2px; padding: 6px 4px; min-height: 44px; border-radius: 12px; text-decoration: none;
+    color: var(--ink-faint); font-size: .7rem; font-weight: 750;
+  }
+  .tab .ico { font-size: 1.12rem; line-height: 1; }
+  .tab.active { color: var(--brand-strong); }
 
   #splash {
-    position: fixed; inset: 0; z-index: 9999;
-    display: flex; align-items: center; justify-content: center;
-    background:
-      radial-gradient(1200px 600px at 15% -10%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 60%),
-      radial-gradient(1000px 500px at 110% 10%, color-mix(in srgb, var(--accent-2) 12%, transparent), transparent 55%),
-      linear-gradient(160deg, var(--bg-0), var(--bg-1));
-    transition: opacity .45s ease;
+    position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; background: var(--bg);
+    background-image: radial-gradient(120% 60% at 50% 0%, rgba(255,194,26,.3), transparent 60%);
+    transition: opacity .4s ease;
   }
-  #splash.splash-hide { opacity: 0; pointer-events: none; }
-  .splash-inner { text-align: center; padding: 0 24px; }
-  .splash-inner img { width: 64px; height: 64px; filter: drop-shadow(0 0 16px color-mix(in srgb, var(--accent) 55%, transparent)); }
-  .splash-inner h1 {
-    margin-top: 14px; font-size: 1.6rem; font-weight: 800; letter-spacing: -.02em;
-    background: var(--brand); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
-  }
-  .splash-bar { width: 220px; height: 4px; border-radius: 999px; background: var(--input-border); margin: 22px auto 16px; overflow: hidden; }
-  .splash-bar-fill { height: 100%; width: 8%; border-radius: 999px; background: var(--brand); transition: width .4s ease; }
-  .splash-status { font-size: .92rem; font-weight: 600; color: var(--text-soft); }
-  .splash-tagline { font-size: .8rem; color: var(--text-faint); margin-top: 6px; }
+  #splash.hide { opacity: 0; pointer-events: none; }
+  .splash-in { text-align: center; padding: 0 28px; }
+  .splash-in img { width: 76px; height: 76px; border-radius: 24px; box-shadow: var(--shadow-md); }
+  .splash-in h1 { margin-top: 16px; font-size: 1.7rem; font-weight: 850; letter-spacing: -.03em; }
+  .splash-in h1 span { color: var(--brand-strong); }
+  .splash-bar { width: 190px; height: 5px; border-radius: 999px; background: var(--surface-2); margin: 20px auto 14px; overflow: hidden; }
+  .splash-bar i { display: block; height: 100%; width: 8%; border-radius: 999px; background: linear-gradient(90deg, var(--brand), var(--brand-strong)); transition: width .4s ease; }
+  .splash-status { font-size: .88rem; font-weight: 650; color: var(--ink-soft); }
+  .splash-tag { font-size: .78rem; color: var(--ink-faint); margin-top: 5px; }
+
+  :focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 </style>
 </head>
 <body>
   <div id="splash">
-    <div class="splash-inner">
-      <img src="/myna-logo.svg" alt="Myna">
-      <h1>Myna</h1>
-      <div class="splash-bar"><div class="splash-bar-fill" id="splashFill"></div></div>
+    <div class="splash-in">
+      <img src="/myna-logo.svg" alt="">
+      <h1>My<span>na</span></h1>
+      <div class="splash-bar"><i id="splashFill"></i></div>
       <p class="splash-status" id="splashStatus">Waking up services…</p>
-      <p class="splash-tagline">Get your shop listed, fast.</p>
+      <p class="splash-tag">Get your shop on the map.</p>
     </div>
   </div>
-  <header>
-    <div class="header-inner">
+
+  <header class="topbar" id="topbar">
+    <div class="topbar-inner">
       <div class="brand">
-        <img src="/myna-logo.svg" alt="Myna AI">
-        <h1>Myna — Shopkeeper</h1>
+        <img src="/myna-logo.svg" alt="Myna">
+        <div class="name">My<span>na</span> · Shopkeeper</div>
       </div>
-      <button class="theme-toggle" id="themeBtn" title="Toggle theme" aria-label="Toggle dark/light mode"></button>
+      <button class="icon-btn" id="themeBtn" title="Switch theme" aria-label="Switch light or dark theme"></button>
     </div>
   </header>
+
 <main>
+  <div class="hero">
+    <h1>Put your shop <em>on the map</em></h1>
+    <p>Two minutes. A photo of your board, your location, and what you stock.</p>
+  </div>
+
   <!-- STEP 1: Onboarding -->
   <div id="onboardCard" class="card">
-    <h2>Step 1 · Register your shop</h2>
-    <label>1. Photo of your shop signage (we'll read the name)</label>
+    <div class="step"><span class="num">1</span><h2>Register your shop</h2></div>
+
+    <label>Photo of your shop board</label>
     <input type="file" id="signPhoto" accept="image/*" capture="environment">
     <button class="secondary" id="readNameBtn" onclick="readSignage()">📷 Read name from photo</button>
-    <div class="hint" id="aiHint"></div>
+    <div class="hint" id="aiHint">We'll read the shop name off the board — you can always edit it.</div>
 
     <label for="shopName">Shop name</label>
     <input type="text" id="shopName" placeholder="e.g. Sharma General Store">
 
-    <label for="shopkeeper">Your name (shopkeeper)</label>
+    <label for="shopkeeper">Your name</label>
     <input type="text" id="shopkeeper" placeholder="e.g. Rakesh Sharma">
 
-    <label for="shopPhone">Phone (optional)</label>
+    <label for="shopPhone">Phone (so customers can call)</label>
     <input type="tel" id="shopPhone" placeholder="e.g. 98123 45678">
 
-    <label>2. Location</label>
+    <label>Location</label>
     <button class="secondary" id="gpsBtn" onclick="captureGps()">📍 Capture my location</button>
-    <div class="hint" id="gpsHint"></div>
+    <div class="hint" id="gpsHint">Stand at your shop and tap — this is how customers find you.</div>
 
     <label for="shopAddr">Address (auto-filled, editable)</label>
-    <input type="text" id="shopAddr" placeholder="Auto-filled from GPS after capture">
+    <input type="text" id="shopAddr" placeholder="Fills in after you capture location">
 
     <button id="saveShopBtn" onclick="saveShop()" disabled>Save my shop</button>
   </div>
 
   <!-- STEP 2: Items -->
   <div id="itemsCard" class="card hidden">
-    <h2>Step 2 · Add items — <span class="badge" id="shopBadge"></span></h2>
+    <div class="step"><span class="num">2</span><h2>Add what you stock</h2><span class="badge" id="shopBadge"></span></div>
+
     <label>Photo of the item</label>
     <input type="file" id="itemPhoto" accept="image/*" capture="environment">
     <button class="secondary" id="suggestBtn" onclick="suggestItem()">✨ Suggest name from photo</button>
-    <div class="hint" id="itemAiHint"></div>
+    <div class="hint" id="itemAiHint">Snap the pack — we'll fill in the name and category.</div>
 
     <label for="itemName">Item name</label>
     <input type="text" id="itemName" placeholder="e.g. Parle-G Gold 100g">
@@ -225,80 +269,67 @@
   </div>
 
   <div id="listCard" class="card hidden">
-    <h2>Your items</h2>
+    <div class="step"><h2>Your items</h2><span class="badge" id="countBadge"></span></div>
     <div id="itemList"></div>
   </div>
-
-  <div class="link">Looking for something? <a href="/">Search shops →</a></div>
 </main>
+
+  <nav class="tabbar">
+    <a class="tab" href="/"><span class="ico">🔎</span>Search</a>
+    <a class="tab active" href="/shopkeeper"><span class="ico">🏪</span>My shop</a>
+  </nav>
+
 <script>
 const API = window.MYNA_API_BASE || '';
+const $ = id => document.getElementById(id);
 
 (function () {
-  const splash = document.getElementById('splash');
-  const fill = document.getElementById('splashFill');
-  const status = document.getElementById('splashStatus');
+  const splash = $('splash'), fill = $('splashFill'), status = $('splashStatus');
   let progress = 8;
   fill.style.width = progress + '%';
   const tick = setInterval(() => {
     progress = Math.min(progress + (100 - progress) * 0.12, 92);
     fill.style.width = progress + '%';
   }, 400);
-
   const messages = ['Waking up services…', 'Free-tier backend can take up to a minute…', 'Almost there…'];
   let mi = 0;
-  const msgTimer = setInterval(() => {
-    mi = Math.min(mi + 1, messages.length - 1);
-    status.textContent = messages[mi];
-  }, 7000);
-
-  function hideSplash(finalMessage, delay) {
-    clearInterval(tick);
-    clearInterval(msgTimer);
-    fill.style.width = '100%';
-    status.textContent = finalMessage;
-    setTimeout(() => {
-      splash.classList.add('splash-hide');
-      setTimeout(() => splash.remove(), 500);
-    }, delay);
+  const msgTimer = setInterval(() => { mi = Math.min(mi + 1, messages.length - 1); status.textContent = messages[mi]; }, 7000);
+  function done(msg, delay) {
+    clearInterval(tick); clearInterval(msgTimer);
+    fill.style.width = '100%'; status.textContent = msg;
+    setTimeout(() => { splash.classList.add('hide'); setTimeout(() => splash.remove(), 450); }, delay);
   }
-
-  async function ping() {
-    try {
-      const res = await fetch(`${API}/`, { cache: 'no-store' });
-      return res.ok;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  (async function waitForBackend() {
+  const ping = () => fetch(`${API}/`, { cache: 'no-store' }).then(r => r.ok).catch(() => false);
+  (async () => {
     const deadline = Date.now() + 90000;
     while (Date.now() < deadline) {
-      if (await ping()) { hideSplash('Ready', 250); return; }
+      if (await ping()) { done('Ready', 220); return; }
       await new Promise(r => setTimeout(r, 2000));
     }
-    hideSplash('Taking longer than usual — you can still continue.', 900);
+    done('Taking longer than usual — you can still continue.', 800);
   })();
 })();
 
 (function () {
-  const root = document.documentElement;
+  const root = document.documentElement, btn = $('themeBtn');
   const saved = localStorage.getItem('myna_theme');
-  const prefers = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  root.setAttribute('data-theme', saved || prefers);
-  const btn = document.getElementById('themeBtn');
-  function render() {
-    btn.textContent = root.getAttribute('data-theme') === 'dark' ? '☀️' : '🌙';
-  }
+  root.setAttribute('data-theme', saved || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+  const paint = () => {
+    const dark = root.getAttribute('data-theme') === 'dark';
+    btn.textContent = dark ? '☀️' : '🌙';
+    document.querySelector('meta[name=theme-color]').setAttribute('content', dark ? '#14130f' : '#FFC21A');
+  };
   btn.addEventListener('click', () => {
     const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
     root.setAttribute('data-theme', next);
     localStorage.setItem('myna_theme', next);
-    render();
+    paint();
   });
-  render();
+  paint();
 })();
+
+const topbar = $('topbar');
+addEventListener('scroll', () => topbar.classList.toggle('is-stuck', scrollY > 8), { passive: true });
 
 let shopId = localStorage.getItem('myna_shop_id');
 let pendingItemPhotoUrl = '';
@@ -311,135 +342,141 @@ async function loadShop(id) {
     if (!res.ok) throw 0;
     const shop = await res.json();
     shopId = shop.shop_id;
-    document.getElementById('shopBadge').textContent = shop.name;
-    document.getElementById('onboardCard').classList.add('hidden');
-    document.getElementById('itemsCard').classList.remove('hidden');
-    document.getElementById('listCard').classList.remove('hidden');
+    $('shopBadge').textContent = shop.name;
+    $('onboardCard').classList.add('hidden');
+    $('itemsCard').classList.remove('hidden');
+    $('listCard').classList.remove('hidden');
     loadItems();
   } catch { localStorage.removeItem('myna_shop_id'); }
 }
 
 async function readSignage() {
-  const f = document.getElementById('signPhoto').files[0];
-  if (!f) { alert('Please take/select a signage photo first'); return; }
-  const hint = document.getElementById('aiHint');
-  hint.textContent = 'Reading name…';
+  const f = $('signPhoto').files[0];
+  if (!f) { alert('Please take or pick a photo of your shop board first'); return; }
+  const hint = $('aiHint');
+  hint.className = 'hint'; hint.textContent = 'Reading name…';
   const fd = new FormData(); fd.append('photo', f);
   try {
     const res = await fetch(API + '/api/shops/onboard/photo', { method: 'POST', body: fd });
     const data = await res.json();
     if (data.suggestion) {
-      document.getElementById('shopName').value = data.suggestion;
-      hint.textContent = '✓ Name read from photo — edit if needed.';
+      $('shopName').value = data.suggestion;
+      hint.className = 'hint ok'; hint.textContent = '✓ Name read from photo — edit if needed.';
     } else {
-      hint.textContent = 'Could not read name (AI key not set or unreadable). Please type it.';
+      hint.textContent = 'Could not read the board. Please type the name below.';
     }
-  } catch { hint.textContent = 'Could not read name. Please type it.'; }
+  } catch { hint.textContent = 'Could not read the board. Please type the name below.'; }
   checkReady();
 }
 
 function captureGps() {
-  const hint = document.getElementById('gpsHint');
-  hint.textContent = 'Getting GPS…';
+  const hint = $('gpsHint');
+  hint.className = 'hint'; hint.textContent = 'Getting GPS…';
   navigator.geolocation.getCurrentPosition(async p => {
     window._gps = { lat: p.coords.latitude, long: p.coords.longitude };
     hint.textContent = `✓ ${p.coords.latitude.toFixed(5)}, ${p.coords.longitude.toFixed(5)} — fetching address…`;
     try {
       const res = await fetch(`${API}/api/shops/geocode/reverse?lat=${_gps.lat}&long=${_gps.long}`);
       const data = await res.json();
-      if (data.address) document.getElementById('shopAddr').value = data.address;
+      if (data.address) $('shopAddr').value = data.address;
     } catch {}
-    hint.textContent = `✓ ${p.coords.latitude.toFixed(5)}, ${p.coords.longitude.toFixed(5)}`;
+    hint.className = 'hint ok';
+    hint.textContent = `✓ Location captured (${p.coords.latitude.toFixed(5)}, ${p.coords.longitude.toFixed(5)})`;
     checkReady();
-  }, () => { hint.textContent = 'Location denied. Enable GPS and retry.'; });
+  }, () => { hint.textContent = 'Location denied. Turn on GPS for this site and retry.'; });
 }
 
 function checkReady() {
-  const name = document.getElementById('shopName').value.trim();
-  document.getElementById('saveShopBtn').disabled = !(name && window._gps);
+  $('saveShopBtn').disabled = !($('shopName').value.trim() && window._gps);
 }
-document.getElementById('shopName').addEventListener('input', checkReady);
+$('shopName').addEventListener('input', checkReady);
 
 async function saveShop() {
-  const btn = document.getElementById('saveShopBtn');
+  const btn = $('saveShopBtn');
   btn.disabled = true; btn.textContent = 'Saving…';
   const body = {
-    name: document.getElementById('shopName').value.trim(),
-    shopkeeper: document.getElementById('shopkeeper').value.trim(),
+    name: $('shopName').value.trim(),
+    shopkeeper: $('shopkeeper').value.trim(),
     lat: window._gps.lat,
     long: window._gps.long,
-    address: document.getElementById('shopAddr').value.trim(),
-    phone: document.getElementById('shopPhone').value.trim(),
+    address: $('shopAddr').value.trim(),
+    phone: $('shopPhone').value.trim(),
   };
   try {
     const res = await fetch(API + '/api/shops', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
     const shop = await res.json();
-    const signFile = document.getElementById('signPhoto').files[0];
+    const signFile = $('signPhoto').files[0];
     if (signFile) {
       const fd = new FormData(); fd.append('photo', signFile);
       await fetch(`${API}/api/shops/${shop.shop_id}/photo`, { method: 'POST', body: fd });
     }
     localStorage.setItem('myna_shop_id', shop.shop_id);
     loadShop(shop.shop_id);
-  } catch { alert('Save failed. Try again.'); btn.disabled = false; btn.textContent = 'Save my shop'; }
+  } catch { alert('Save failed. Please try again.'); btn.disabled = false; btn.textContent = 'Save my shop'; }
 }
 
 async function suggestItem() {
-  const f = document.getElementById('itemPhoto').files[0];
-  if (!f) { alert('Please take/select an item photo first'); return; }
-  const hint = document.getElementById('itemAiHint');
-  hint.textContent = 'Identifying item…';
+  const f = $('itemPhoto').files[0];
+  if (!f) { alert('Please take or pick an item photo first'); return; }
+  const hint = $('itemAiHint');
+  hint.className = 'hint'; hint.textContent = 'Identifying item…';
   const fd = new FormData(); fd.append('photo', f);
   try {
     const res = await fetch(`${API}/api/shops/${shopId}/items/suggest`, { method: 'POST', body: fd });
     const data = await res.json();
     pendingItemPhotoUrl = data.photo_url || '';
-    if (data.name) document.getElementById('itemName').value = data.name;
-    if (data.category) document.getElementById('itemCat').value = data.category;
-    hint.textContent = data.name ? '✓ Suggestion filled in — edit if needed, then Add.' : 'No suggestion (AI key not set). Type the name and Add.';
-  } catch { hint.textContent = 'Suggestion failed. Type the name and Add.'; }
+    if (data.name) $('itemName').value = data.name;
+    if (data.category) $('itemCat').value = data.category;
+    if (data.name) { hint.className = 'hint ok'; hint.textContent = '✓ Filled in — edit if needed, then Add.'; }
+    else hint.textContent = 'No suggestion available. Type the name and tap Add.';
+  } catch { hint.textContent = 'Suggestion failed. Type the name and tap Add.'; }
 }
 
 async function addItem() {
-  const name = document.getElementById('itemName').value.trim();
+  const name = $('itemName').value.trim();
   if (!name) { alert('Item name is required'); return; }
-  const btn = document.getElementById('addItemBtn');
-  btn.disabled = true;
+  const btn = $('addItemBtn');
+  btn.disabled = true; btn.textContent = 'Adding…';
   const fd = new FormData();
   fd.append('name', name);
-  fd.append('category', document.getElementById('itemCat').value.trim());
-  const f = document.getElementById('itemPhoto').files[0];
+  fd.append('category', $('itemCat').value.trim());
+  const f = $('itemPhoto').files[0];
   if (f) fd.append('photo', f);
   try {
     await fetch(`${API}/api/shops/${shopId}/items`, { method: 'POST', body: fd });
-    document.getElementById('itemName').value = '';
-    document.getElementById('itemCat').value = '';
-    document.getElementById('itemPhoto').value = '';
-    document.getElementById('itemAiHint').textContent = '';
+    $('itemName').value = '';
+    $('itemCat').value = '';
+    $('itemPhoto').value = '';
+    $('itemAiHint').className = 'hint';
+    $('itemAiHint').textContent = 'Snap the pack — we\'ll fill in the name and category.';
     loadItems();
-  } catch { alert('Add failed. Try again.'); }
-  btn.disabled = false;
+  } catch { alert('Add failed. Please try again.'); }
+  btn.disabled = false; btn.textContent = 'Add item';
 }
 
 async function loadItems() {
   const res = await fetch(`${API}/api/shops/${shopId}/items`);
   const items = await res.json();
-  const list = document.getElementById('itemList');
-  if (!items.length) { list.innerHTML = '<div class="msg">No items yet. Add your first one above.</div>'; return; }
+  const list = $('itemList');
+  $('countBadge').textContent = items.length ? items.length + (items.length === 1 ? ' item' : ' items') : '';
+  if (!items.length) {
+    list.innerHTML = '<div class="state"><div class="big">📦</div>No items yet. Add your first one above.</div>';
+    return;
+  }
   list.innerHTML = items.map(i => `
     <div class="item-row">
-      ${i.photo_url ? `<img src="${API}${i.photo_url}" alt="">` : ''}
+      ${i.photo_url ? `<img src="${API}${esc(i.photo_url)}" alt="" loading="lazy">` : '<div class="thumb">🛍️</div>'}
       <div class="info">
         <div class="name" id="n${i.item_id}">${esc(i.name)}</div>
         <div class="cat">${esc(i.category)}</div>
       </div>
       <button class="small secondary" onclick="editItem(${i.item_id})">Edit</button>
-      <button class="danger" onclick="deleteItem(${i.item_id})">Delete</button>
+      <button class="small danger" onclick="deleteItem(${i.item_id})">Delete</button>
     </div>`).join('');
 }
 
 async function editItem(id) {
-  const el = document.getElementById('n' + id);
+  const el = $('n' + id);
   const newName = prompt('Item name:', el.textContent);
   if (newName === null || !newName.trim()) return;
   const newCat = prompt('Category:', '');
@@ -456,7 +493,7 @@ async function deleteItem(id) {
   loadItems();
 }
 
-function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
 </script>
 </body>
 </html>

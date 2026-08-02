@@ -24,7 +24,7 @@ coverage (most items found first), then distance (nearest first).
 import json
 import re
 
-from . import ai, web_search
+from . import ai, dishes, web_search
 
 _PARSE_PROMPT = """You are the query-understanding stage of a hyperlocal grocery search engine.
 Extract the individual items the user wants to buy from their query.
@@ -81,6 +81,72 @@ Concept: "{query}\""""
 _CONCEPT_HINTS_RE = re.compile(
     r"\b(items?|things?|stuff|for|saman|samaan|ka\s+saman)\b", re.IGNORECASE
 )
+
+
+_DISH_PROMPT = """You are the ingredient planner of a hyperlocal grocery search engine.
+The user named a dish they want to cook. List the grocery items they need to BUY for it.
+
+Rules:
+- 6–12 concrete, commonly-stocked shop items
+- Use the names Indian kirana shopkeepers use, Hinglish where natural
+  ("haldi" not "turmeric powder", "paneer", "toor dal", "garam masala")
+- Ingredients only — no quantities, no steps, no utensils, no "water"/"salt to taste"
+- Web search results are attached for grounding; use them to catch ingredients
+  you would otherwise miss, and ignore recipe steps, ads and anything that
+  isn't a purchasable item.
+- Reply with ONLY a JSON array of lowercase strings.
+
+Web search results:
+{web_context}
+
+Dish: "{query}\""""
+
+
+def _json_array(raw: str) -> list[str]:
+    """Pull a JSON array of strings out of an LLM reply, tolerating fences/prose."""
+    if not raw:
+        return []
+    start, end = raw.find("["), raw.rfind("]")
+    if start == -1 or end <= start:
+        return []
+    try:
+        parsed = json.loads(raw[start:end + 1])
+    except (ValueError, TypeError):
+        return []
+    if not isinstance(parsed, list):
+        return []
+    return [str(x).strip().lower() for x in parsed if str(x).strip()]
+
+
+def expand_dish(query: str, db_default: str = "") -> tuple[list[str], str]:
+    """Dish mode — turn a dish name into the shopping list it needs.
+
+    Returns (items, method) where method is:
+      'dish-llm-web' -> LLM planned the ingredients, grounded with web search
+      'dish-llm'     -> LLM planned the ingredients (web search returned nothing)
+      'dish-curated' -> no LLM (or it failed); curated glossary in app/dishes.py
+      ''             -> unknown dish and no LLM; caller falls back to plain parse
+
+    The curated glossary is also merged into LLM output, so a known dish never
+    loses an ingredient the model happened to skip.
+    """
+    query = (query or "").strip()
+    if not query:
+        return [], ""
+
+    curated = dishes.lookup(query)
+
+    if ai.get_effective_default(db_default):
+        dish = dishes.normalise(query) or query
+        web_context = web_search.ingredient_context(f"{dish} recipe ingredients")
+        prompt = _DISH_PROMPT.format(query=dish, web_context=web_context or "(no web results)")
+        items = _json_array(ai.call_text(prompt, db_default, max_tokens=1024))
+        if items:
+            return _dedupe(items + curated)[:12], "dish-llm-web" if web_context else "dish-llm"
+
+    if curated:
+        return _dedupe(curated)[:12], "dish-curated"
+    return [], ""
 
 
 def expand_concept(query: str, db_default: str = "") -> tuple[list[str], str]:
@@ -177,7 +243,13 @@ def _fallback_parse(query: str) -> list[str]:
 
     items: list[str] = []
     parts = [p.strip() for p in _SPLIT_RE.split(query or "") if p.strip()]
-    allow_head_split = len(parts) > 1  # multi-part query => treat as shopping list
+    # A multi-part query is clearly a shopping list. So is a single part of 3+
+    # words with no connector at all ("milk bread eggs") — that's how people
+    # actually type lists on a phone, and without splitting it the whole query
+    # is matched as one item and finds nothing.
+    allow_head_split = len(parts) > 1 or (
+        len(parts) == 1 and len(_clean_item(parts[0]).split()) > 2
+    )
     for part in parts:
         for item in _split_phrase(part, allow_head_split):
             if item and item not in items:
@@ -185,19 +257,29 @@ def _fallback_parse(query: str) -> list[str]:
     return items
 
 
-def parse_search_items(query: str, db_default: str = "") -> tuple[list[str], str]:
+def parse_search_items(query: str, db_default: str = "", mode: str = "") -> tuple[list[str], str]:
     """Agent stage 1 (+1.5): turn a free-form query into a list of items.
 
-    Tries concept expansion first ("pooja items" -> agarbatti, camphor...) when
-    the query looks conceptual; otherwise parses regular item lists
-    ("salt milk and mango"). Falls back to rule-based splitting with no LLM.
+    `mode="dish"` means the user is in the app's dish mode and typed a dish
+    name, so the query is expanded into the ingredients it needs before
+    anything else. Otherwise: concept expansion first ("pooja items" ->
+    agarbatti, camphor...) when the query looks conceptual, else a regular item
+    list parse ("salt milk and mango"). Falls back to rule-based splitting
+    with no LLM.
 
-    Returns (items, method) where method is 'concept-llm' | 'llm' | 'fallback'.
+    Returns (items, method) where method is
+    'dish-llm-web' | 'dish-llm' | 'dish-curated' | 'concept-llm' | 'llm' | 'fallback'.
     Always returns at least one item for non-empty queries.
     """
     query = (query or "").strip()
     if not query:
         return [], "fallback"
+
+    # Dish mode: "paneer butter masala" -> paneer, tomato, butter, cream...
+    if mode == "dish":
+        cooked, dish_method = expand_dish(query, db_default)
+        if cooked:
+            return cooked, dish_method
 
     # Stage 1.5: concept expansion ("pooja items" -> concrete shopping items).
     expanded, concept_method = expand_concept(query, db_default)

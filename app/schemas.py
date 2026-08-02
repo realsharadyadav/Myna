@@ -64,6 +64,10 @@ class SearchResult(BaseModel):
     shopkeeper: str
     address: str
     phone: str
+    # Shop coordinates travel with the result so the app can offer a
+    # "directions" link straight to the shop.
+    shop_lat: float = 0.0
+    shop_long: float = 0.0
     distance_km: float
     item_id: int
     item_name: str
@@ -81,6 +85,8 @@ class ShopSearchResult(BaseModel):
     shopkeeper: str
     address: str
     phone: str
+    shop_lat: float = 0.0
+    shop_long: float = 0.0
     distance_km: float
     coverage_count: int
     coverage_total: int

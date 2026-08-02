@@ -1,12 +1,34 @@
+import re
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from .. import agent, embeddings, models, schemas, synonyms
+from .. import agent, dishes, embeddings, models, schemas, synonyms
 from ..database import get_db, get_default_search_model
 from ..geo import haversine_km
 
 router = APIRouter(prefix="/api/search", tags=["search"])
+
+
+def _matches_alias(text: str, aliases: set[str]) -> bool:
+    """Word-aware substring match: an alias has to start a word, and may only
+    be followed by a plural suffix.
+
+    A plain `alias in text` check reads far too loosely on real catalogues —
+    "haldi" (turmeric) matched "Haldiram Bhujia", which looks especially bad in
+    dish mode where every ingredient is searched at once. Anchoring at a word
+    start still allows the matches that matter ("parle" -> "Parle-G Gold",
+    "atta" -> "Aashirvaad Atta 5kg") and keeps simple plurals ("onion" ->
+    "Onions 1kg", "chilli" -> "Chillies")."""
+    if not text:
+        return False
+    lowered = text.lower()
+    return any(
+        re.search(rf"\b{re.escape(alias)}(?:s|es)?\b", lowered)
+        for alias in aliases
+        if alias
+    )
 
 
 def _rows_for_term(db: Session, term: str, item_pool, shop_by_id):
@@ -19,8 +41,7 @@ def _rows_for_term(db: Session, term: str, item_pool, shop_by_id):
     like_ids = {
         it.item_id
         for it in item_pool
-        if it.name and any(alias in it.name.lower() for alias in aliases)
-        or it.category and any(alias in it.category.lower() for alias in aliases)
+        if _matches_alias(it.name, aliases) or _matches_alias(it.category, aliases)
     }
 
     found: dict[int, models.Item] = {}
@@ -69,6 +90,8 @@ def _to_result(item, shop, lat, long, matched_term="", coverage_count=1, coverag
         shopkeeper=shop.shopkeeper,
         address=shop.address,
         phone=shop.phone,
+        shop_lat=shop.lat,
+        shop_long=shop.long,
         distance_km=round(dist, 2),
         item_id=item.item_id,
         item_name=item.name,
@@ -80,13 +103,13 @@ def _to_result(item, shop, lat, long, matched_term="", coverage_count=1, coverag
     )
 
 
-def _run_pipeline(q: str, lat: float, long: float, db: Session):
+def _run_pipeline(q: str, lat: float, long: float, db: Session, mode: str = ""):
     """Agent stages 1–3: parse query -> search every item -> aggregate per shop.
 
     Returns (terms, method, flat_results, shop_results) where shop_results are
     already ranked by coverage (most items covered first) then distance.
     """
-    terms, method = agent.parse_search_items(q, get_default_search_model(db))
+    terms, method = agent.parse_search_items(q, get_default_search_model(db), mode=mode)
 
     # Pre-fetch catalogue once; per-term matching (ILIKE ∪ semantic) is in-memory.
     catalogue = (
@@ -133,6 +156,8 @@ def _run_pipeline(q: str, lat: float, long: float, db: Session):
                 shopkeeper=shop.shopkeeper,
                 address=shop.address,
                 phone=shop.phone,
+                shop_lat=shop.lat,
+                shop_long=shop.long,
                 distance_km=round(haversine_km(lat, long, shop.lat, shop.long), 2),
                 coverage_count=coverage,
                 coverage_total=total,
@@ -141,6 +166,13 @@ def _run_pipeline(q: str, lat: float, long: float, db: Session):
         )
     shop_results.sort(key=lambda s: (-s.coverage_count, s.distance_km))
     return terms, method, flat, shop_results
+
+
+@router.get("/dishes", response_model=dict)
+def popular_dishes(limit: int = Query(12, ge=1, le=40)):
+    """Dish suggestions for the app's dish-mode chips, so the frontend doesn't
+    keep its own copy of the list."""
+    return {"dishes": dishes.popular(limit)}
 
 
 @router.get("", response_model=list[schemas.SearchResult])
@@ -165,11 +197,12 @@ def search_shops(
     lat: float = Query(...),
     long: float = Query(...),
     limit: int = Query(10, ge=1, le=50),
+    mode: str = Query("", description="'dish' expands a dish name into its ingredients first"),
     db: Session = Depends(get_db),
 ):
     """Same pipeline, returned as one card per shop with the matching items
     inside and a coverage score (e.g. "2/3 items here")."""
-    terms, method, _flat, shop_results = _run_pipeline(q, lat, long, db)
+    terms, method, _flat, shop_results = _run_pipeline(q, lat, long, db, mode=mode)
     return schemas.AgentSearchResponse(
         query=q, items=terms, method=method, shops=shop_results[:limit]
     )
@@ -181,12 +214,14 @@ def search_one_tap(
     lat: float = Query(...),
     long: float = Query(...),
     limit: int = Query(10, ge=1, le=50),
+    mode: str = Query("", description="'dish' expands a dish name into its ingredients first"),
     db: Session = Depends(get_db),
 ):
     """One-tap search: full pipeline plus a ready shopping list — one
     representative product per requested item, picked from the nearest shop
-    that stocks it."""
-    terms, method, _flat, shop_results = _run_pipeline(q, lat, long, db)
+    that stocks it. With mode='dish' the query is a dish name and the
+    shopping list is its ingredients."""
+    terms, method, _flat, shop_results = _run_pipeline(q, lat, long, db, mode=mode)
 
     best: dict[str, schemas.SearchResult] = {}
     for shop in shop_results:  # already ranked coverage desc, then nearest

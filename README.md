@@ -24,6 +24,10 @@ Then open:
 - **Shop onboarding** — signage photo → AI reads shop name (Claude Vision), GPS auto-capture, address auto-filled via OpenStreetMap reverse geocoding, manual override everywhere
 - **Item add (semi-auto)** — item photo → AI suggests name/category → shopkeeper confirms → listed as available
 - **Item edit/delete** anytime
+- **Two ways to search** — the landing screen asks how you want to look:
+  - **Search items** — type what you need ("milk bread eggs", *"atta chawal aur namak"*)
+  - **By dish** — type a dish ("paneer butter masala", "poha") and Myna turns it into the full ingredient shopping list, then finds who nearby stocks each one. The LLM plans the ingredients (grounded with web search); a curated glossary (`app/dishes.py`) covers ~50 common dishes so dish mode works with no API key at all.
+- **Mobile-first UI** — white & yellow theme, transparent header so the content gets the full screen, bottom tab bar, tick-off shopping list, one-tap Directions/Call per shop, light + dark mode
 - **Customer search** — multi-item agentic pipeline: the query is parsed into individual items (LLM, with rule-based fallback so it works without an API key), each item is fuzzy-matched across name/category/shop/shopkeeper/address, then results are aggregated per shop — shops that stock more of your list rank first, then nearest-first (Haversine). Handles multi-item and Hinglish queries: *"salt milk and mango"*, *"atta chawal aur namak"*
 - **Owner panel** — dashboard stats (shops/items counts), shop list with search, inline edit/delete, LLM provider + model selector (default saved in DB)
 - **CSV import** — owner can download a blank template (or 50-shop demo dataset) and upload a filled CSV to bulk-create/update shops & items; optional "wipe existing data first"
@@ -52,15 +56,16 @@ app/
   schemas.py         Pydantic request/response models
   geo.py             Haversine distance + Nominatim reverse geocode
   ai.py              Multi-provider AI (Anthropic / Groq / Gemini) — vision + text
-  agent.py           Agentic search pipeline: query→items parsing (LLM + fallback)
+  agent.py           Agentic search pipeline: query→items parsing, dish/concept expansion (LLM + fallback)
+  dishes.py          Curated dish→ingredients glossary (zero-config dish mode)
   storage.py         Image upload saving
   routers/
     shops.py         Shop CRUD, onboarding photo, geocode endpoint
     items.py         Item CRUD, AI suggest endpoint
-    search.py        Customer search (fuzzy + distance filter)
+    search.py        Customer search (item mode + dish mode, coverage ranking)
     admin.py         Owner panel API (stats, shop list, moderation, LLM status)
   static/
-    index.html       Customer search page (mobile-first)
+    index.html       Customer search page (mobile-first, item + dish modes)
     shopkeeper.html  Shop onboarding + item management page
     admin.html       Owner dashboard (stats, shops, AI settings, CSV import)
   sample_data.py     Reusable demo data (curated + generated shops, CSV helpers)
@@ -83,8 +88,9 @@ run.sh               Creates venv, installs deps, starts uvicorn
 | `PATCH/DELETE` | `/api/shops/{id}/items/{item_id}` | Edit / remove item |
 | `POST` | `/api/shops/{id}/items/suggest` | AI-suggest item name/category from photo |
 | `GET` | `/api/search?q&lat&long&limit` | Agentic search — parses query into items, matches each, groups+scores per shop (coverage-first, then nearest) |
-| `GET` | `/api/search/shops?q&lat&long&limit` | Same pipeline, returned as one card per shop with matched items + coverage (e.g. "2/3 items here") |
-| `GET` | `/api/search/one-tap?q&lat&long&limit` | Pipeline plus a ready shopping list — one best product per requested item from the nearest shop that stocks it |
+| `GET` | `/api/search/shops?q&lat&long&limit&mode` | Same pipeline, returned as one card per shop with matched items + coverage (e.g. "2/3 items here"). `mode=dish` expands a dish name into its ingredients first |
+| `GET` | `/api/search/one-tap?q&lat&long&limit&mode` | Pipeline plus a ready shopping list — one best product per requested item from the nearest shop that stocks it. `mode=dish` treats `q` as a dish name and expands it into ingredients first |
+| `GET` | `/api/search/dishes?limit` | Popular dish suggestions for the app's dish-mode chips |
 | `GET` | `/api/admin/stats` | Owner dashboard stats (shop/item counts, recent shops) |
 | `GET` | `/api/admin/shops?q` | List/search all shops |
 | `GET/PATCH/DELETE` | `/api/admin/shops/{id}` | Shop detail / update / delete |

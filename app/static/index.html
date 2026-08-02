@@ -2,343 +2,679 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#FFC21A">
+<meta name="description" content="Myna — find nearby shops that actually have what you need. Search items, or name a dish and get every ingredient.">
 <title>Myna — Find it nearby</title>
 <link rel="icon" type="image/svg+xml" href="/myna-logo.svg">
+<link rel="apple-touch-icon" href="/myna-logo.svg">
 <script src="/config.js"></script>
 <style>
   :root {
-    --bg-0: #f4f7fb;
-    --bg-1: #e9eef7;
-    --glass: rgba(255,255,255,.72);
-    --glass-border: rgba(255,255,255,.9);
-    --card-shadow: 0 8px 32px rgba(30,42,80,.10), 0 2px 8px rgba(30,42,80,.06);
-    --text: #182033;
-    --text-soft: #5a6b8c;
-    --text-faint: #8a97b3;
-    --input-bg: rgba(255,255,255,.85);
-    --input-border: rgba(120,140,180,.25);
-    --accent: #00b3a4;
-    --accent-2: #5b7cfa;
-    --btn-text: #ffffff;
-    --brand: linear-gradient(135deg,#00b3a4,#5b7cfa);
-    --msg: #8a97b3;
+    --bg: #ffffff;
+    --bg-tint: #fffdf6;
+    --surface: #ffffff;
+    --surface-2: #fff8e3;
+    --surface-3: #fffbf0;
+    --line: #f0e7d2;
+    --line-strong: #e6d9b8;
+    --ink: #1b1a17;
+    --ink-soft: #6b6455;
+    --ink-faint: #9c9484;
+    --brand: #ffc21a;
+    --brand-soft: #ffe9a8;
+    --brand-strong: #f5a300;
+    --brand-ink: #4a3400;
+    --ok: #17914f;
+    --ok-soft: #e6f6ec;
+    --danger: #cf4141;
+    --shadow-sm: 0 1px 2px rgba(60,50,20,.06), 0 2px 8px rgba(60,50,20,.05);
+    --shadow-md: 0 2px 6px rgba(60,50,20,.06), 0 10px 28px -12px rgba(90,70,20,.22);
+    --shadow-brand: 0 8px 20px -8px rgba(245,163,0,.55);
+    --radius: 20px;
   }
   [data-theme="dark"] {
-    --bg-0: #0b1020;
-    --bg-1: #101830;
-    --glass: rgba(23,32,60,.66);
-    --glass-border: rgba(120,150,220,.16);
-    --card-shadow: 0 8px 32px rgba(0,0,0,.45), 0 2px 8px rgba(0,0,0,.3);
-    --text: #e7ecf6;
-    --text-soft: #a7b4cc;
-    --text-faint: #7c8aa8;
-    --input-bg: rgba(10,16,34,.6);
-    --input-border: rgba(120,150,220,.22);
-    --accent: #00d4c0;
-    --accent-2: #7c99ff;
-    --brand: linear-gradient(135deg,#00d4c0,#7c99ff);
-    --msg: #7c8aa8;
+    --bg: #14130f;
+    --bg-tint: #191712;
+    --surface: #1e1c16;
+    --surface-2: #26231a;
+    --surface-3: #221f18;
+    --line: #332f22;
+    --line-strong: #443f2d;
+    --ink: #f7f2e6;
+    --ink-soft: #bab2a0;
+    --ink-faint: #8b8474;
+    --brand: #ffc93d;
+    --brand-soft: #4a3a10;
+    --brand-strong: #ffb300;
+    --brand-ink: #2a1d00;
+    --ok: #4ecb84;
+    --ok-soft: #16301f;
+    --danger: #ff7a7a;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
+    --shadow-md: 0 2px 6px rgba(0,0,0,.35), 0 14px 30px -14px rgba(0,0,0,.7);
+    --shadow-brand: 0 8px 20px -8px rgba(255,180,0,.35);
   }
+
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-  html { scroll-behavior: smooth; }
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-    background:
-      radial-gradient(1200px 600px at 15% -10%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 60%),
-      radial-gradient(1000px 500px at 110% 10%, color-mix(in srgb, var(--accent-2) 12%, transparent), transparent 55%),
-      linear-gradient(160deg, var(--bg-0), var(--bg-1));
-    color: var(--text);
+    background: var(--bg);
+    background-image:
+      radial-gradient(120% 60% at 50% -12%, rgba(255,194,26,.28), rgba(255,194,26,0) 62%),
+      radial-gradient(80% 40% at 100% 6%, rgba(255,163,0,.14), transparent 60%);
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    color: var(--ink);
     min-height: 100vh;
-    transition: background .4s ease, color .4s ease;
+    min-height: 100dvh;
+    line-height: 1.45;
+    overflow-x: hidden;
   }
-  header {
-    position: sticky; top: 0; z-index: 10;
-    backdrop-filter: blur(18px) saturate(160%);
-    -webkit-backdrop-filter: blur(18px) saturate(160%);
-    background: color-mix(in srgb, var(--bg-0) 72%, transparent);
-    border-bottom: 1px solid var(--glass-border);
-    padding: 14px 20px;
+  [data-theme="dark"] body {
+    background-image:
+      radial-gradient(120% 60% at 50% -14%, rgba(255,194,26,.16), transparent 62%),
+      radial-gradient(80% 40% at 100% 6%, rgba(255,163,0,.08), transparent 60%);
   }
-  .header-inner { max-width: 640px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-  .brand { display: flex; align-items: center; gap: 12px; }
-  .brand img { width: 42px; height: 42px; filter: drop-shadow(0 0 10px color-mix(in srgb, var(--accent) 50%, transparent)); }
-  .brand h1 { font-size: 1.35rem; font-weight: 800; letter-spacing: -.02em;
-    background: var(--brand); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-  .theme-toggle {
-    width: 44px; height: 44px; border-radius: 14px; cursor: pointer; border: 1px solid var(--glass-border);
-    background: var(--glass); color: var(--text); font-size: 1.15rem; display: grid; place-items: center;
-    box-shadow: var(--card-shadow); transition: transform .15s ease, background .3s ease;
-  }
-  .theme-toggle:hover { transform: translateY(-2px) scale(1.05); }
-  .theme-toggle:active { transform: scale(.95); }
-  main { max-width: 640px; margin: 0 auto; padding: 20px 16px 48px; }
 
-  .card {
-    background: var(--glass);
-    border: 1px solid var(--glass-border);
-    border-radius: 22px;
-    padding: 20px;
-    margin-bottom: 14px;
-    backdrop-filter: blur(16px) saturate(140%);
-    -webkit-backdrop-filter: blur(16px) saturate(140%);
-    box-shadow: var(--card-shadow);
-    transition: background .4s ease, border-color .4s ease;
+  /* ---------- transparent header (content flows under it) ---------- */
+  .topbar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 40;
+    padding: max(10px, env(safe-area-inset-top)) 16px 10px;
+    background: transparent;
+    border-bottom: 1px solid transparent;
+    transition: background .25s ease, border-color .25s ease, backdrop-filter .25s ease;
   }
-  .controls label { display: block; font-size: .78rem; font-weight: 700; margin: 12px 0 6px; color: var(--text-soft); text-transform: uppercase; letter-spacing: .06em; }
-  .controls input[type=text] {
-    width: 100%; padding: 15px 16px; border: 1.5px solid var(--input-border); border-radius: 16px; font-size: 1rem;
-    background: var(--input-bg); color: var(--text); transition: border-color .2s ease, box-shadow .2s ease;
+  .topbar.is-stuck {
+    background: color-mix(in srgb, var(--bg) 78%, transparent);
+    backdrop-filter: blur(18px) saturate(180%);
+    -webkit-backdrop-filter: blur(18px) saturate(180%);
+    border-bottom-color: var(--line);
   }
-  .controls input[type=text]::placeholder { color: var(--text-faint); }
-  .controls input[type=text]:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent); }
-  button {
-    width: 100%; padding: 15px; border: none; border-radius: 16px; font-size: 1rem; font-weight: 700; cursor: pointer;
-    background: var(--brand); color: var(--btn-text); margin-top: 16px;
-    box-shadow: 0 10px 24px -10px color-mix(in srgb, var(--accent) 55%, transparent);
-    transition: transform .15s ease, box-shadow .15s ease, opacity .15s ease;
+  .topbar-inner { max-width: 680px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .brand { display: flex; align-items: center; gap: 9px; min-width: 0; }
+  .brand img { width: 34px; height: 34px; border-radius: 11px; box-shadow: var(--shadow-sm); }
+  .brand .name { font-size: 1.12rem; font-weight: 850; letter-spacing: -.02em; }
+  .brand .name span { color: var(--brand-strong); }
+  .icon-btn {
+    width: 40px; height: 40px; flex: 0 0 40px; border-radius: 13px; cursor: pointer;
+    border: 1px solid var(--line); background: color-mix(in srgb, var(--surface) 82%, transparent);
+    color: var(--ink); font-size: 1.05rem; display: grid; place-items: center;
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    transition: transform .15s ease, border-color .2s ease;
   }
-  button:hover { transform: translateY(-2px); box-shadow: 0 14px 28px -10px color-mix(in srgb, var(--accent) 65%, transparent); }
-  button:active { transform: translateY(0) scale(.98); }
-  button:disabled { opacity: .55; transform: none; box-shadow: none; }
+  .icon-btn:active { transform: scale(.93); }
 
-  .result { display: flex; gap: 14px; align-items: center; animation: rise .35s ease backwards; }
-  .result:nth-child(2) { animation-delay: .03s; }
-  .result img { width: 72px; height: 72px; object-fit: cover; border-radius: 18px; background: var(--input-bg); flex-shrink: 0; }
-  .result .info { flex: 1; min-width: 0; }
-  .result .item { font-weight: 700; font-size: 1.02rem; }
-  .result .cat { font-size: .74rem; color: var(--text-faint); margin-top: 1px; }
-  .result .shop { font-size: .9rem; margin-top: 6px; font-weight: 600; }
-  .result .addr { font-size: .78rem; color: var(--text-soft); margin-top: 3px; line-height: 1.4; }
-  .dist {
-    background: var(--brand); color: #fff; font-weight: 700; font-size: .8rem; padding: 7px 12px; border-radius: 999px;
-    white-space: nowrap; box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--accent) 50%, transparent);
+  main { max-width: 680px; margin: 0 auto; padding: 0 16px calc(96px + env(safe-area-inset-bottom)); }
+
+  /* ---------- hero ---------- */
+  .hero { padding: 82px 0 4px; text-align: center; }
+  .hero h1 { font-size: clamp(1.6rem, 7vw, 2.1rem); font-weight: 850; letter-spacing: -.035em; line-height: 1.15; }
+  .hero h1 em { font-style: normal; color: var(--brand-strong); }
+  .hero p { margin-top: 8px; color: var(--ink-soft); font-size: .94rem; }
+
+  /* ---------- mode switch ---------- */
+  .modes {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
+    background: var(--surface-2); border: 1px solid var(--line);
+    border-radius: 16px; padding: 4px; margin: 18px auto 0; max-width: 420px;
   }
-  .msg { text-align: center; color: var(--msg); padding: 28px 0; font-size: .95rem; }
-  .pipeline { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:6px; font-size:.86rem; color:var(--text-soft); }
-  .pipeline .crumb { color:var(--text-faint); }
+  .mode {
+    appearance: none; border: 0; cursor: pointer; background: transparent; color: var(--ink-soft);
+    font: inherit; font-size: .9rem; font-weight: 700; padding: 11px 8px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px;
+    transition: background .2s ease, color .2s ease, box-shadow .2s ease;
+  }
+  .mode[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-sm); }
+  .mode:active { transform: scale(.98); }
+
+  /* ---------- search bar ---------- */
+  .searchbar {
+    display: flex; align-items: center; gap: 8px; margin-top: 12px;
+    background: var(--surface); border: 1.5px solid var(--line-strong);
+    border-radius: 18px; padding: 6px 6px 6px 14px; box-shadow: var(--shadow-md);
+    transition: border-color .2s ease, box-shadow .2s ease;
+  }
+  .searchbar:focus-within { border-color: var(--brand); box-shadow: var(--shadow-md), 0 0 0 4px var(--brand-soft); }
+  .searchbar .glyph { font-size: 1.05rem; opacity: .55; flex: 0 0 auto; }
+  .searchbar input {
+    flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--ink);
+    font: inherit; font-size: 1rem; padding: 13px 2px;
+  }
+  .searchbar input::placeholder { color: var(--ink-faint); }
+  .go {
+    flex: 0 0 auto; width: 48px; height: 48px; border: 0; border-radius: 14px; cursor: pointer;
+    background: linear-gradient(160deg, var(--brand), var(--brand-strong));
+    color: var(--brand-ink); font-size: 1.15rem; font-weight: 800;
+    display: grid; place-items: center; box-shadow: var(--shadow-brand);
+    transition: transform .15s ease, opacity .2s ease;
+  }
+  .go:active { transform: scale(.94); }
+  .go:disabled { opacity: .6; }
+
+  /* ---------- chips ---------- */
+  .chip-row {
+    display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none;
+    margin: 12px -16px 0; padding: 2px 16px 2px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .chip-row::-webkit-scrollbar { display: none; }
   .chip {
-    background: color-mix(in srgb, var(--accent) 14%, transparent);
-    color: var(--accent); font-weight:700; font-size:.78rem;
-    padding:5px 11px; border-radius:999px;
+    flex: 0 0 auto; border: 1px solid var(--line); background: var(--surface);
+    color: var(--ink-soft); font: inherit; font-size: .84rem; font-weight: 650;
+    padding: 9px 14px; border-radius: 999px; cursor: pointer; white-space: nowrap;
+    transition: border-color .2s ease, color .2s ease, background .2s ease;
   }
-  .loader { width:16px; height:16px; border:2px solid var(--input-border); border-top-color:var(--accent); border-radius:50%; display:inline-block; animation:spin 1s linear infinite; vertical-align:middle; }
+  .chip:hover { border-color: var(--brand); color: var(--ink); }
+  .chip:active { background: var(--surface-2); }
+  .chip-label { flex: 0 0 auto; align-self: center; font-size: .74rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); padding-right: 2px; }
+
+  /* ---------- location strip ---------- */
+  .locbar {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    margin-top: 12px; font-size: .8rem; color: var(--ink-faint);
+  }
+  .locbar button { border: 0; background: none; font: inherit; font-weight: 700; color: var(--brand-strong); cursor: pointer; padding: 4px; text-decoration: underline; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft); flex: 0 0 auto; }
+  .dot.pending { background: var(--brand-strong); box-shadow: 0 0 0 3px var(--brand-soft); }
+  .dot.off { background: var(--ink-faint); box-shadow: none; }
+
+  /* ---------- cards ---------- */
+  .card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 16px; margin-top: 12px; box-shadow: var(--shadow-sm);
+    animation: rise .32s cubic-bezier(.2,.7,.3,1) backwards;
+  }
+  @keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+
+  .results-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin: 26px 0 2px; }
+  .results-head h2 { font-size: 1.05rem; font-weight: 850; letter-spacing: -.02em; }
+  .results-head .meta { font-size: .78rem; color: var(--ink-faint); font-weight: 600; }
+  .tag {
+    display: inline-flex; align-items: center; gap: 5px; font-size: .72rem; font-weight: 800;
+    color: var(--brand-ink); background: var(--brand-soft); padding: 4px 9px; border-radius: 999px;
+  }
+  [data-theme="dark"] .tag { color: var(--brand); }
+  .term-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .term {
+    font-size: .78rem; font-weight: 700; padding: 5px 10px; border-radius: 999px;
+    background: var(--surface-2); color: var(--ink-soft); border: 1px solid var(--line);
+  }
+
+  /* ---------- shopping list (dish mode) ---------- */
+  .list-title { display: flex; align-items: center; gap: 8px; font-size: .98rem; font-weight: 850; }
+  .list-title .count { margin-left: auto; font-size: .78rem; font-weight: 800; color: var(--ink-faint); }
+  .li { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-top: 1px solid var(--line); }
+  .li:first-of-type { border-top: 0; padding-top: 14px; }
+  .tick {
+    width: 24px; height: 24px; flex: 0 0 24px; border-radius: 50%; border: 2px solid var(--line-strong);
+    display: grid; place-items: center; font-size: .72rem; color: transparent; cursor: pointer; background: none;
+    transition: background .18s ease, border-color .18s ease, color .18s ease;
+  }
+  .li.done .tick { background: var(--ok); border-color: var(--ok); color: #fff; }
+  .li.done .li-name { text-decoration: line-through; color: var(--ink-faint); }
+  .li-body { flex: 1; min-width: 0; }
+  .li-name { font-weight: 750; font-size: .95rem; }
+  .li-sub { font-size: .78rem; color: var(--ink-soft); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .li-sub.none { color: var(--ink-faint); }
+  .pill {
+    flex: 0 0 auto; font-size: .74rem; font-weight: 800; padding: 5px 10px; border-radius: 999px;
+    background: var(--surface-2); color: var(--ink-soft); white-space: nowrap;
+  }
+  .pill.none { background: transparent; color: var(--ink-faint); border: 1px dashed var(--line-strong); }
+
+  /* ---------- shop card ---------- */
+  .shop-top { display: flex; gap: 12px; align-items: flex-start; }
+  .avatar {
+    width: 44px; height: 44px; flex: 0 0 44px; border-radius: 14px; display: grid; place-items: center;
+    background: linear-gradient(160deg, var(--brand), var(--brand-strong)); color: var(--brand-ink);
+    font-weight: 850; font-size: 1.1rem; box-shadow: var(--shadow-brand);
+  }
+  .shop-id { flex: 1; min-width: 0; }
+  .shop-name { font-weight: 800; font-size: 1.02rem; letter-spacing: -.01em; }
+  .shop-sub { font-size: .8rem; color: var(--ink-soft); margin-top: 2px; }
+  .shop-addr { font-size: .78rem; color: var(--ink-faint); margin-top: 3px; line-height: 1.4; }
+  .cover {
+    flex: 0 0 auto; text-align: center; background: var(--surface-2); border: 1px solid var(--line);
+    border-radius: 14px; padding: 7px 10px; min-width: 62px;
+  }
+  .cover b { display: block; font-size: 1rem; font-weight: 850; line-height: 1.1; }
+  .cover small { font-size: .62rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); }
+  .cover.full { background: var(--ok-soft); border-color: transparent; }
+  .cover.full b { color: var(--ok); }
+  .bar { height: 5px; border-radius: 999px; background: var(--surface-2); margin-top: 12px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--brand), var(--brand-strong)); }
+  .bar > i.full { background: var(--ok); }
+
+  .stock { margin-top: 12px; display: flex; flex-direction: column; }
+  .stock-row { display: flex; gap: 11px; align-items: center; padding: 9px 0; border-top: 1px solid var(--line); }
+  .stock-row:first-child { border-top: 0; }
+  .thumb {
+    width: 46px; height: 46px; flex: 0 0 46px; border-radius: 13px; object-fit: cover;
+    background: var(--surface-2); display: grid; place-items: center; font-size: 1.1rem; color: var(--ink-faint);
+  }
+  .stock-name { font-weight: 700; font-size: .92rem; }
+  .stock-cat { font-size: .74rem; color: var(--ink-faint); margin-top: 1px; }
+  .match { font-size: .66rem; font-weight: 800; color: var(--brand-ink); background: var(--brand-soft); padding: 2px 7px; border-radius: 999px; margin-left: 6px; vertical-align: 1px; }
+  [data-theme="dark"] .match { color: var(--brand); }
+  .missing { margin-top: 12px; padding-top: 11px; border-top: 1px dashed var(--line-strong); font-size: .78rem; color: var(--ink-faint); }
+  .actions { display: flex; gap: 8px; margin-top: 14px; }
+  .action {
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px;
+    border: 1px solid var(--line-strong); border-radius: 14px; background: var(--surface);
+    color: var(--ink); font: inherit; font-size: .86rem; font-weight: 750; text-decoration: none; cursor: pointer;
+    transition: border-color .2s ease, background .2s ease;
+  }
+  .action:active { background: var(--surface-2); transform: scale(.99); }
+  .action.primary { background: linear-gradient(160deg, var(--brand), var(--brand-strong)); color: var(--brand-ink); border-color: transparent; box-shadow: var(--shadow-brand); }
+
+  /* ---------- states ---------- */
+  .state { text-align: center; padding: 34px 18px; color: var(--ink-soft); }
+  .state .big { font-size: 2rem; }
+  .state h3 { margin-top: 10px; font-size: 1rem; font-weight: 800; color: var(--ink); }
+  .state p { margin-top: 5px; font-size: .88rem; }
+  .skel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-top: 12px; }
+  .skel div { border-radius: 8px; background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 37%, var(--surface-2) 63%); background-size: 400% 100%; animation: shimmer 1.4s ease infinite; }
+  @keyframes shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+  .spinner { width: 15px; height: 15px; border: 2px solid var(--brand-soft); border-top-color: var(--brand-strong); border-radius: 50%; display: inline-block; animation: spin .8s linear infinite; vertical-align: -2px; }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .coverage { font-size:.8rem; font-weight:800; color:#fff; background:var(--brand); padding:6px 12px; border-radius:999px; white-space:nowrap; }
-  .badge { font-size:.68rem; font-weight:700; color:var(--accent); background:color-mix(in srgb, var(--accent) 12%, transparent); padding:2px 8px; border-radius:999px; margin-left:6px; vertical-align:middle; }
-  .missing { font-size:.8rem; color:var(--text-faint); margin-top:10px; padding-top:10px; border-top:1px dashed var(--input-border); }
-  .shop-group { animation: rise .35s ease backwards; }
-  .shop-head { display:flex; align-items:flex-start; gap:10px; }
-  .shop-head .sinfo { flex:1; min-width:0; }
-  .shop-head .sname { font-weight:800; font-size:1.05rem; }
-  .shop-head .skeeper { font-size:.82rem; color:var(--text-soft); margin-top:2px; }
-  .shop-head .saddr { font-size:.78rem; color:var(--text-soft); margin-top:4px; line-height:1.4; }
-  .shop-items { margin-top:12px; }
-  .shop-items .sitem { display:flex; gap:12px; align-items:center; padding:9px 0; }
-  .shop-items .sitem + .sitem { border-top:1px solid var(--input-border); }
-  .shop-items img { width:52px; height:52px; object-fit:cover; border-radius:14px; background:var(--input-bg); flex-shrink:0; }
-  .shop-items .iinfo { flex:1; min-width:0; }
-  .shop-items .iname { font-weight:700; font-size:.94rem; }
-  .shop-items .icat { font-size:.72rem; color:var(--text-faint); margin-top:1px; }
-  .link { text-align: center; margin: 22px 0 0; font-size: .86rem; color: var(--text-soft); }
-  .link a { color: var(--accent); font-weight: 600; text-decoration: none; }
-  .link a:hover { text-decoration: underline; }
 
-  @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-  @media (max-width: 480px) {
-    .brand h1 { font-size: 1.15rem; }
-    .card { border-radius: 18px; padding: 16px; }
+  /* ---------- how it works ---------- */
+  .how { display: grid; gap: 10px; margin-top: 30px; }
+  .how-card {
+    display: grid; grid-template-columns: 34px 1fr; gap: 4px 12px; align-items: center;
+    background: var(--surface-3); border: 1px solid var(--line); border-radius: 16px; padding: 14px;
   }
+  .how-card span { grid-row: span 2; font-size: 1.35rem; text-align: center; }
+  .how-card b { font-size: .9rem; font-weight: 800; }
+  .how-card p { font-size: .82rem; color: var(--ink-soft); }
+  .how.gone { display: none; }
 
+  /* ---------- bottom nav ---------- */
+  .tabbar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    display: flex; justify-content: center; gap: 6px;
+    padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
+    background: color-mix(in srgb, var(--bg) 82%, transparent);
+    backdrop-filter: blur(18px) saturate(180%); -webkit-backdrop-filter: blur(18px) saturate(180%);
+    border-top: 1px solid var(--line);
+  }
+  .tab {
+    flex: 1; max-width: 200px; display: flex; flex-direction: column; align-items: center; gap: 2px;
+    padding: 6px 4px; border-radius: 12px; text-decoration: none; color: var(--ink-faint);
+    font-size: .7rem; font-weight: 750; min-height: 44px; justify-content: center;
+  }
+  .tab .ico { font-size: 1.12rem; line-height: 1; }
+  .tab.active { color: var(--brand-strong); }
+
+  /* ---------- splash ---------- */
   #splash {
-    position: fixed; inset: 0; z-index: 9999;
-    display: flex; align-items: center; justify-content: center;
-    background:
-      radial-gradient(1200px 600px at 15% -10%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 60%),
-      radial-gradient(1000px 500px at 110% 10%, color-mix(in srgb, var(--accent-2) 12%, transparent), transparent 55%),
-      linear-gradient(160deg, var(--bg-0), var(--bg-1));
-    transition: opacity .45s ease;
+    position: fixed; inset: 0; z-index: 90; display: grid; place-items: center;
+    background: var(--bg);
+    background-image: radial-gradient(120% 60% at 50% 0%, rgba(255,194,26,.3), transparent 60%);
+    transition: opacity .4s ease;
   }
-  #splash.splash-hide { opacity: 0; pointer-events: none; }
-  .splash-inner { text-align: center; padding: 0 24px; }
-  .splash-inner img { width: 64px; height: 64px; filter: drop-shadow(0 0 16px color-mix(in srgb, var(--accent) 55%, transparent)); }
-  .splash-inner h1 {
-    margin-top: 14px; font-size: 1.6rem; font-weight: 800; letter-spacing: -.02em;
-    background: var(--brand); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
-  }
-  .splash-bar { width: 220px; height: 4px; border-radius: 999px; background: var(--input-border); margin: 22px auto 16px; overflow: hidden; }
-  .splash-bar-fill { height: 100%; width: 8%; border-radius: 999px; background: var(--brand); transition: width .4s ease; }
-  .splash-status { font-size: .92rem; font-weight: 600; color: var(--text-soft); }
-  .splash-tagline { font-size: .8rem; color: var(--text-faint); margin-top: 6px; }
+  #splash.hide { opacity: 0; pointer-events: none; }
+  .splash-in { text-align: center; padding: 0 28px; }
+  .splash-in img { width: 76px; height: 76px; border-radius: 24px; box-shadow: var(--shadow-md); animation: pop .5s cubic-bezier(.2,1.2,.4,1) backwards; }
+  @keyframes pop { from { opacity: 0; transform: scale(.8); } to { opacity: 1; transform: none; } }
+  .splash-in h1 { margin-top: 16px; font-size: 1.7rem; font-weight: 850; letter-spacing: -.03em; }
+  .splash-in h1 span { color: var(--brand-strong); }
+  .splash-bar { width: 190px; height: 5px; border-radius: 999px; background: var(--surface-2); margin: 20px auto 14px; overflow: hidden; }
+  .splash-bar i { display: block; height: 100%; width: 8%; border-radius: 999px; background: linear-gradient(90deg, var(--brand), var(--brand-strong)); transition: width .4s ease; }
+  .splash-status { font-size: .88rem; font-weight: 650; color: var(--ink-soft); }
+  .splash-tag { font-size: .78rem; color: var(--ink-faint); margin-top: 5px; }
+
+  :focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+  @media (min-width: 560px) { .actions .action { font-size: .9rem; } }
 </style>
 </head>
 <body>
   <div id="splash">
-    <div class="splash-inner">
-      <img src="/myna-logo.svg" alt="Myna">
-      <h1>Myna</h1>
-      <div class="splash-bar"><div class="splash-bar-fill" id="splashFill"></div></div>
-      <p class="splash-status" id="splashStatus">Waking up services…</p>
-      <p class="splash-tagline">Find it nearby, fast.</p>
+    <div class="splash-in">
+      <img src="/myna-logo.svg" alt="">
+      <h1>My<span>na</span></h1>
+      <div class="splash-bar"><i id="splashFill"></i></div>
+      <p class="splash-status" id="splashStatus">Waking up shops nearby…</p>
+      <p class="splash-tag">Find it nearby, fast.</p>
     </div>
   </div>
-  <header>
-    <div class="header-inner">
+
+  <header class="topbar" id="topbar">
+    <div class="topbar-inner">
       <div class="brand">
-        <img src="/myna-logo.svg" alt="Myna AI">
-        <h1>Myna</h1>
+        <img src="/myna-logo.svg" alt="Myna">
+        <div class="name">My<span>na</span></div>
       </div>
-      <button class="theme-toggle" id="themeBtn" title="Toggle theme" aria-label="Toggle dark/light mode"></button>
+      <button class="icon-btn" id="themeBtn" title="Switch theme" aria-label="Switch light or dark theme"></button>
     </div>
   </header>
+
   <main>
-    <div class="card controls">
-      <label for="q">What are you looking for?</label>
-      <input type="text" id="q" placeholder="e.g. salt milk and mango, doodh 1L…" onkeydown="if(event.key==='Enter')doSearch()">
-      <button id="searchBtn" onclick="doSearch()">Search nearby</button>
-    </div>
-    <div id="results"></div>
-    <div class="link">Shopkeeper? <a href="/shopkeeper">List your shop →</a></div>
+    <section class="hero">
+      <h1>What do you <em>need</em> today?</h1>
+      <p id="heroSub">Search an item — we'll find shops nearby that have it.</p>
+
+      <div class="modes" role="tablist" aria-label="Search mode">
+        <button class="mode" id="modeItems" role="tab" aria-selected="true" aria-controls="results">🔍 Search items</button>
+        <button class="mode" id="modeDish" role="tab" aria-selected="false" aria-controls="results">🍲 By dish</button>
+      </div>
+
+      <form class="searchbar" id="form" role="search">
+        <span class="glyph" aria-hidden="true">🔎</span>
+        <input id="q" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off"
+               spellcheck="false" aria-label="What are you looking for?"
+               placeholder="salt, milk and mango…">
+        <button class="go" id="goBtn" type="submit" aria-label="Search">→</button>
+      </form>
+
+      <div class="chip-row" id="chips"></div>
+
+      <div class="locbar">
+        <span class="dot pending" id="locDot"></span>
+        <span id="locText">Getting your location…</span>
+        <button id="locBtn" hidden>Use my location</button>
+      </div>
+    </section>
+
+    <section id="results" aria-live="polite"></section>
+
+    <section class="how" id="how">
+      <div class="how-card"><span>🗺️</span><b>Nearby, not online</b><p>Real kirana shops around you, nearest first.</p></div>
+      <div class="how-card"><span>🍲</span><b>Cook anything</b><p>Name a dish, get every ingredient and who stocks it.</p></div>
+      <div class="how-card"><span>✅</span><b>One trip, not four</b><p>Shops that cover most of your list rank first.</p></div>
+    </section>
   </main>
+
+  <nav class="tabbar">
+    <a class="tab active" href="/"><span class="ico">🔎</span>Search</a>
+    <a class="tab" href="/shopkeeper"><span class="ico">🏪</span>List your shop</a>
+  </nav>
+
 <script>
 const API = window.MYNA_API_BASE || '';
+const DEFAULT_LOC = { lat: 19.076, long: 72.8777, label: 'Mumbai (default)' };
 
+const $ = id => document.getElementById(id);
+const esc = s => { const d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; };
+const title = s => (s || '').replace(/\b\w/g, c => c.toUpperCase());
+
+/* ---------- splash: the free-tier backend can take a while to wake ---------- */
 (function () {
-  const splash = document.getElementById('splash');
-  const fill = document.getElementById('splashFill');
-  const status = document.getElementById('splashStatus');
+  const splash = $('splash'), fill = $('splashFill'), status = $('splashStatus');
   let progress = 8;
   fill.style.width = progress + '%';
   const tick = setInterval(() => {
     progress = Math.min(progress + (100 - progress) * 0.12, 92);
     fill.style.width = progress + '%';
   }, 400);
-
-  const messages = ['Waking up services…', 'Free-tier backend can take up to a minute…', 'Almost there…'];
+  const messages = ['Waking up shops nearby…', 'Free-tier backend can take up to a minute…', 'Almost there…'];
   let mi = 0;
-  const msgTimer = setInterval(() => {
-    mi = Math.min(mi + 1, messages.length - 1);
-    status.textContent = messages[mi];
-  }, 7000);
+  const msgTimer = setInterval(() => { mi = Math.min(mi + 1, messages.length - 1); status.textContent = messages[mi]; }, 7000);
 
-  function hideSplash(finalMessage, delay) {
-    clearInterval(tick);
-    clearInterval(msgTimer);
-    fill.style.width = '100%';
-    status.textContent = finalMessage;
-    setTimeout(() => {
-      splash.classList.add('splash-hide');
-      setTimeout(() => splash.remove(), 500);
-    }, delay);
+  function done(msg, delay) {
+    clearInterval(tick); clearInterval(msgTimer);
+    fill.style.width = '100%'; status.textContent = msg;
+    setTimeout(() => { splash.classList.add('hide'); setTimeout(() => splash.remove(), 450); }, delay);
   }
-
-  async function ping() {
-    try {
-      const res = await fetch(`${API}/`, { cache: 'no-store' });
-      return res.ok;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  (async function waitForBackend() {
+  const ping = () => fetch(`${API}/`, { cache: 'no-store' }).then(r => r.ok).catch(() => false);
+  (async () => {
     const deadline = Date.now() + 90000;
     while (Date.now() < deadline) {
-      if (await ping()) { hideSplash('Ready', 250); return; }
+      if (await ping()) { done('Ready', 220); return; }
       await new Promise(r => setTimeout(r, 2000));
     }
-    hideSplash('Taking longer than usual — you can still search.', 900);
+    done('Taking longer than usual — you can still search.', 800);
   })();
 })();
 
+/* ---------- theme ---------- */
 (function () {
-  const root = document.documentElement;
+  const root = document.documentElement, btn = $('themeBtn');
   const saved = localStorage.getItem('myna_theme');
-  const prefers = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  root.setAttribute('data-theme', saved || prefers);
-  const btn = document.getElementById('themeBtn');
-  function render() {
+  root.setAttribute('data-theme', saved || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+  const paint = () => {
     const dark = root.getAttribute('data-theme') === 'dark';
     btn.textContent = dark ? '☀️' : '🌙';
-  }
+    document.querySelector('meta[name=theme-color]').setAttribute('content', dark ? '#14130f' : '#FFC21A');
+  };
   btn.addEventListener('click', () => {
     const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
     root.setAttribute('data-theme', next);
     localStorage.setItem('myna_theme', next);
-    render();
+    paint();
   });
-  render();
+  paint();
 })();
 
+/* ---------- transparent header goes frosted once you scroll ---------- */
+const topbar = $('topbar');
+addEventListener('scroll', () => topbar.classList.toggle('is-stuck', scrollY > 8), { passive: true });
+
+/* ---------- location ---------- */
 let userLoc = null;
-
-if (navigator.geolocation) {
+function setLoc(state, text, showBtn) {
+  $('locDot').className = 'dot ' + state;
+  $('locText').textContent = text;
+  $('locBtn').hidden = !showBtn;
+}
+function askLocation(explicit) {
+  if (!navigator.geolocation) { setLoc('off', 'Location unavailable — using ' + DEFAULT_LOC.label, false); return; }
+  setLoc('pending', 'Getting your location…', false);
   navigator.geolocation.getCurrentPosition(
-    p => { userLoc = { lat: p.coords.latitude, long: p.coords.longitude }; },
-    () => { document.getElementById('results').innerHTML = '<div class="msg">⚠️ Location access denied. Search will use default location (Mumbai).</div>'; }
+    p => { userLoc = { lat: p.coords.latitude, long: p.coords.longitude }; setLoc('', 'Searching around you', false); },
+    () => setLoc('off', 'Using ' + DEFAULT_LOC.label, true),
+    { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
   );
-} else {
-  document.getElementById('results').innerHTML = '<div class="msg">⚠️ Location not available (needs HTTPS). Search will use default location (Mumbai).</div>';
 }
+$('locBtn').addEventListener('click', () => askLocation(true));
+askLocation(false);
 
-const PLACEHOLDER_IMG = 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22/>';
+/* ---------- modes ---------- */
+const MODES = {
+  items: {
+    sub: "Search an item — we'll find shops nearby that have it.",
+    placeholder: 'salt, milk and mango…',
+    chipLabel: 'Try',
+    chips: ['milk bread eggs', 'atta chawal namak', 'pooja items', 'maggi', 'baby care'],
+  },
+  dish: {
+    sub: 'Name a dish — we list every ingredient and who nearby stocks it.',
+    placeholder: 'paneer butter masala…',
+    chipLabel: 'Popular',
+    chips: ['poha', 'maggi', 'paneer butter masala', 'biryani', 'chole', 'pav bhaji'],
+  },
+};
+let mode = localStorage.getItem('myna_mode') === 'dish' ? 'dish' : 'items';
 
-async function doSearch() {
-  const q = document.getElementById('q').value.trim();
-  if (!q) return;
-  const loc = userLoc || { lat: 19.076, long: 72.8777 }; // fallback: Mumbai
-  const btn = document.getElementById('searchBtn');
-  const box = document.getElementById('results');
-  btn.disabled = true; btn.textContent = 'Searching…';
-  box.innerHTML = '<div class="msg"><span class="loader"></span>&nbsp; Understanding your list…</div>';
-  try {
-    const res = await fetch(`${API}/api/search/shops?q=${encodeURIComponent(q)}&lat=${loc.lat}&long=${loc.long}`);
-    const data = await res.json();
-    const chips = (data.items || []).map(i => `<span class="chip">${esc(i)}</span>`).join('<span class="crumb">·</span>');
-    const agentTag = data.method === 'concept-llm-web' ? '🌐 AI + web parsed'
-      : data.method.startsWith('llm') || data.method.startsWith('concept-llm') ? '🤖 AI parsed'
-      : '⚡ smart parse';
-    let html = `<div class="card"><div class="pipeline">Found <b>&nbsp;${(data.items||[]).length} item(s)&nbsp;</b> ${chips} <span class="crumb">(${agentTag})</span></div></div>`;
-    if (!data.shops || !data.shops.length) {
-      html += '<div class="msg">No shops found with “' + esc(q) + '”.</div>';
-    } else {
-      html += data.shops.map(s => {
-        const matchedTerms = new Set(s.items.map(i => i.matched_term));
-        const missing = (data.items || []).filter(i => !matchedTerms.has(i));
-        return `
-        <div class="card shop-group">
-          <div class="shop-head">
-            <div class="sinfo">
-              <div class="sname">🏪 ${esc(s.shop_name)}</div>
-              ${s.shopkeeper ? `<div class="skeeper">👤 ${esc(s.shopkeeper)}</div>` : ''}
-              <div class="saddr">${esc(s.address)}${s.phone ? ' · 📞 ' + esc(s.phone) : ''}</div>
-            </div>
-            <div class="coverage">${s.coverage_count}/${s.coverage_total} items</div>
-          </div>
-          <div class="shop-items">
-            ${s.items.map(r => `
-              <div class="sitem">
-                <img src="${r.item_photo_url ? API + r.item_photo_url : PLACEHOLDER_IMG}" alt="">
-                <div class="iinfo">
-                  <div class="iname">${esc(r.item_name)}${r.matched_term ? `<span class="badge">${esc(r.matched_term)}</span>` : ''}</div>
-                  ${r.item_category ? `<div class="icat">${esc(r.item_category)}</div>` : ''}
-                </div>
-                <div class="dist">${s.distance_km} km</div>
-              </div>`).join('')}
-          </div>
-          ${missing.length ? `<div class="missing">⚠️ Not here: ${missing.map(esc).join(', ')}</div>` : ''}
-        </div>`;
-      }).join('');
-    }
-    box.innerHTML = html;
-  } catch (e) {
-    box.innerHTML = '<div class="msg">Search failed. Please try again.</div>';
+function renderChips() {
+  const cfg = MODES[mode];
+  const recents = JSON.parse(localStorage.getItem('myna_recent_' + mode) || '[]');
+  const parts = [];
+  if (recents.length) {
+    parts.push('<span class="chip-label">Recent</span>');
+    parts.push(...recents.map(r => `<button class="chip" type="button" data-q="${esc(r)}">🕘 ${esc(r)}</button>`));
   }
-  btn.disabled = false; btn.textContent = 'Search nearby';
+  parts.push(`<span class="chip-label">${cfg.chipLabel}</span>`);
+  parts.push(...cfg.chips.map(c => `<button class="chip" type="button" data-q="${esc(c)}">${esc(title(c))}</button>`));
+  $('chips').innerHTML = parts.join('');
+}
+function setMode(next) {
+  mode = next;
+  localStorage.setItem('myna_mode', mode);
+  $('modeItems').setAttribute('aria-selected', String(mode === 'items'));
+  $('modeDish').setAttribute('aria-selected', String(mode === 'dish'));
+  $('heroSub').textContent = MODES[mode].sub;
+  $('q').placeholder = MODES[mode].placeholder;
+  $('q').value = '';
+  $('results').innerHTML = '';
+  $('how').classList.remove('gone');
+  renderChips();
+}
+$('modeItems').addEventListener('click', () => setMode('items'));
+$('modeDish').addEventListener('click', () => setMode('dish'));
+$('chips').addEventListener('click', e => {
+  const chip = e.target.closest('.chip');
+  if (!chip) return;
+  $('q').value = chip.dataset.q;
+  search();
+});
+setMode(mode);
+
+// Dish chips come from the backend glossary so both stay in sync.
+fetch(`${API}/api/search/dishes?limit=6`)
+  .then(r => r.json())
+  .then(d => { if (d.dishes && d.dishes.length) { MODES.dish.chips = d.dishes; if (mode === 'dish') renderChips(); } })
+  .catch(() => {});
+
+function remember(q) {
+  const key = 'myna_recent_' + mode;
+  const list = JSON.parse(localStorage.getItem(key) || '[]').filter(x => x.toLowerCase() !== q.toLowerCase());
+  list.unshift(q);
+  localStorage.setItem(key, JSON.stringify(list.slice(0, 3)));
+  renderChips();
 }
 
-function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+/* ---------- search ---------- */
+$('form').addEventListener('submit', e => { e.preventDefault(); search(); });
+
+function skeleton(msg) {
+  return `<div class="state"><span class="spinner"></span>&nbsp; ${esc(msg)}</div>` + [0, 1].map(() => `
+    <div class="skel">
+      <div style="height:16px;width:55%"></div>
+      <div style="height:11px;width:80%;margin-top:10px"></div>
+      <div style="height:46px;margin-top:16px"></div>
+    </div>`).join('');
+}
+
+const METHOD_TAG = {
+  'dish-llm-web': '🌐 AI + web recipe',
+  'dish-llm': '🤖 AI recipe',
+  'dish-curated': '📖 Myna recipe book',
+  'concept-llm-web': '🌐 AI + web',
+  'concept-llm': '🤖 AI expanded',
+  'llm': '🤖 AI parsed',
+};
+
+async function search() {
+  const q = $('q').value.trim();
+  if (!q) { $('q').focus(); return; }
+  const loc = userLoc || DEFAULT_LOC;
+  const box = $('results'), btn = $('goBtn');
+  btn.disabled = true;
+  box.innerHTML = skeleton(mode === 'dish' ? 'Reading the recipe…' : 'Understanding your list…');
+  $('how').classList.add('gone');
+  document.activeElement && document.activeElement.blur();
+
+  try {
+    const url = `${API}/api/search/one-tap?q=${encodeURIComponent(q)}&lat=${loc.lat}&long=${loc.long}`
+      + (mode === 'dish' ? '&mode=dish' : '');
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('bad status');
+    const data = await res.json();
+    box.innerHTML = renderResults(q, data);
+    remember(q);
+    scrollTo({ top: box.offsetTop - 72, behavior: 'smooth' });
+  } catch (e) {
+    box.innerHTML = `<div class="card"><div class="state">
+      <div class="big">📡</div><h3>Search failed</h3>
+      <p>Check your connection and try again.</p></div></div>`;
+  }
+  btn.disabled = false;
+}
+
+function renderResults(q, data) {
+  const terms = data.items || [];
+  const shops = data.shops || [];
+  const tag = METHOD_TAG[data.method] || '⚡ smart parse';
+  const stocked = (data.shopping_list || []).filter(i => i.in_stock).length;
+
+  let html = `<div class="results-head">
+      <h2>${mode === 'dish' ? 'For ' + esc(title(q)) : 'Your list'}</h2>
+      <span class="meta">${terms.length} item${terms.length === 1 ? '' : 's'}</span>
+      <span class="tag">${tag}</span>
+    </div>`;
+
+  // Dish mode: the shopping list is the headline — what to buy, and where.
+  if (mode === 'dish' && (data.shopping_list || []).length) {
+    html += `<div class="card">
+      <div class="list-title">🧾 Shopping list <span class="count">${stocked}/${data.shopping_list.length} nearby</span></div>
+      ${data.shopping_list.map(i => `
+        <div class="li">
+          <button class="tick" type="button" aria-label="Mark ${esc(i.item)} as picked">✓</button>
+          <div class="li-body">
+            <div class="li-name">${esc(title(i.item))}</div>
+            <div class="li-sub ${i.in_stock ? '' : 'none'}">${i.in_stock
+              ? esc(i.product) + ' · ' + esc(i.shop_name)
+              : 'Not stocked nearby'}</div>
+          </div>
+          ${i.in_stock
+            ? `<span class="pill">${i.distance_km} km</span>`
+            : `<span class="pill none">—</span>`}
+        </div>`).join('')}
+    </div>`;
+  } else if (terms.length) {
+    html += `<div class="card"><div class="term-row">${terms.map(t => `<span class="term">${esc(title(t))}</span>`).join('')}</div></div>`;
+  }
+
+  if (!shops.length) {
+    return html + `<div class="card"><div class="state">
+        <div class="big">🗺️</div><h3>No shop nearby has these yet</h3>
+        <p>Myna is still growing in your area. Know a shop? Ask them to list it — it takes a minute.</p>
+        <a class="action primary" style="margin-top:16px;display:inline-flex;padding:0 18px" href="/shopkeeper">🏪 List a shop</a>
+      </div></div>`;
+  }
+
+  html += `<div class="results-head"><h2>Shops near you</h2><span class="meta">${shops.length} found · nearest first</span></div>`;
+  html += shops.map((s, idx) => {
+    const covered = new Set(s.items.map(i => i.matched_term));
+    const missing = terms.filter(t => !covered.has(t));
+    const pct = s.coverage_total ? Math.round(100 * s.coverage_count / s.coverage_total) : 100;
+    const full = s.coverage_count >= s.coverage_total;
+    const maps = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(s.shop_lat + ',' + s.shop_long)}`;
+    return `<div class="card" style="animation-delay:${Math.min(idx, 6) * 40}ms">
+      <div class="shop-top">
+        <div class="avatar" aria-hidden="true">${esc((s.shop_name || '?').trim().charAt(0).toUpperCase())}</div>
+        <div class="shop-id">
+          <div class="shop-name">${esc(s.shop_name)}</div>
+          ${s.shopkeeper ? `<div class="shop-sub">${esc(s.shopkeeper)}</div>` : ''}
+          <div class="shop-addr">📍 ${esc(s.address)} · ${s.distance_km} km</div>
+        </div>
+        <div class="cover ${full ? 'full' : ''}">
+          <b>${s.coverage_count}/${s.coverage_total}</b><small>items</small>
+        </div>
+      </div>
+      <div class="bar"><i class="${full ? 'full' : ''}" style="width:${pct}%"></i></div>
+      <div class="stock">
+        ${s.items.map(r => `
+          <div class="stock-row">
+            ${r.item_photo_url
+              ? `<img class="thumb" src="${esc(API + r.item_photo_url)}" alt="" loading="lazy">`
+              : `<div class="thumb" aria-hidden="true">🛍️</div>`}
+            <div class="li-body">
+              <div class="stock-name">${esc(r.item_name)}${r.matched_term ? `<span class="match">${esc(r.matched_term)}</span>` : ''}</div>
+              ${r.item_category ? `<div class="stock-cat">${esc(r.item_category)}</div>` : ''}
+            </div>
+          </div>`).join('')}
+      </div>
+      ${missing.length ? `<div class="missing">Not here: ${missing.slice(0, 4).map(m => esc(title(m))).join(', ')}${
+          missing.length > 4 ? ` +${missing.length - 4} more` : ''}</div>` : ''}
+      <div class="actions">
+        <a class="action primary" href="${esc(maps)}" target="_blank" rel="noopener">🧭 Directions</a>
+        ${s.phone ? `<a class="action" href="tel:${encodeURIComponent(s.phone)}">📞 Call</a>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+  return html;
+}
+
+// Tick off shopping-list items as you shop.
+$('results').addEventListener('click', e => {
+  const tick = e.target.closest('.tick');
+  if (tick) tick.closest('.li').classList.toggle('done');
+});
 </script>
 </body>
 </html>
