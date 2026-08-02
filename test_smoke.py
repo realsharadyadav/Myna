@@ -48,7 +48,7 @@ res = client.patch(f"/api/shops/{shop_id}", json={"phone": "9999999999"})
 assert res.json()["phone"] == "9999999999"
 print("PASS get/patch shop")
 
-# 4. Add items (with a fake photo)
+# 4. Add items (with a fake photo) - retention is off by default so photo_url is empty
 fake_img = io.BytesIO(b"\xff\xd8\xff\xe0" + b"\x00" * 100)  # minimal JPEG-ish bytes
 res = client.post(
     f"/api/shops/{shop_id}/items",
@@ -57,9 +57,9 @@ res = client.post(
 )
 assert res.status_code == 200, res.text
 item = res.json()
-assert item["photo_url"].startswith("/uploads/")
+assert item["photo_url"] == ""
 item_id = item["item_id"]
-print(f"PASS add item id={item_id}")
+print(f"PASS add item id={item_id} (no photo_url with retention off)")
 
 client.post(f"/api/shops/{shop_id}/items", data={"name": "Tata Salt 1kg", "category": "Grocery"})
 
@@ -144,22 +144,22 @@ items = client.get(f"/api/shops/{shop_id}/items").json()
 assert len(items) == 1
 print("PASS update/delete item")
 
-# 11. AI suggest endpoint (no API key -> empty suggestion, but photo saved)
+# 11. AI suggest endpoint (no API key -> empty suggestion, photo not persisted)
 res = client.post(
     f"/api/shops/{shop_id}/items/suggest",
     files={"photo": ("item.jpg", io.BytesIO(b"\xff\xd8\xff\xe0" + b"\x00" * 50), "image/jpeg")},
 )
 assert res.status_code == 200
-assert "photo_url" in res.json()
+assert res.json()["photo_url"] == ""
 print("PASS item suggest endpoint (graceful fallback without API key)")
 
-# 12. Shop photo upload
+# 12. Shop photo upload with retention off -> no photo_url
 res = client.post(
     f"/api/shops/{shop_id}/photo",
     files={"photo": ("sign.jpg", io.BytesIO(b"\xff\xd8\xff\xe0" + b"\x00" * 50), "image/jpeg")},
 )
-assert res.json()["photo_url"].startswith("/uploads/")
-print("PASS shop photo upload")
+assert res.json()["photo_url"] == ""
+print("PASS shop photo upload with retention off")
 
 # 13. Admin page loads
 assert client.get("/admin").status_code == 200
@@ -299,5 +299,106 @@ assert res.status_code == 204
 remaining = [s["name"] for s in client.get("/api/admin/shops").json()]
 assert victim["name"] not in remaining and len(remaining) == 1
 print("PASS admin delete shop")
+
+# ---------------------------------------------------------------------------
+# New tests: image retention, embedding model, settings
+# ---------------------------------------------------------------------------
+
+# 31. Default image retention is off
+res = client.get("/api/admin/settings")
+assert res.status_code == 200
+settings = res.json()
+assert settings["retain_uploaded_images"] is False
+print("PASS default retain_uploaded_images is false")
+
+# 32. Upload item photo with retention off -> no photo_url persisted
+fake_img = io.BytesIO(b"\xff\xd8\xff\xe0" + b"\x00" * 100)
+res = client.post(
+    f"/api/shops/{shop_id}/items",
+    data={"name": "Test Item No Retain", "category": "Test"},
+    files={"photo": ("item.jpg", fake_img, "image/jpeg")},
+)
+assert res.status_code == 200
+item = res.json()
+assert item["photo_url"] == ""
+print("PASS item upload with retention off has empty photo_url")
+
+# 33. Upload shop photo with retention off -> no photo_url persisted
+fake_img2 = io.BytesIO(b"\xff\xd8\xff\xe0" + b"\x00" * 50)
+res = client.post(
+    f"/api/shops/{shop_id}/photo",
+    files={"photo": ("sign.jpg", fake_img2, "image/jpeg")},
+)
+assert res.status_code == 200
+shop = res.json()
+assert shop["photo_url"] == ""
+print("PASS shop photo upload with retention off has empty photo_url")
+
+# 34. Turn retention on -> uploads persist photo_url
+res = client.patch("/api/admin/settings", json={"retain_uploaded_images": True})
+assert res.status_code == 200
+assert res.json()["retain_uploaded_images"] is True
+
+fake_img3 = io.BytesIO(b"\xff\xd8\xff\xe0" + b"\x00" * 50)
+res = client.post(
+    f"/api/shops/{shop_id}/photo",
+    files={"photo": ("sign.jpg", fake_img3, "image/jpeg")},
+)
+assert res.status_code == 200
+shop = res.json()
+assert shop["photo_url"].startswith("/uploads/")
+print("PASS shop photo upload with retention on persists photo_url")
+
+# 35. Turn retention back off
+res = client.patch("/api/admin/settings", json={"retain_uploaded_images": False})
+assert res.status_code == 200
+assert res.json()["retain_uploaded_images"] is False
+print("PASS retention setting can be toggled")
+
+# 36. Search still works without API keys
+res = client.get("/api/search", params={"q": "salt", "lat": 19.076, "long": 72.878})
+assert res.status_code == 200
+print("PASS search works without API keys")
+
+# 37. Search parser still falls back without API keys
+res = client.get("/api/search/shops", params={"q": "parle and salt", "lat": 19.076, "long": 72.878})
+data = res.json()
+assert data["method"] == "fallback"
+print("PASS search parser falls back without API keys")
+
+# 38. Embedding model field exists on items
+res = client.get("/api/admin/items?q=Amul")
+items = res.json()
+assert len(items) >= 1
+assert "embedding_model" in items[0]
+print("PASS embedding_model field exists on items")
+
+# 39. Embeddings ignore stale model rows
+res = client.get("/api/admin/embeddings/status")
+assert res.status_code == 200
+print("PASS embeddings status endpoint works")
+
+# 40. Admin settings endpoint works
+res = client.get("/api/admin/settings")
+assert res.status_code == 200
+s = res.json()
+assert "retain_uploaded_images" in s
+assert "default_vision_model" in s
+assert "default_search_model" in s
+assert "default_embedding_model" in s
+print("PASS admin settings endpoint")
+
+# 41. Update all model settings
+res = client.patch("/api/admin/settings", json={
+    "default_vision_model": "gemini:gemini-2.5-flash",
+    "default_search_model": "gemini:gemini-2.5-flash",
+    "default_embedding_model": "gemini:gemini-embedding-001",
+})
+assert res.status_code == 200
+data = res.json()
+assert data["default_vision_model"] == "gemini:gemini-2.5-flash"
+assert data["default_search_model"] == "gemini:gemini-2.5-flash"
+assert data["default_embedding_model"] == "gemini:gemini-embedding-001"
+print("PASS update all model settings")
 
 print("\nALL TESTS PASSED")

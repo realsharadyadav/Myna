@@ -1,8 +1,10 @@
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from .. import ai, models, schemas
-from ..database import get_db
+from ..database import get_db, get_retain_uploaded_images
 from ..geo import reverse_geocode
 from ..storage import save_upload
 
@@ -51,18 +53,28 @@ def upload_shop_photo(shop_id: int, photo: UploadFile = File(...), db: Session =
     shop = db.get(models.Shop, shop_id)
     if not shop:
         raise HTTPException(404, "Shop not found")
-    shop.photo_url = save_upload(photo)
+    retain = get_retain_uploaded_images(db)
+    local_path, public_url = save_upload(photo, retain=retain)
+    if retain:
+        shop.photo_url = public_url
     db.commit()
     db.refresh(shop)
     return shop
 
 
 @router.post("/onboard/photo", response_model=schemas.AISuggestion)
-def onboard_photo(photo: UploadFile = File(...)):
-    """Accept a signage photo, save it, and return an AI-suggested shop name."""
-    url = save_upload(photo)
-    file_path = url.lstrip("/")
-    suggestion = ai.suggest_shop_name(file_path)
+def onboard_photo(photo: UploadFile = File(), db: Session = Depends(get_db)):
+    """Accept a signage photo, use it for OCR, then discard if retention is off."""
+    retain = get_retain_uploaded_images(db)
+    local_path, public_url = save_upload(photo, retain=retain)
+    try:
+        suggestion = ai.suggest_shop_name(local_path)
+    finally:
+        if not retain:
+            try:
+                Path(local_path).unlink(missing_ok=True)
+            except OSError:
+                pass
     return {"suggestion": suggestion}
 
 

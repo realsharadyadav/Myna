@@ -51,6 +51,7 @@ class ItemOut(BaseModel):
     name: str
     category: str
     photo_url: str
+    embedding_model: str
     created_at: datetime
 
     class Config:

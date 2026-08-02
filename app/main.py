@@ -1,12 +1,27 @@
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import text
 
 from .config import BASE_DIR
 from .database import Base, engine
 from .routers import admin, items, search, shops
 
 Base.metadata.create_all(bind=engine)
+
+# Lightweight migration for DBs created before semantic search existed:
+# ensure items.embedding column is present (SQLite + Postgres compatible).
+with engine.connect() as conn:
+    cols = [r[1] for r in conn.execute(text("PRAGMA table_info(items)"))] \
+        if engine.url.get_backend_name() == "sqlite" else \
+        [r[0] for r in conn.execute(text(
+            "SELECT column_name FROM information_schema.columns WHERE table_name='items'"))]
+    if "embedding" not in cols:
+        conn.execute(text("ALTER TABLE items ADD COLUMN embedding VARCHAR DEFAULT ''"))
+        conn.commit()
+    if "embedding_model" not in cols:
+        conn.execute(text("ALTER TABLE items ADD COLUMN embedding_model VARCHAR DEFAULT ''"))
+        conn.commit()
 
 app = FastAPI(title="Myna — Hyperlocal Shop & Product Finder")
 

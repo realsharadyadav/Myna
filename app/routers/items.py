@@ -1,8 +1,10 @@
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
-from .. import ai, models, schemas
-from ..database import get_db
+from .. import ai, embeddings, models, schemas
+from ..database import get_db, get_default_embedding_model, get_default_vision_model, get_retain_uploaded_images
 from ..storage import save_upload
 
 router = APIRouter(prefix="/api/shops/{shop_id}/items", tags=["items"])
@@ -35,11 +37,20 @@ def create_item(
     db: Session = Depends(get_db),
 ):
     _get_shop(shop_id, db)
-    photo_url = save_upload(photo) if photo else ""
-    item = models.Item(shop_id=shop_id, name=name, category=category, photo_url=photo_url)
+    retain = get_retain_uploaded_images(db)
+    local_path, public_url = save_upload(photo, retain=retain) if photo else ("", "")
+    item = models.Item(shop_id=shop_id, name=name, category=category, photo_url=public_url)
+    vision_model = get_default_vision_model(db)
+    if photo and retain:
+        try:
+            ai.suggest_item(local_path, model=vision_model)
+        finally:
+            pass
+    embeddings.embed_item(item, db)
     db.add(item)
     db.commit()
     db.refresh(item)
+    embeddings.invalidate_cache()
     return item
 
 
@@ -48,10 +59,14 @@ def update_item(shop_id: int, item_id: int, payload: schemas.ItemUpdate, db: Ses
     item = db.get(models.Item, item_id)
     if not item or item.shop_id != shop_id:
         raise HTTPException(404, "Item not found")
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    fields = payload.model_dump(exclude_unset=True)
+    for field, value in fields.items():
         setattr(item, field, value)
+    if "name" in fields or "category" in fields:
+        embeddings.embed_item(item, db)
     db.commit()
     db.refresh(item)
+    embeddings.invalidate_cache()
     return item
 
 
@@ -66,9 +81,17 @@ def delete_item(shop_id: int, item_id: int, db: Session = Depends(get_db)):
 
 @router.post("/suggest", response_model=dict)
 def suggest_item(shop_id: int, photo: UploadFile = File(...), db: Session = Depends(get_db)):
-    """Accept an item photo, save it, and return AI-suggested name/category."""
+    """Accept an item photo, use it for AI suggestion, then discard if retention is off."""
     _get_shop(shop_id, db)
-    url = save_upload(photo)
-    file_path = url.lstrip("/")
-    name, category = ai.suggest_item(file_path)
-    return {"name": name, "category": category, "photo_url": url}
+    retain = get_retain_uploaded_images(db)
+    local_path, public_url = save_upload(photo, retain=retain)
+    vision_model = get_default_vision_model(db)
+    try:
+        name, category = ai.suggest_item(local_path, model=vision_model)
+    finally:
+        if not retain:
+            try:
+                Path(local_path).unlink(missing_ok=True)
+            except OSError:
+                pass
+    return {"name": name, "category": category, "photo_url": public_url}

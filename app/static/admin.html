@@ -197,6 +197,7 @@
     <button onclick="showTab('shops', this)">Shops</button>
     <button onclick="showTab('items', this)">All Items</button>
     <button onclick="showTab('ai', this)">AI Settings</button>
+    <button onclick="showTab('settings', this)">Settings</button>
     <button onclick="showTab('import', this)">Import CSV</button>
   </div>
 
@@ -253,6 +254,46 @@
         <thead><tr><th>Model</th><th>Provider</th><th>Context</th><th>Max Output</th><th>Price</th><th></th></tr></thead>
         <tbody id="modelTable"></tbody>
       </table>
+    </div>
+  </div>
+
+  <!-- ==================== SETTINGS ==================== -->
+  <div id="tab-settings" style="display:none">
+    <div class="card">
+      <h3>Image Retention</h3>
+      <p style="font-size:.85rem; color:var(--text-soft); margin-bottom:12px">
+        When off, photos are used only for AI suggestions and are not stored permanently.
+        Temp files are deleted after processing.
+      </p>
+      <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:.9rem">
+        <input type="checkbox" id="retainImages"> Retain uploaded images
+      </label>
+      <span id="retainMsg" style="font-size:.8rem; color:var(--accent); margin-left:12px"></span>
+
+      <h4 style="margin-top:24px">Vision / OCR Model</h4>
+      <div class="toolbar" style="margin-bottom:16px">
+        <select id="visionModelSelect" style="flex:1; min-width:280px; padding:11px 14px; border:1.5px solid var(--input-border); border-radius:13px; font-size:.9rem; background:var(--input-bg); color:var(--text)"></select>
+        <button onclick="saveVisionModel()">Save</button>
+      </div>
+      <span id="visionModelMsg" style="font-size:.8rem; color:var(--accent)"></span>
+
+      <h4>Search Parsing Model</h4>
+      <div class="toolbar" style="margin-bottom:16px">
+        <select id="searchModelSelect" style="flex:1; min-width:280px; padding:11px 14px; border:1.5px solid var(--input-border); border-radius:13px; font-size:.9rem; background:var(--input-bg); color:var(--text)"></select>
+        <button onclick="saveSearchModel()">Save</button>
+      </div>
+      <span id="searchModelMsg" style="font-size:.8rem; color:var(--accent)"></span>
+
+      <h4>Embedding Model</h4>
+      <div class="toolbar" style="margin-bottom:16px">
+        <select id="embeddingModelSelect" style="flex:1; min-width:280px; padding:11px 14px; border:1.5px solid var(--input-border); border-radius:13px; font-size:.9rem; background:var(--input-bg); color:var(--text)"></select>
+        <button onclick="saveEmbeddingModel()">Save</button>
+      </div>
+      <span id="embeddingModelMsg" style="font-size:.8rem; color:var(--accent)"></span>
+
+      <h4 style="margin-top:24px">Embeddings</h4>
+      <button class="ghost" onclick="runBackfill()">Backfill embeddings</button>
+      <span id="backfillMsg" style="font-size:.8rem; color:var(--accent); margin-left:12px"></span>
     </div>
   </div>
 
@@ -326,6 +367,7 @@ function showTab(name, btn) {
   if (name === 'shops') loadShops();
   if (name === 'items') { loadShopNames(); loadAllItems(); }
   if (name === 'ai') loadLLM();
+  if (name === 'settings') loadSettings();
 }
 
 // ---------------------------------------------------------------------------
@@ -602,6 +644,101 @@ async function saveDefaultModel() {
     renderModelTable();
   } else {
     msg.textContent = 'Error: ' + (data.detail || 'failed');
+    msg.style.color = 'var(--danger)';
+  }
+  setTimeout(() => msg.textContent = '', 4000);
+}
+
+// ---------------------------------------------------------------------------
+// Settings
+// ---------------------------------------------------------------------------
+let settingsData = {};
+
+async function loadSettings() {
+  const res = await fetch('/api/admin/settings');
+  settingsData = await res.json();
+  document.getElementById('retainImages').checked = settingsData.retain_uploaded_images;
+
+  // Populate model dropdowns with all available models
+  const [provRes, modelsRes] = await Promise.all([
+    fetch('/api/admin/llm/providers'),
+    fetch('/api/admin/llm/models'),
+  ]);
+  const provData = await provRes.json();
+  const modelsData = await modelsRes.json();
+  llmModels = modelsData.models || [];
+
+  const allModels = llmModels.map(m => m.label);
+  const visionSelect = document.getElementById('visionModelSelect');
+  const searchSelect = document.getElementById('searchModelSelect');
+  const embeddingSelect = document.getElementById('embeddingModelSelect');
+
+  const populate = (select, current) => {
+    select.innerHTML = allModels.map(m =>
+      `<option value="${esc(m)}" ${m === current ? 'selected' : ''}>${esc(m)}</option>`
+    ).join('');
+  };
+
+  populate(visionSelect, settingsData.default_vision_model);
+  populate(searchSelect, settingsData.default_search_model);
+  populate(embeddingSelect, settingsData.default_embedding_model);
+}
+
+async function saveSetting(key, value) {
+  const res = await fetch('/api/admin/settings', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ [key]: value }),
+  });
+  return res.ok;
+}
+
+async function saveVisionModel() {
+  const val = document.getElementById('visionModelSelect').value;
+  const ok = await saveSetting('default_vision_model', val);
+  const msg = document.getElementById('visionModelMsg');
+  msg.textContent = ok ? '✓ Saved' : 'Error saving';
+  msg.style.color = ok ? 'var(--accent)' : 'var(--danger)';
+  setTimeout(() => msg.textContent = '', 3000);
+}
+
+async function saveSearchModel() {
+  const val = document.getElementById('searchModelSelect').value;
+  const ok = await saveSetting('default_search_model', val);
+  const msg = document.getElementById('searchModelMsg');
+  msg.textContent = ok ? '✓ Saved' : 'Error saving';
+  msg.style.color = ok ? 'var(--accent)' : 'var(--danger)';
+  setTimeout(() => msg.textContent = '', 3000);
+}
+
+async function saveEmbeddingModel() {
+  const val = document.getElementById('embeddingModelSelect').value;
+  const ok = await saveSetting('default_embedding_model', val);
+  const msg = document.getElementById('embeddingModelMsg');
+  msg.textContent = ok ? '✓ Saved' : 'Error saving';
+  msg.style.color = ok ? 'var(--accent)' : 'var(--danger)';
+  setTimeout(() => msg.textContent = '', 3000);
+}
+
+document.getElementById('retainImages').addEventListener('change', async function () {
+  const ok = await saveSetting('retain_uploaded_images', this.checked);
+  const msg = document.getElementById('retainMsg');
+  msg.textContent = ok ? '✓ Saved' : 'Error saving';
+  msg.style.color = ok ? 'var(--accent)' : 'var(--danger)';
+  setTimeout(() => msg.textContent = '', 3000);
+});
+
+async function runBackfill() {
+  const msg = document.getElementById('backfillMsg');
+  msg.textContent = 'Running backfill…';
+  msg.style.color = 'var(--text-soft)';
+  try {
+    const res = await fetch('/api/admin/embeddings/backfill', { method: 'POST' });
+    const data = await res.json();
+    msg.textContent = `✓ Embedded ${data.embedded} items`;
+    msg.style.color = 'var(--accent)';
+  } catch (e) {
+    msg.textContent = 'Error running backfill';
     msg.style.color = 'var(--danger)';
   }
   setTimeout(() => msg.textContent = '', 4000);

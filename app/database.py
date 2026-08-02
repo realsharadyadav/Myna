@@ -22,6 +22,10 @@ def get_db():
 # ---------------------------------------------------------------------------
 
 _SETTING_DEFAULT_MODEL = "default_model"
+_SETTING_RETAIN_IMAGES = "retain_uploaded_images"
+_SETTING_VISION_MODEL = "default_vision_model"
+_SETTING_SEARCH_MODEL = "default_search_model"
+_SETTING_EMBEDDING_MODEL = "default_embedding_model"
 
 
 def get_setting(db, key: str, default: str = "") -> str:
@@ -50,3 +54,37 @@ def get_default_model(db) -> str:
 
 def set_default_model(db, model: str) -> None:
     set_setting(db, _SETTING_DEFAULT_MODEL, model)
+
+
+def get_retain_uploaded_images(db) -> bool:
+    """Return whether uploaded images should be permanently stored."""
+    val = get_setting(db, _SETTING_RETAIN_IMAGES, "false").lower()
+    return val == "true"
+
+
+def set_retain_uploaded_images(db, retain: bool) -> None:
+    set_setting(db, _SETTING_RETAIN_IMAGES, "true" if retain else "false")
+
+
+def get_default_vision_model(db) -> str:
+    return get_setting(db, _SETTING_VISION_MODEL, "")
+
+
+def set_default_vision_model(db, model: str) -> None:
+    set_setting(db, _SETTING_VISION_MODEL, model)
+
+
+def get_default_search_model(db) -> str:
+    return get_setting(db, _SETTING_SEARCH_MODEL, "")
+
+
+def set_default_search_model(db, model: str) -> None:
+    set_setting(db, _SETTING_SEARCH_MODEL, model)
+
+
+def get_default_embedding_model(db) -> str:
+    return get_setting(db, _SETTING_EMBEDDING_MODEL, "")
+
+
+def set_default_embedding_model(db, model: str) -> None:
+    set_setting(db, _SETTING_EMBEDDING_MODEL, model)

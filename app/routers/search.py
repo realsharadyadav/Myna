@@ -2,23 +2,39 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from .. import agent, models, schemas
-from ..database import get_db, get_default_model
+from .. import agent, embeddings, models, schemas
+from ..database import get_db, get_default_search_model
 from ..geo import haversine_km
 
 router = APIRouter(prefix="/api/search", tags=["search"])
 
 
-def _rows_for_term(db: Session, term: str):
-    """Fuzzy-match one shopping-list term across items and shops (agent stage 2)."""
+def _rows_for_term(db: Session, term: str, item_pool, shop_by_id):
+    """Hybrid match one term (agent stage 2): substring ILIKE ∪ semantic
+    cosine on stored embeddings. `item_pool`/`shop_by_id` come from a single
+    pre-fetched catalogue query so per-term work stays in-memory."""
     pattern = f"%{term}%"
-    return (
+    like_ids = {
+        it.item_id
+        for it in item_pool
+        if it.name and term.lower() in it.name.lower()
+        or it.category and term.lower() in it.category.lower()
+    }
+
+    found: dict[int, models.Item] = {}
+
+    # 1) Substring item/category matches
+    if like_ids:
+        for item in item_pool:
+            if item.item_id in like_ids:
+                found[item.item_id] = item
+
+    # 2) Substring matches on shop fields -> surface those shops' items
+    sql_shop_rows = (
         db.query(models.Item, models.Shop)
         .join(models.Shop, models.Item.shop_id == models.Shop.shop_id)
         .filter(
             or_(
-                models.Item.name.ilike(pattern),
-                models.Item.category.ilike(pattern),
                 models.Shop.name.ilike(pattern),
                 models.Shop.shopkeeper.ilike(pattern),
                 models.Shop.address.ilike(pattern),
@@ -26,6 +42,19 @@ def _rows_for_term(db: Session, term: str):
         )
         .all()
     )
+    for item, _shop in sql_shop_rows:
+        found.setdefault(item.item_id, item)
+
+    # 3) Semantic matches on item name/category (fixes daal/dal, kapoor/camphor).
+    if embeddings.enabled():
+        for item_id, _shop_id in embeddings.similar_items(db, term):
+            if item_id not in found:
+                for it in item_pool:
+                    if it.item_id == item_id:
+                        found[item_id] = it
+                        break
+
+    return [found[iid] for iid in found.keys()]
 
 
 def _to_result(item, shop, lat, long, matched_term="", coverage_count=1, coverage_total=1):
@@ -53,14 +82,26 @@ def _run_pipeline(q: str, lat: float, long: float, db: Session):
     Returns (terms, method, flat_results, shop_results) where shop_results are
     already ranked by coverage (most items covered first) then distance.
     """
-    terms, method = agent.parse_search_items(q, get_default_model(db))
+    terms, method = agent.parse_search_items(q, get_default_search_model(db))
+
+    # Pre-fetch catalogue once; per-term matching (ILIKE ∪ semantic) is in-memory.
+    catalogue = (
+        db.query(models.Item, models.Shop)
+        .join(models.Shop, models.Item.shop_id == models.Shop.shop_id)
+        .all()
+    )
+    item_pool = [item for item, _shop in catalogue]
+    shop_by_id = {shop.shop_id: shop for _item, shop in catalogue}
 
     flat: list[schemas.SearchResult] = []
     shops_covered: dict[int, set[str]] = {}
     per_shop_items: dict[int, list[tuple[str, object, object]]] = {}
 
     for term in terms:
-        for item, shop in _rows_for_term(db, term):
+        for item in _rows_for_term(db, term, item_pool, shop_by_id):
+            shop = shop_by_id.get(item.shop_id)
+            if not shop:
+                continue
             shops_covered.setdefault(shop.shop_id, set()).add(term)
             per_shop_items.setdefault(shop.shop_id, []).append((term, item, shop))
             flat.append(_to_result(item, shop, lat, long, matched_term=term))

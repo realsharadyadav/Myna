@@ -45,6 +45,71 @@ _QUANTITY_RE = re.compile(
 )
 _BARE_NUMBER_RE = re.compile(r"^\d+(?:\.\d+)?$")
 
+_EXPAND_PROMPT = """You expand a shopping *concept* into the concrete grocery/pooja items
+it implies, so a hyperlocal search engine can match them against shop catalogues.
+
+Examples:
+- "pooja items" -> ["agarbatti","camphor","haldi","kumkum","diya","coconut","flowers","rakhi"]
+- "breakfast" -> ["bread","eggs","milk","butter","jam"]
+- "baby care" -> ["diapers","baby food","wipes","powder"]
+
+Rules:
+- 6–12 specific, commonly-stocked items
+- Include common Hindi/Hinglish names alongside English where natural
+  ("agarbatti" not just "incense", "haldi" not just "turmeric")
+- Single words or short multi-word products
+- Reply with ONLY a JSON array of lowercase strings.
+
+Concept: "{query}\""""
+
+# Regex that detects "concept" phrasing the user might type instead of items:
+# "looking for pooja items", "things for puja", "stuff for a party" etc.
+_CONCEPT_HINTS_RE = re.compile(
+    r"\b(items?|things?|stuff|for|saman|samaan|ka\s+saman)\b", re.IGNORECASE
+)
+
+
+def expand_concept(query: str, db_default: str = "") -> tuple[list[str], str]:
+    """Stage 1.5 — expand a concept query ("pooja items") into concrete items.
+
+    Returns (items, method) where method is:
+      'concept-llm'  -> concept expanded by LLM into items
+      'llm'          -> LLM parsed, no expansion needed / happened
+      'fallback'     -> no LLM available; rule-based split
+    If the query already looks like a plain item list it is NOT expanded and the
+    regular parse is used instead.
+    """
+    query = (query or "").strip()
+    if not query:
+        return [], "fallback"
+
+    # Only attempt expansion for short "concept-ish" queries (not long item lists).
+    looks_concepty = bool(_CONCEPT_HINTS_RE.search(query)) or len(query.split()) <= 3
+    has_list_marker = bool(re.search(r"[,+]|/|\band\b", query, re.IGNORECASE))
+    if looks_concepty and not has_list_marker:
+        raw = ai.call_text(_EXPAND_PROMPT.format(query=query), db_default, max_tokens=1024)
+        if raw:
+            start, end = raw.find("["), raw.rfind("]")
+            if start != -1 and end > start:
+                try:
+                    parsed = json.loads(raw[start:end + 1])
+                    items = [str(x).strip().lower() for x in parsed if str(x).strip()]
+                    if items:
+                        return _dedupe(items), "concept-llm"
+                except (ValueError, TypeError):
+                    pass
+    return [], ""  # signal: not a concept (or expansion failed) -> plain parse
+
+
+def _dedupe(items: list[str]) -> list[str]:
+    seen: set[str] = set()
+    out = []
+    for it in items:
+        if it and it not in seen:
+            seen.add(it)
+            out.append(it)
+    return out
+
 
 def _clean_item(text: str) -> str:
     """Strip quantities and filler words from a candidate item phrase."""
@@ -98,14 +163,23 @@ def _fallback_parse(query: str) -> list[str]:
 
 
 def parse_search_items(query: str, db_default: str = "") -> tuple[list[str], str]:
-    """Agent stage 1: turn a free-form query into a list of items.
+    """Agent stage 1 (+1.5): turn a free-form query into a list of items.
 
-    Returns (items, method) where method is 'llm' or 'fallback'.
+    Tries concept expansion first ("pooja items" -> agarbatti, camphor...) when
+    the query looks conceptual; otherwise parses regular item lists
+    ("salt milk and mango"). Falls back to rule-based splitting with no LLM.
+
+    Returns (items, method) where method is 'concept-llm' | 'llm' | 'fallback'.
     Always returns at least one item for non-empty queries.
     """
     query = (query or "").strip()
     if not query:
         return [], "fallback"
+
+    # Stage 1.5: concept expansion ("pooja items" -> concrete shopping items).
+    expanded, concept_method = expand_concept(query, db_default)
+    if expanded:
+        return expanded, concept_method
 
     items: list[str] = []
     method = "fallback"
@@ -134,11 +208,5 @@ def parse_search_items(query: str, db_default: str = "") -> tuple[list[str], str
     if not items:
         items = [query.lower()]
 
-    # De-duplicate while preserving order, cap at 8 items to keep the pipeline snappy.
-    seen: set[str] = set()
-    unique = []
-    for item in items:
-        if item not in seen:
-            seen.add(item)
-            unique.append(item)
-    return unique[:8], method
+    # De-duplicate while preserving order; 12 items cap (expanded concepts are longer).
+    return _dedupe(items)[:12], method

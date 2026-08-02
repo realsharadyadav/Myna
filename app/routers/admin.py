@@ -6,8 +6,20 @@ from fastapi.responses import Response
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from .. import ai, models, schemas
-from ..database import get_db, get_default_model, set_default_model
+from .. import ai, embeddings, models, schemas
+from ..database import (
+    get_db,
+    get_default_embedding_model,
+    get_default_search_model,
+    get_default_vision_model,
+    get_default_model,
+    get_retain_uploaded_images,
+    set_default_embedding_model,
+    set_default_search_model,
+    set_default_vision_model,
+    set_default_model,
+    set_retain_uploaded_images,
+)
 from ..sample_data import CSV_HEADERS, build_shops, shops_to_csv_rows
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -137,10 +149,14 @@ def update_any_item(item_id: int, payload: schemas.ItemUpdate, db: Session = Dep
     item = db.get(models.Item, item_id)
     if not item:
         raise HTTPException(404, "Item not found")
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    fields = payload.model_dump(exclude_unset=True)
+    for field, value in fields.items():
         setattr(item, field, value)
+    if "name" in fields or "category" in fields:
+        embeddings.embed_item(item, db)
     db.commit()
     db.refresh(item)
+    embeddings.invalidate_cache()
     return item
 
 
@@ -192,8 +208,69 @@ def llm_models():
 
 
 # ---------------------------------------------------------------------------
-# CSV import / export
+# Admin settings
 # ---------------------------------------------------------------------------
+
+@router.get("/settings")
+def get_settings(db: Session = Depends(get_db)):
+    return {
+        "retain_uploaded_images": get_retain_uploaded_images(db),
+        "default_vision_model": get_default_vision_model(db),
+        "default_search_model": get_default_search_model(db),
+        "default_embedding_model": get_default_embedding_model(db),
+    }
+
+
+@router.patch("/settings")
+def update_settings(payload: dict, db: Session = Depends(get_db)):
+    if "retain_uploaded_images" in payload:
+        set_retain_uploaded_images(db, bool(payload["retain_uploaded_images"]))
+    if "default_vision_model" in payload:
+        set_default_vision_model(db, payload["default_vision_model"])
+    if "default_search_model" in payload:
+        set_default_search_model(db, payload["default_search_model"])
+    if "default_embedding_model" in payload:
+        set_default_embedding_model(db, payload["default_embedding_model"])
+    return get_settings(db)
+
+
+# ---------------------------------------------------------------------------
+# Semantic search (embeddings backfill)
+# ---------------------------------------------------------------------------
+
+@router.get("/embeddings/status")
+def embeddings_status(db: Session = Depends(get_db)):
+    total = db.query(func.count(models.Item.item_id)).scalar() or 0
+    embedded = (
+        db.query(func.count(models.Item.item_id))
+        .filter(models.Item.embedding != "", models.Item.embedding.isnot(None))
+        .scalar()
+    ) or 0
+    default_model = get_default_embedding_model(db) or ""
+    stale = (
+        db.query(func.count(models.Item.item_id))
+        .filter(
+            (models.Item.embedding != "") & (models.Item.embedding.isnot(None)),
+            models.Item.embedding_model != default_model,
+        )
+        .scalar()
+    ) or 0
+    return {
+        "enabled": embeddings.enabled(),
+        "total_items": total,
+        "embedded_items": embedded,
+        "pending_items": total - embedded,
+        "stale_items": stale,
+    }
+
+
+@router.post("/embeddings/backfill")
+def embeddings_backfill(db: Session = Depends(get_db)):
+    """Embed all items missing a vector or using a stale embedding model."""
+    if not embeddings.enabled():
+        raise HTTPException(400, "GEMINI_API_KEY not configured")
+    done = embeddings.backfill(db)
+    return {"embedded": done}
 
 @router.get("/import/template")
 def import_template(sample: bool = Query(False)):
@@ -334,6 +411,7 @@ def import_csv(
             items_added += 1
 
     db.commit()
+    embeddings.invalidate_cache()
     return {
         "created": created,
         "updated": updated,
@@ -341,3 +419,32 @@ def import_csv(
         "errors": errors[:20],
         "total_errors": len(errors),
     }
+
+
+# ---------------------------------------------------------------------------
+# Semantic search (embeddings backfill)
+# ---------------------------------------------------------------------------
+
+@router.get("/embeddings/status")
+def embeddings_status(db: Session = Depends(get_db)):
+    total = db.query(func.count(models.Item.item_id)).scalar() or 0
+    embedded = (
+        db.query(func.count(models.Item.item_id))
+        .filter(models.Item.embedding != "", models.Item.embedding.isnot(None))
+        .scalar()
+    ) or 0
+    return {
+        "enabled": embeddings.enabled(),
+        "total_items": total,
+        "embedded_items": embedded,
+        "pending_items": total - embedded,
+    }
+
+
+@router.post("/embeddings/backfill")
+def embeddings_backfill(db: Session = Depends(get_db)):
+    """Embed all items missing a vector (idempotent)."""
+    if not embeddings.enabled():
+        raise HTTPException(400, "GEMINI_API_KEY not configured")
+    done = embeddings.backfill(db)
+    return {"embedded": done}

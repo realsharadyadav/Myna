@@ -55,6 +55,24 @@ def _has_image_support(model: dict) -> bool:
     return True
 
 
+def resolve_model(model_str: str) -> tuple[str, str] | None:
+    """Resolve a 'provider:model_id' or 'provider/model_id' string.
+
+    Returns (provider_name, model_id) if the provider is configured,
+    otherwise None.
+    """
+    if not model_str:
+        return None
+    for sep in (":", "/"):
+        if sep in model_str:
+            provider, model_id = model_str.split(sep, 1)
+            provider = provider.strip()
+            model_id = model_id.strip()
+            if provider in PROVIDERS and PROVIDERS[provider]["api_key"]:
+                return provider, model_id
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Vision call implementations
 # ---------------------------------------------------------------------------
@@ -356,28 +374,39 @@ def fetch_all_models() -> list[dict]:
 
 def get_effective_default(db_default: str) -> str | None:
     """Resolve the default model to use. db_default takes priority;
-    falls back to first provider's default model if no DB setting."""
+    falls back to first provider's default model if no DB setting.
+    Accepts both 'provider/model' and 'provider:model' formats."""
     if db_default:
-        provider = db_default.split("/", 1)[0]
-        if provider in PROVIDERS and PROVIDERS[provider]["api_key"]:
-            return db_default
+        for sep in ("/", ":"):
+            if sep in db_default:
+                provider = db_default.split(sep, 1)[0]
+                if provider in PROVIDERS and PROVIDERS[provider]["api_key"]:
+                    return db_default
     for name, p in PROVIDERS.items():
         if p["api_key"]:
             return f"{name}/{p['default_model']}"
     return None
 
 
-def _call_vision(image_path: str, prompt: str, db_default: str = "") -> str:
-    """Route a vision call through the default provider. Returns '' on failure."""
-    default = get_effective_default(db_default)
-    if not default:
+def _call_vision(image_path: str, prompt: str, db_default: str = "", model: str = "") -> str:
+    """Route a vision call through the specified or default provider.
+    Returns '' on failure.
+
+    model: explicit 'provider:model_id' or 'provider/model_id' string.
+    db_default: fallback DB-stored default model string.
+    """
+    effective = resolve_model(model) or get_effective_default(db_default)
+    if not effective:
         return ""
-    provider_name, model = default.split("/", 1)
+    if "/" in effective:
+        provider_name, model_id = effective.split("/", 1)
+    else:
+        provider_name, model_id = effective.split(":", 1)
     provider = PROVIDERS.get(provider_name)
     if not provider or not provider["api_key"]:
         return ""
     try:
-        return provider["call"](provider["api_key"], model, image_path, prompt)
+        return provider["call"](provider["api_key"], model_id, image_path, prompt)
     except Exception:
         return ""
 
@@ -386,28 +415,36 @@ def _call_vision(image_path: str, prompt: str, db_default: str = "") -> str:
 # Public API (called from routers — pass db_default to honour saved setting)
 # ---------------------------------------------------------------------------
 
-def call_text(prompt: str, db_default: str = "", max_tokens: int = 300) -> str:
-    """Route a plain-text LLM call through the default provider. Returns '' on failure."""
-    default = get_effective_default(db_default)
-    if not default:
+def call_text(prompt: str, db_default: str = "", max_tokens: int = 300, model: str = "") -> str:
+    """Route a plain-text LLM call through the specified or default provider.
+    Returns '' on failure.
+
+    model: explicit 'provider:model_id' or 'provider/model_id' string.
+    db_default: fallback DB-stored default model string.
+    """
+    effective = resolve_model(model) or get_effective_default(db_default)
+    if not effective:
         return ""
-    provider_name, model = default.split("/", 1)
+    if "/" in effective:
+        provider_name, model_id = effective.split("/", 1)
+    else:
+        provider_name, model_id = effective.split(":", 1)
     provider = PROVIDERS.get(provider_name)
     if not provider or not provider["api_key"]:
         return ""
     try:
-        return provider["text_call"](provider["api_key"], model, prompt, max_tokens)
+        return provider["text_call"](provider["api_key"], model_id, prompt, max_tokens)
     except Exception:
         return ""
 
 
-def suggest_shop_name(image_path: str, db_default: str = "") -> str:
-    return _call_vision(image_path, _SIGNAGE_PROMPT, db_default)
+def suggest_shop_name(image_path: str, db_default: str = "", model: str = "") -> str:
+    return _call_vision(image_path, _SIGNAGE_PROMPT, db_default, model=model)
 
 
-def suggest_item(image_path: str, db_default: str = "") -> tuple[str, str]:
+def suggest_item(image_path: str, db_default: str = "", model: str = "") -> tuple[str, str]:
     """Returns (name, category). Either may be empty on failure."""
-    text = _call_vision(image_path, _ITEM_PROMPT, db_default)
+    text = _call_vision(image_path, _ITEM_PROMPT, db_default, model=model)
     if "|" in text:
         name, _, category = text.partition("|")
         return name.strip(), category.strip()
