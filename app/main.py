@@ -4,7 +4,18 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
 from .config import BASE_DIR
-from .database import Base, engine
+from .database import (
+    Base,
+    SessionLocal,
+    engine,
+    get_default_embedding_model,
+    get_default_search_model,
+    get_default_vision_model,
+    set_default_embedding_model,
+    set_default_search_model,
+    set_default_vision_model,
+)
+from . import ai
 from .routers import admin, items, search, shops
 
 Base.metadata.create_all(bind=engine)
@@ -22,6 +33,27 @@ with engine.connect() as conn:
     if "embedding_model" not in cols:
         conn.execute(text("ALTER TABLE items ADD COLUMN embedding_model VARCHAR DEFAULT ''"))
         conn.commit()
+
+def _seed_default_models() -> None:
+    """Persist per-feature default models if unset, so a fresh DB (or one
+    wiped by re-seeding) works out of the box instead of silently falling
+    back. Only fills empty settings — owner choices in the admin panel win."""
+    effective = ai.get_effective_default("")
+    if not effective:
+        return
+    db = SessionLocal()
+    try:
+        if not get_default_vision_model(db):
+            set_default_vision_model(db, effective)
+        if not get_default_search_model(db):
+            set_default_search_model(db, effective)
+        if not get_default_embedding_model(db):
+            set_default_embedding_model(db, effective)
+    finally:
+        db.close()
+
+
+_seed_default_models()
 
 app = FastAPI(title="Myna — Hyperlocal Shop & Product Finder")
 

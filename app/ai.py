@@ -338,7 +338,7 @@ PROVIDERS = {
     },
     "groq": {
         "api_key": GROQ_API_KEY,
-        "default_model": "meta-llama/llama-4-scout-17b-16e-instruct",
+        "default_model": "llama-3.3-70b-versatile",
         "call": _call_groq,
         "text_call": _text_groq,
         "list_models": _list_groq_models,
