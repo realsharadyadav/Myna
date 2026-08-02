@@ -509,4 +509,77 @@ for _id in ('signCam', 'signFile', 'itemCam', 'itemFile'):
 assert 'Upload photo' in page and 'Take photo' in page
 print("PASS shopkeeper offers both camera and upload")
 
+# 41. Catalogue of categories → items, for the checkbox picker. Typing every
+# product one at a time was the step shopkeepers gave up on.
+res = client.get("/api/catalog")
+assert res.status_code == 200
+cats = res.json()["categories"]
+labels = {c["label"] for c in cats}
+assert {"Puja items", "Dry fruits & nuts", "Vegetables", "Spices & masala"} <= labels, labels
+assert all(c["items"] and c["count"] == len(c["items"]) for c in cats)
+print(f"PASS catalogue endpoint ({len(cats)} categories, "
+      f"{sum(c['count'] for c in cats)} items)")
+
+# 42. Bulk add — a whole ticked category goes in with one request, and names
+# already in the shop are skipped instead of duplicated.
+res = client.post(f"/api/shops/{shop_id}/items/bulk", json={"items": [
+    {"name": "Agarbatti (Incense Sticks)", "category": "Puja items"},
+    {"name": "Camphor (Kapoor)", "category": "Puja items"},
+    {"name": "Almonds (Badam)", "category": "Dry fruits & nuts"},
+]})
+assert res.status_code == 200, res.text
+data = res.json()
+assert len(data["added"]) == 3 and data["skipped"] == []
+assert all(i["item_id"] for i in data["added"])
+res = client.post(f"/api/shops/{shop_id}/items/bulk", json={"items": [
+    {"name": "agarbatti (incense sticks)"},        # same item, different case
+    {"name": "Cashews (Kaju)"},
+]})
+data = res.json()
+assert len(data["added"]) == 1 and len(data["skipped"]) == 1, data
+# A missing category is filled in from the catalogue rather than left blank.
+assert data["added"][0]["category"] == "Dry fruits & nuts", data["added"][0]
+print("PASS bulk add items (dedupes, infers category)")
+
+# 43. Bulk-added items are searchable straight away (embedded + cache cleared).
+res = client.get("/api/search", params={"q": "kapoor", "lat": 19.076, "long": 72.878})
+assert any("Camphor" in r["item_name"] for r in res.json()), res.json()
+print("PASS bulk-added items are immediately searchable")
+
+# 44. Item suggestion returns a *list* — one shelf photo should list every
+# product on it, not just the one in focus.
+res = client.post(
+    f"/api/shops/{shop_id}/items/suggest",
+    files={"photo": ("shelf.jpg", io.BytesIO(b"\xff\xd8\xff\xe0" + b"\x00" * 50), "image/jpeg")},
+)
+body = res.json()
+assert body["items"] == []                # no API key configured in tests
+assert body["error"], body               # ...and the UI is told why
+print("PASS multi-item suggestion shape + error surfacing")
+
+from app.ai import _parse_items
+assert _parse_items('```json\n[{"name": "Tata Salt 1kg", "category": "Everyday grocery"}]\n```') == [
+    {"name": "Tata Salt 1kg", "category": "Everyday grocery"}]
+assert _parse_items("- Parle-G | Snacks\n- Maggi | Snacks") == [
+    {"name": "Parle-G", "category": "Snacks"}, {"name": "Maggi", "category": "Snacks"}]
+# Same product twice in one frame is one line in the shop's list.
+assert _parse_items('[{"name":"Amul Milk"},{"name":"amul milk"}]') == [
+    {"name": "Amul Milk", "category": ""}]
+print("PASS vision reply parsing (json, fenced json, bullet lines, dedupe)")
+
+from app.catalog import suggest_category
+assert suggest_category("Everest Haldi Powder") == "Spices & masala"
+assert suggest_category("Haldiram Bhujia") == "Snacks & biscuits"   # word-aware
+assert suggest_category("Cycle Agarbatti") == "Puja items"
+assert suggest_category("Some Unknown Widget") == ""
+print("PASS category inference from item name")
+
+# 45. The shopkeeper page ships the checkbox picker and the multi-item review.
+page = client.get("/shopkeeper").text
+for marker in ('id="catChips"', 'id="catalogGroups"', 'id="foundItems"',
+               'id="selectBar"', 'data-mode="catalog"', 'items/bulk'):
+    assert marker in page, marker
+print("PASS shopkeeper page has the category checkbox picker")
+
+
 print("\nALL TESTS PASSED")

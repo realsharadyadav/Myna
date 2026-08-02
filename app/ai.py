@@ -1,4 +1,7 @@
 import base64
+import io
+import json
+import re
 from pathlib import Path
 
 import httpx
@@ -15,19 +18,41 @@ _SIGNAGE_PROMPT = (
     "If you cannot read a name, reply with an empty string."
 )
 
-_ITEM_PROMPT = (
-    "This is a photo of a product in a shop. "
-    "Reply with a short product name and category in exactly this format: "
-    "name | category\n"
-    "Example: Parle-G Gold Biscuits 100g | Snacks\n"
-    "Keep the name concise (include brand and size if visible). "
-    "If unsure, give your best guess."
+# One photo of a shop shelf, counter or crate usually holds many products, and
+# a shopkeeper photographing their stock expects all of them back — not the one
+# item that happens to be in focus. So the prompt asks for a JSON list and
+# names the categories the app already uses, which keeps the returned
+# categories consistent with catalogue-added items instead of freeform.
+_ITEMS_PROMPT = (
+    "You are helping an Indian kirana shopkeeper list their stock.\n"
+    "Look at this photo and identify EVERY distinct product you can see — "
+    "packets, bottles, jars, loose produce, sacks, anything on the shelf, "
+    "counter or floor. Do not stop at the first product.\n\n"
+    "Reply with ONLY a JSON array, no other text, in this shape:\n"
+    '[{"name": "Parle-G Gold Biscuits 100g", "category": "Snacks & biscuits"},\n'
+    ' {"name": "Tata Salt 1kg", "category": "Everyday grocery"}]\n\n'
+    "Rules:\n"
+    "- One entry per distinct product. Do not repeat the same product.\n"
+    "- Include the brand and the pack size in the name when they are readable.\n"
+    "- For loose produce use the common name, e.g. \"Onion (Pyaz)\".\n"
+    "- Pick a category from this list where it fits: "
+    "Everyday grocery, Dal & pulses, Spices & masala, Puja items, "
+    "Dry fruits & nuts, Vegetables, Fruits, Oil & ghee, Dairy bread & eggs, "
+    "Snacks & biscuits, Cold drinks & beverages, Cleaning & household, "
+    "Personal care, Baby care, Stationery & general, Sweets & bakery.\n"
+    "- Guess when a label is partly hidden; a good guess is more useful than "
+    "leaving the product out.\n"
+    "- If the photo has no products at all, reply with []."
 )
 
+# Phone photos run 2-5 MB, and Anthropic rejects a request whose base64 image
+# is over 5 MB outright — which used to surface as a bare "no suggestion".
+# Nothing is gained above ~1568px on the long edge for any of these models
+# either, so every image is re-encoded down before it goes out: fewer failures,
+# faster replies, smaller bills.
+_MAX_EDGE = 1568
+_JPEG_QUALITY = 82
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 def _image_to_b64(image_path: str) -> tuple[str, str]:
     suffix = Path(image_path).suffix.lower()
@@ -38,8 +63,35 @@ def _image_to_b64(image_path: str) -> tuple[str, str]:
         ".webp": "image/webp",
         ".gif": "image/gif",
     }.get(suffix, "image/jpeg")
-    b64 = base64.standard_b64encode(Path(image_path).read_bytes()).decode("utf-8")
-    return b64, media_type
+    raw = Path(image_path).read_bytes()
+    shrunk = _downscale(raw)
+    if shrunk is not None:
+        raw, media_type = shrunk, "image/jpeg"
+    return base64.standard_b64encode(raw).decode("utf-8"), media_type
+
+
+def _downscale(raw: bytes) -> bytes | None:
+    """Re-encode an image down to _MAX_EDGE as JPEG. None if it can't be read.
+
+    Also strips EXIF while honouring its orientation flag, so a portrait phone
+    photo doesn't reach the model rotated 90°.
+    """
+    try:
+        from PIL import Image, ImageOps
+    except ImportError:
+        return None
+    try:
+        img = Image.open(io.BytesIO(raw))
+        img = ImageOps.exif_transpose(img)
+        if img.mode not in ("RGB", "L"):
+            img = img.convert("RGB")
+        if max(img.size) > _MAX_EDGE:
+            img.thumbnail((_MAX_EDGE, _MAX_EDGE), Image.LANCZOS)
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=_JPEG_QUALITY, optimize=True)
+        return buf.getvalue()
+    except Exception:
+        return None
 
 
 # Model families that are known to accept images. Anything not matched here is
@@ -117,7 +169,7 @@ def _resolve_effective_model(model: str = "", db_default: str = "") -> tuple[str
 # Vision call implementations
 # ---------------------------------------------------------------------------
 
-def _call_anthropic(api_key: str, model: str, image_path: str, prompt: str) -> str:
+def _call_anthropic(api_key: str, model: str, image_path: str, prompt: str, max_tokens: int = 150) -> str:
     b64, media_type = _image_to_b64(image_path)
     resp = httpx.post(
         "https://api.anthropic.com/v1/messages",
@@ -128,7 +180,7 @@ def _call_anthropic(api_key: str, model: str, image_path: str, prompt: str) -> s
         },
         json={
             "model": model,
-            "max_tokens": 150,
+            "max_tokens": max_tokens,
             "messages": [
                 {
                     "role": "user",
@@ -153,7 +205,7 @@ def _call_anthropic(api_key: str, model: str, image_path: str, prompt: str) -> s
     return "".join(b.get("text", "") for b in blocks if b.get("type") == "text").strip()
 
 
-def _call_groq(api_key: str, model: str, image_path: str, prompt: str) -> str:
+def _call_groq(api_key: str, model: str, image_path: str, prompt: str, max_tokens: int = 150) -> str:
     b64, media_type = _image_to_b64(image_path)
     resp = httpx.post(
         "https://api.groq.com/openai/v1/chat/completions",
@@ -163,7 +215,7 @@ def _call_groq(api_key: str, model: str, image_path: str, prompt: str) -> str:
         },
         json={
             "model": model,
-            "max_tokens": 150,
+            "max_tokens": max_tokens,
             "messages": [
                 {
                     "role": "user",
@@ -184,7 +236,7 @@ def _call_groq(api_key: str, model: str, image_path: str, prompt: str) -> str:
     return choices[0]["message"]["content"].strip() if choices else ""
 
 
-def _call_gemini(api_key: str, model: str, image_path: str, prompt: str) -> str:
+def _call_gemini(api_key: str, model: str, image_path: str, prompt: str, max_tokens: int = 150) -> str:
     b64, media_type = _image_to_b64(image_path)
     resp = httpx.post(
         f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
@@ -199,7 +251,7 @@ def _call_gemini(api_key: str, model: str, image_path: str, prompt: str) -> str:
                     ]
                 }
             ],
-            "generationConfig": {"maxOutputTokens": 150},
+            "generationConfig": {"maxOutputTokens": max_tokens},
         },
         timeout=30.0,
     )
@@ -431,24 +483,111 @@ def get_effective_default(db_default: str) -> str | None:
     return None
 
 
-def _call_vision(image_path: str, prompt: str, db_default: str = "", model: str = "") -> str:
+def _call_vision_detailed(
+    image_path: str,
+    prompt: str,
+    db_default: str = "",
+    model: str = "",
+    max_tokens: int = 150,
+) -> tuple[str, str]:
     """Route a vision call through the specified or default provider.
-    Returns '' on failure.
+
+    Returns (reply_text, error). Exactly one of the two is meaningful: on
+    success error is '', on failure reply_text is ''. The error string is
+    short and safe to show a shopkeeper — "no photo model is configured" is a
+    very different problem from "the model timed out", and the old
+    swallow-everything version made both look like "the AI found nothing".
 
     model: explicit 'provider:model_id' or 'provider/model_id' string.
     db_default: fallback DB-stored default model string.
     """
     resolved = _resolve_effective_model(model, db_default)
     if not resolved:
-        return ""
+        return "", "No AI model is set up for photos yet."
     provider_name, model_id = resolved
     provider = PROVIDERS.get(provider_name)
     if not provider or not provider["api_key"]:
-        return ""
+        return "", f"The {provider_name} API key is missing."
+    if not supports_vision(model_id):
+        return "", f"{model_id} can't read photos. Pick a vision model in the owner panel."
     try:
-        return provider["call"](provider["api_key"], model_id, image_path, prompt)
+        return provider["call"](provider["api_key"], model_id, image_path, prompt, max_tokens), ""
+    except httpx.TimeoutException:
+        return "", "The AI took too long to answer. Please try again."
+    except httpx.HTTPStatusError as exc:
+        code = exc.response.status_code
+        if code in (401, 403):
+            return "", f"The {provider_name} API key was rejected."
+        if code == 429:
+            return "", "The AI is rate-limited right now. Please try again in a moment."
+        return "", f"The AI service returned an error ({code})."
     except Exception:
-        return ""
+        return "", "Could not reach the AI service."
+
+
+def _call_vision(image_path: str, prompt: str, db_default: str = "", model: str = "",
+                 max_tokens: int = 150) -> str:
+    """Text-only wrapper over _call_vision_detailed. '' on any failure."""
+    text, _ = _call_vision_detailed(image_path, prompt, db_default, model, max_tokens)
+    return text
+
+
+def _parse_items(text: str) -> list[dict]:
+    """Pull a list of {name, category} out of a vision model's reply.
+
+    Models drift: some return bare JSON, some fence it in ```json, some ignore
+    the format and write "Tata Salt 1kg | Grocery" a line at a time. All three
+    are worth accepting — the shopkeeper doesn't care which model is behind
+    the button, only that their shelf photo turned into a list.
+    """
+    if not text:
+        return []
+    out: list[dict] = []
+
+    fenced = re.search(r"```(?:json)?\s*(.+?)```", text, re.S)
+    candidate = fenced.group(1) if fenced else text
+    array = re.search(r"\[.*\]", candidate, re.S)
+    if array:
+        try:
+            data = json.loads(array.group(0))
+        except json.JSONDecodeError:
+            data = None
+        if isinstance(data, list):
+            for entry in data:
+                if isinstance(entry, dict):
+                    name = str(entry.get("name") or entry.get("item") or "").strip()
+                    category = str(entry.get("category") or "").strip()
+                elif isinstance(entry, str):
+                    name, category = entry.strip(), ""
+                else:
+                    continue
+                if name:
+                    out.append({"name": name, "category": category})
+
+    if not out:
+        # Line-oriented fallback: "name | category", one per line, tolerating
+        # bullets and numbering.
+        for line in text.splitlines():
+            line = re.sub(r"^\s*(?:[-*•]|\d+[.)])\s*", "", line).strip()
+            if not line or line.startswith(("```", "[", "]", "{")):
+                continue
+            name, _, category = line.partition("|")
+            name = name.strip().strip('"')
+            if name:
+                out.append({"name": name, "category": category.strip().strip('",')})
+
+    # Same product photographed twice in one frame is one line in the shop's
+    # list, so fold case-insensitive duplicates while keeping the first
+    # spelling the model gave.
+    deduped: list[dict] = []
+    seen: set[str] = set()
+    for entry in out:
+        key = entry["name"].lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(entry)
+    return deduped[:40]
 
 
 # ---------------------------------------------------------------------------
@@ -479,10 +618,38 @@ def suggest_shop_name(image_path: str, db_default: str = "", model: str = "") ->
     return _call_vision(image_path, _SIGNAGE_PROMPT, db_default, model=model)
 
 
+def suggest_shop_name_detailed(image_path: str, db_default: str = "", model: str = "") -> tuple[str, str]:
+    """suggest_shop_name plus the reason it failed. Returns (name, error)."""
+    name, error = _call_vision_detailed(image_path, _SIGNAGE_PROMPT, db_default, model=model)
+    if error:
+        return "", error
+    if not name.strip():
+        return "", "Couldn't read the board. Try a straighter, brighter photo."
+    return name.strip(), ""
+
+
+def suggest_items(image_path: str, db_default: str = "", model: str = "") -> tuple[list[dict], str]:
+    """Identify every product in a photo.
+
+    Returns (items, error) where items is a list of {"name", "category"} in
+    the order the model saw them. A generous token budget matters here: a
+    shelf photo can easily be twenty products, and a reply truncated mid-JSON
+    parses as nothing at all.
+    """
+    text, error = _call_vision_detailed(
+        image_path, _ITEMS_PROMPT, db_default, model=model, max_tokens=1500
+    )
+    if error:
+        return [], error
+    items = _parse_items(text)
+    if not items:
+        return [], "Couldn't spot any products in that photo. Try a closer, brighter shot."
+    return items, ""
+
+
 def suggest_item(image_path: str, db_default: str = "", model: str = "") -> tuple[str, str]:
-    """Returns (name, category). Either may be empty on failure."""
-    text = _call_vision(image_path, _ITEM_PROMPT, db_default, model=model)
-    if "|" in text:
-        name, _, category = text.partition("|")
-        return name.strip(), category.strip()
-    return text.strip(), ""
+    """Single-item view of suggest_items — returns (name, category)."""
+    items, _ = suggest_items(image_path, db_default, model=model)
+    if not items:
+        return "", ""
+    return items[0]["name"], items[0]["category"]

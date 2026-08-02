@@ -40,6 +40,17 @@ class ItemCreate(BaseModel):
     category: Optional[str] = ""
 
 
+class BulkItemsCreate(BaseModel):
+    """Payload for adding a whole checkbox-selection of items at once."""
+    items: list[ItemCreate]
+
+
+class BulkItemsResult(BaseModel):
+    added: list["ItemOut"]
+    skipped: list[str]      # names the shop already had, reported back so the
+                            # UI can say "12 added, 3 already in your list"
+
+
 class ItemUpdate(BaseModel):
     name: Optional[str] = None
     category: Optional[str] = None
@@ -125,3 +136,5 @@ class AgentSearchResponse(BaseModel):
 
 class AISuggestion(BaseModel):
     suggestion: str
+    # Why the read failed, in words a shopkeeper can act on. Empty on success.
+    error: str = ""
