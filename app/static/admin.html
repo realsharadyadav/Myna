@@ -129,6 +129,11 @@
     background: var(--brand); color: var(--btn-text); transition: transform .15s ease, box-shadow .15s ease;
   }
   .toolbar button:hover { transform: translateY(-1px); }
+  button.ghost {
+    background: transparent; color: var(--accent); border: 1.5px solid color-mix(in srgb, var(--accent) 45%, transparent);
+    border-radius: 13px; font-size: .88rem; font-weight: 700; cursor: pointer; transition: all .15s ease;
+  }
+  button.ghost:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); transform: translateY(-1px); }
   .count { font-size: .78rem; color: var(--msg); white-space: nowrap; }
 
   table { width: 100%; border-collapse: collapse; font-size: .88rem; }
@@ -192,6 +197,7 @@
     <button onclick="showTab('shops', this)">Shops</button>
     <button onclick="showTab('items', this)">All Items</button>
     <button onclick="showTab('ai', this)">AI Settings</button>
+    <button onclick="showTab('import', this)">Import CSV</button>
   </div>
 
   <!-- ==================== DASHBOARD ==================== -->
@@ -264,6 +270,29 @@
       </table>
     </div>
   </div>
+
+  <!-- ==================== IMPORT CSV ==================== -->
+  <div id="tab-import" style="display:none">
+    <div class="card">
+      <h3>Import shops &amp; items from CSV</h3>
+      <p class="count" style="margin:6px 0 14px">Flat format — one row per item, shop fields repeated on each row.</p>
+
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:14px">
+        <input id="importFile" type="file" accept=".csv,text/csv">
+        <label class="checkbox" style="display:inline-flex; align-items:center; gap:6px; font-size:.85rem">
+          <input type="checkbox" id="importReplace"> Wipe existing data first
+        </label>
+      </div>
+
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center">
+        <button onclick="doImport()" style="width:auto; padding:10px 22px">Import CSV</button>
+        <button onclick="downloadTemplate(false)" style="width:auto; padding:10px 22px" class="ghost">Download blank template</button>
+        <button onclick="downloadTemplate(true)" style="width:auto; padding:10px 22px" class="ghost">Download sample data (50 shops)</button>
+      </div>
+
+      <div id="importResult" style="margin-top:14px"></div>
+    </div>
+  </div>
 </main>
 <script>
 (function () {
@@ -290,13 +319,51 @@
 function showTab(name, btn) {
   document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  ['dashboard', 'shops', 'items', 'ai'].forEach(t => {
+  ['dashboard', 'shops', 'items', 'ai', 'import'].forEach(t => {
     document.getElementById('tab-' + t).style.display = t === name ? '' : 'none';
   });
   if (name === 'dashboard') loadStats();
   if (name === 'shops') loadShops();
   if (name === 'items') { loadShopNames(); loadAllItems(); }
   if (name === 'ai') loadLLM();
+}
+
+// ---------------------------------------------------------------------------
+// CSV Import
+// ---------------------------------------------------------------------------
+async function doImport() {
+  const input = document.getElementById('importFile');
+  const result = document.getElementById('importResult');
+  if (!input.files.length) {
+    result.innerHTML = '<p class="msg" style="padding:8px 0">Choose a CSV file first.</p>';
+    return;
+  }
+  const form = new FormData();
+  form.append('file', input.files[0]);
+  form.append('replace', document.getElementById('importReplace').checked ? 'true' : 'false');
+  result.innerHTML = '<p class="msg" style="padding:8px 0">Importing…</p>';
+  try {
+    const res = await fetch('/api/admin/import/csv', { method: 'POST', body: form });
+    const data = await res.json();
+    if (!res.ok) {
+      result.innerHTML = `<p class="msg" style="padding:8px 0; color:#e74c3c">Error: ${esc(data.detail || 'failed')}</p>`;
+      return;
+    }
+    let html = `<div class="badge on" style="margin-right:6px">${data.created} shops created</div>
+                <div class="badge on" style="margin-right:6px">${data.updated} shops updated</div>
+                <div class="badge on">${data.items} items added</div>`;
+    if (data.total_errors) {
+      html += `<div style="margin-top:10px; color:#e74c3c; font-size:.82rem">${data.total_errors} row(s) skipped:</div>
+               <ul style="margin:6px 0 0 18px; font-size:.8rem; color:#e74c3c">${(data.errors || []).map(e => `<li>${esc(e)}</li>`).join('')}</ul>`;
+    }
+    result.innerHTML = html;
+  } catch (e) {
+    result.innerHTML = '<p class="msg" style="padding:8px 0; color:#e74c3c">Import failed — try again.</p>';
+  }
+}
+
+async function downloadTemplate(sample) {
+  window.location.href = '/api/admin/import/template' + (sample ? '?sample=1' : '');
 }
 
 // ---------------------------------------------------------------------------

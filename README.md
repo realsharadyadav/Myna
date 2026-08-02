@@ -26,6 +26,7 @@ Then open:
 - **Item edit/delete** anytime
 - **Customer search** — fuzzy text match across item name, category, shop name, shopkeeper name & address, results sorted nearest-first (Haversine)
 - **Owner panel** — dashboard stats (shops/items counts), shop list with search, inline edit/delete, LLM provider + model selector (default saved in DB)
+- **CSV import** — owner can download a blank template (or 50-shop demo dataset) and upload a filled CSV to bulk-create/update shops & items; optional "wipe existing data first"
 
 ## Configuration
 
@@ -60,7 +61,8 @@ app/
   static/
     index.html       Customer search page (mobile-first)
     shopkeeper.html  Shop onboarding + item management page
-    admin.html       Owner dashboard (stats, shops, AI settings)
+    admin.html       Owner dashboard (stats, shops, AI settings, CSV import)
+  sample_data.py     Reusable demo data (curated + generated shops, CSV helpers)
 uploads/             Saved photos (gitignored)
 run.sh               Creates venv, installs deps, starts uvicorn
 ```
@@ -86,7 +88,20 @@ run.sh               Creates venv, installs deps, starts uvicorn
 | `GET` | `/api/admin/llm/providers` | Configured AI providers and default model |
 | `GET` | `/api/admin/llm/models` | Fetch all available vision models from configured providers |
 | `POST` | `/api/admin/llm/default-model` | Set the default model (persisted in DB) |
-| `GET` | `/admin` | Owner panel UI (dashboard, shops, AI settings) |
+| `GET` | `/api/admin/import/template?sample` | Download CSV template (blank, or `?sample=1` = 50 demo shops) |
+| `POST` | `/api/admin/import/csv` | Import shops/items from CSV (multipart `file`; `replace=true` wipes existing first) |
+| `GET` | `/admin` | Owner panel UI (dashboard, shops, AI settings, CSV import) |
+
+### CSV import format
+
+Flat — one row per item, shop fields repeated:
+
+```csv
+shop_name,shopkeeper,lat,long,address,phone,item_name,category
+Sharma General Store,Ramesh Sharma,19.0760,72.8777,Shop 4 Link Rd Andheri West,9820012345,Parle-G Gold 100g,Snacks
+```
+
+Rows are grouped by `shop_name`: new names create a shop, existing names update it (only non-empty CSV fields overwrite). Every row with an `item_name` adds an item to its shop. Get the header right by downloading the template from the admin **Import CSV** tab.
 
 ## Deploy to Render (free plan)
 

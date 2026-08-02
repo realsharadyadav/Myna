@@ -206,10 +206,69 @@ res = client.post("/api/admin/llm/default-model", json={"model": "anthropic/clau
 assert res.status_code == 400
 print("PASS admin set default model rejects unconfigured provider")
 
-# 25. Admin delete shop
-res = client.delete(f"/api/admin/shops/{shop_id}")
+# 25. Admin CSV template (blank)
+res = client.get("/api/admin/import/template")
+assert res.status_code == 200
+assert res.headers["content-type"].startswith("text/csv")
+assert res.content.decode("utf-8-sig").splitlines()[0].lower().split(",") == [
+    "shop_name", "shopkeeper", "lat", "long", "address", "phone", "item_name", "category",
+]
+print("PASS admin import template")
+
+# 26. Admin CSV template (sample data)
+res = client.get("/api/admin/import/template", params={"sample": 1})
+assert res.status_code == 200
+rows = res.content.decode("utf-8-sig").strip().splitlines()
+assert rows[0].lower().startswith("shop_name,shopkeeper,lat,long,address,phone,item_name,category")
+from app.sample_data import build_shops, shops_to_csv_rows
+assert len(rows) == 1 + len(shops_to_csv_rows(build_shops(50)))
+assert any(r.startswith("Sharma General Store,") for r in rows)
+print("PASS admin sample template")
+
+# 27. Admin CSV import
+csv_body = (
+    "shop_name,shopkeeper,lat,long,address,phone,item_name,category\n"
+    "Patel Supermarket,Nita Patel,19.07,72.87,Marol Market,9830012345,Amul Butter 500g,Dairy\n"
+    "Patel Supermarket,Nita Patel,19.07,72.87,Marol Market,9830012345,Milk 500ml,Dairy\n"
+    "Gupta Stores,Rahul Gupta,19.12,72.84,Lokhandwala,9821123456,Biscuits,Snacks\n"
+).encode()
+res = client.post("/api/admin/import/csv", files={"file": ("shops.csv", csv_body, "text/csv")})
+assert res.status_code == 200, res.text
+data = res.json()
+assert data["created"] == 2
+assert data["updated"] == 0
+assert data["items"] == 3
+assert data["total_errors"] == 0
+print("PASS admin CSV import")
+
+# 28. Re-import same CSV -> shops updated, items duplicated (no wipe)
+res = client.post("/api/admin/import/csv", files={"file": ("shops.csv", csv_body, "text/csv")})
+data = res.json()
+assert data["created"] == 0
+assert data["updated"] == 2
+assert data["items"] == 3
+print("PASS admin CSV re-import updates shops")
+
+# 29. Import with replace=true wipes existing then re-adds
+res = client.post(
+    "/api/admin/import/csv",
+    data={"replace": "true"},
+    files={"file": ("shops.csv", csv_body, "text/csv")},
+)
+assert res.status_code == 200, res.text
+data = res.json()
+assert data["created"] == 2 and data["items"] == 3
+assert client.get("/api/admin/stats").json()["total_shops"] == 2
+print("PASS admin CSV import with replace")
+
+# 30. Admin delete shop
+shop_list = client.get("/api/admin/shops").json()
+assert set(s["name"] for s in shop_list) == {"Patel Supermarket", "Gupta Stores"}
+victim = shop_list[0]
+res = client.delete(f"/api/admin/shops/{victim['shop_id']}")
 assert res.status_code == 204
-assert client.get("/api/admin/shops").json() == []
+remaining = [s["name"] for s in client.get("/api/admin/shops").json()]
+assert victim["name"] not in remaining and len(remaining) == 1
 print("PASS admin delete shop")
 
 print("\nALL TESTS PASSED")
