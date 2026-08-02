@@ -28,6 +28,30 @@ def create_shop(payload: schemas.ShopCreate, db: Session = Depends(get_db)):
     return shop
 
 
+# Literal routes first — otherwise /{shop_id} matches "onboard"/"geocode"
+# and the request fails as an int-parsing error before reaching them.
+@router.post("/onboard/photo", response_model=schemas.AISuggestion)
+def onboard_photo(photo: UploadFile = File(), db: Session = Depends(get_db)):
+    """Accept a signage photo, use it for OCR, then discard if retention is off."""
+    retain = get_retain_uploaded_images(db)
+    local_path, public_url = save_upload(photo, retain=retain)
+    vision_model = get_default_vision_model(db)
+    try:
+        suggestion = ai.suggest_shop_name(local_path, model=vision_model)
+    finally:
+        if not retain:
+            try:
+                Path(local_path).unlink(missing_ok=True)
+            except OSError:
+                pass
+    return {"suggestion": suggestion}
+
+
+@router.get("/geocode/reverse", response_model=dict)
+def geocode_reverse(lat: float, long: float):
+    return {"address": reverse_geocode(lat, long)}
+
+
 @router.get("/{shop_id}", response_model=schemas.ShopOut)
 def get_shop(shop_id: int, db: Session = Depends(get_db)):
     shop = db.get(models.Shop, shop_id)
@@ -62,25 +86,3 @@ def upload_shop_photo(shop_id: int, photo: UploadFile = File(...), db: Session =
     db.commit()
     db.refresh(shop)
     return shop
-
-
-@router.post("/onboard/photo", response_model=schemas.AISuggestion)
-def onboard_photo(photo: UploadFile = File(), db: Session = Depends(get_db)):
-    """Accept a signage photo, use it for OCR, then discard if retention is off."""
-    retain = get_retain_uploaded_images(db)
-    local_path, public_url = save_upload(photo, retain=retain)
-    vision_model = get_default_vision_model(db)
-    try:
-        suggestion = ai.suggest_shop_name(local_path, model=vision_model)
-    finally:
-        if not retain:
-            try:
-                Path(local_path).unlink(missing_ok=True)
-            except OSError:
-                pass
-    return {"suggestion": suggestion}
-
-
-@router.get("/geocode/reverse", response_model=dict)
-def geocode_reverse(lat: float, long: float):
-    return {"address": reverse_geocode(lat, long)}

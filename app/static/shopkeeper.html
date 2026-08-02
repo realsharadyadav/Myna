@@ -135,6 +135,28 @@
   }
   input[type=file]::file-selector-button:hover { border-color: var(--brand); }
 
+
+  /* ---------- photo picker: camera OR gallery, never forced ---------- */
+  .picker {
+    border: 1.5px dashed var(--line-strong); border-radius: 16px; padding: 14px;
+    background: var(--surface-3); transition: border-color .2s ease, background .2s ease;
+  }
+  .picker.dragover { border-color: var(--brand-strong); background: var(--brand-soft); }
+  .picker-empty { text-align: center; padding: 6px 4px 12px; }
+  .picker-ico { font-size: 1.6rem; }
+  .picker-empty p { font-size: .84rem; color: var(--ink-soft); margin-top: 4px; line-height: 1.4; }
+  .picker-btns { display: flex; gap: 8px; }
+  .picker-btns button { margin-top: 0; flex: 1; min-height: 46px; padding: 12px 8px; font-size: .88rem; }
+  .preview[hidden] { display: none; }
+  .preview { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .preview img {
+    width: 64px; height: 64px; flex: 0 0 64px; border-radius: 14px; object-fit: cover;
+    background: var(--surface-2); border: 1px solid var(--line);
+  }
+  .preview-meta { flex: 1; min-width: 0; }
+  .preview-meta b { display: block; font-size: .88rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .preview-meta span { font-size: .76rem; color: var(--ink-faint); }
+
   button {
     width: 100%; min-height: 48px; padding: 14px; border: 0; border-radius: 15px; font-family: inherit;
     font-size: .95rem; font-weight: 800; cursor: pointer; margin-top: 12px;
@@ -229,9 +251,25 @@
     <div class="step"><span class="num">1</span><h2>Register your shop</h2></div>
 
     <label>Photo of your shop board</label>
-    <input type="file" id="signPhoto" accept="image/*" capture="environment">
-    <button class="secondary" id="readNameBtn" onclick="readSignage()">📷 Read name from photo</button>
-    <div class="hint" id="aiHint">We'll read the shop name off the board — you can always edit it.</div>
+    <div class="picker" id="signPicker">
+      <div class="picker-empty" id="signEmpty">
+        <span class="picker-ico">🏪</span>
+        <p>Take a photo of your board, or pick one already on your phone.</p>
+      </div>
+      <div class="preview" id="signPreview" hidden>
+        <img id="signPreviewImg" alt="Your shop board photo">
+        <div class="preview-meta"><b id="signFileName"></b><span id="signFileSize"></span></div>
+        <button type="button" class="small secondary" onclick="signPick.clear()">Remove</button>
+      </div>
+      <div class="picker-btns">
+        <button type="button" class="secondary" onclick="signPick.camera()">📷 Take photo</button>
+        <button type="button" class="secondary" onclick="signPick.upload()">🖼️ Upload photo</button>
+      </div>
+      <input type="file" id="signCam" accept="image/*" capture="environment" hidden>
+      <input type="file" id="signFile" accept="image/*" hidden>
+    </div>
+    <button class="secondary" id="readNameBtn" onclick="readSignage()" hidden>↻ Read the name again</button>
+    <div class="hint" id="aiHint">We'll read the shop name off the photo — you can always edit it.</div>
 
     <label for="shopName">Shop name</label>
     <input type="text" id="shopName" placeholder="e.g. Sharma General Store">
@@ -256,10 +294,26 @@
   <div id="itemsCard" class="card hidden">
     <div class="step"><span class="num">2</span><h2>Add what you stock</h2><span class="badge" id="shopBadge"></span></div>
 
-    <label>Photo of the item</label>
-    <input type="file" id="itemPhoto" accept="image/*" capture="environment">
-    <button class="secondary" id="suggestBtn" onclick="suggestItem()">✨ Suggest name from photo</button>
-    <div class="hint" id="itemAiHint">Snap the pack — we'll fill in the name and category.</div>
+    <label>Photo of the item (optional)</label>
+    <div class="picker" id="itemPicker">
+      <div class="picker-empty" id="itemEmpty">
+        <span class="picker-ico">🛍️</span>
+        <p>Snap the pack or upload a picture — we'll fill in the name for you.</p>
+      </div>
+      <div class="preview" id="itemPreview" hidden>
+        <img id="itemPreviewImg" alt="The item photo">
+        <div class="preview-meta"><b id="itemFileName"></b><span id="itemFileSize"></span></div>
+        <button type="button" class="small secondary" onclick="itemPick.clear()">Remove</button>
+      </div>
+      <div class="picker-btns">
+        <button type="button" class="secondary" onclick="itemPick.camera()">📷 Take photo</button>
+        <button type="button" class="secondary" onclick="itemPick.upload()">🖼️ Upload photo</button>
+      </div>
+      <input type="file" id="itemCam" accept="image/*" capture="environment" hidden>
+      <input type="file" id="itemFile" accept="image/*" hidden>
+    </div>
+    <button class="secondary" id="suggestBtn" onclick="suggestItem()" hidden>↻ Suggest the name again</button>
+    <div class="hint" id="itemAiHint">Or just type the name below — a photo is optional.</div>
 
     <label for="itemName">Item name</label>
     <input type="text" id="itemName" placeholder="e.g. Parle-G Gold 100g">
@@ -336,6 +390,75 @@ addEventListener('scroll', () => topbar.classList.toggle('is-stuck', scrollY > 8
 let shopId = localStorage.getItem('myna_shop_id');
 let pendingItemPhotoUrl = '';
 
+/* A photo can come from the camera or from the gallery — the old inputs
+   carried capture="environment", which on a phone opens the camera straight
+   away and hides everything already saved on the device. Two inputs, two
+   buttons, and only the camera one captures. */
+function createPicker(opts) {
+  const cam = $(opts.cam), file = $(opts.file), picker = $(opts.picker);
+  const preview = $(opts.preview), empty = $(opts.empty), img = $(opts.img);
+  let chosen = null;
+
+  function show(f) {
+    if (chosen === f) return;
+    if (img.dataset.url) { URL.revokeObjectURL(img.dataset.url); delete img.dataset.url; }
+    chosen = f || null;
+    preview.hidden = !chosen;
+    empty.hidden = !!chosen;
+    if (opts.retry) $(opts.retry).hidden = !chosen;
+    if (!chosen) return;
+    const url = URL.createObjectURL(chosen);
+    img.dataset.url = url;
+    img.src = url;
+    $(opts.name).textContent = chosen.name || 'photo';
+    $(opts.size).textContent = (chosen.size / 1024 < 1024)
+      ? Math.max(1, Math.round(chosen.size / 1024)) + ' KB'
+      : (chosen.size / 1048576).toFixed(1) + ' MB';
+    if (opts.onPick) opts.onPick(chosen);
+  }
+
+  function accept(f) {
+    if (!f) return;
+    if (!f.type.startsWith('image/')) { alert('Please choose an image file.'); return; }
+    show(f);
+  }
+
+  [cam, file].forEach(input => input.addEventListener('change', () => {
+    accept(input.files[0]);
+    input.value = '';   // so picking the same file twice still fires change
+  }));
+
+  // Dragging a file in works on a laptop; harmless on a phone.
+  picker.addEventListener('dragover', e => { e.preventDefault(); picker.classList.add('dragover'); });
+  picker.addEventListener('dragleave', () => picker.classList.remove('dragover'));
+  picker.addEventListener('drop', e => {
+    e.preventDefault();
+    picker.classList.remove('dragover');
+    accept(e.dataTransfer.files[0]);
+  });
+
+  return {
+    camera: () => cam.click(),
+    upload: () => file.click(),
+    clear: () => show(null),
+    get file() { return chosen; },
+  };
+}
+
+const signPick = createPicker({
+  picker: 'signPicker', cam: 'signCam', file: 'signFile',
+  preview: 'signPreview', empty: 'signEmpty', img: 'signPreviewImg',
+  name: 'signFileName', size: 'signFileSize', retry: 'readNameBtn',
+  onPick: () => readSignage(),      // reading the board is the whole point
+});
+
+const itemPick = createPicker({
+  picker: 'itemPicker', cam: 'itemCam', file: 'itemFile',
+  preview: 'itemPreview', empty: 'itemEmpty', img: 'itemPreviewImg',
+  name: 'itemFileName', size: 'itemFileSize', retry: 'suggestBtn',
+  onPick: () => suggestItem(),
+});
+
 if (shopId) loadShop(shopId);
 
 async function loadShop(id) {
@@ -353,8 +476,8 @@ async function loadShop(id) {
 }
 
 async function readSignage() {
-  const f = $('signPhoto').files[0];
-  if (!f) { alert('Please take or pick a photo of your shop board first'); return; }
+  const f = signPick.file;
+  if (!f) { alert('Please take or upload a photo of your shop board first'); return; }
   const hint = $('aiHint');
   hint.className = 'hint'; hint.textContent = 'Reading name…';
   const fd = new FormData(); fd.append('photo', f);
@@ -407,9 +530,9 @@ async function saveShop() {
   try {
     const res = await fetch(API + '/api/shops', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
     const shop = await res.json();
-    const signFile = $('signPhoto').files[0];
-    if (signFile) {
-      const fd = new FormData(); fd.append('photo', signFile);
+    const boardPhoto = signPick.file;
+    if (boardPhoto) {
+      const fd = new FormData(); fd.append('photo', boardPhoto);
       await fetch(`${API}/api/shops/${shop.shop_id}/photo`, { method: 'POST', body: fd });
     }
     localStorage.setItem('myna_shop_id', shop.shop_id);
@@ -418,8 +541,8 @@ async function saveShop() {
 }
 
 async function suggestItem() {
-  const f = $('itemPhoto').files[0];
-  if (!f) { alert('Please take or pick an item photo first'); return; }
+  const f = itemPick.file;
+  if (!f) { alert('Please take or upload an item photo first'); return; }
   const hint = $('itemAiHint');
   hint.className = 'hint'; hint.textContent = 'Identifying item…';
   const fd = new FormData(); fd.append('photo', f);
@@ -442,15 +565,15 @@ async function addItem() {
   const fd = new FormData();
   fd.append('name', name);
   fd.append('category', $('itemCat').value.trim());
-  const f = $('itemPhoto').files[0];
+  const f = itemPick.file;
   if (f) fd.append('photo', f);
   try {
     await fetch(`${API}/api/shops/${shopId}/items`, { method: 'POST', body: fd });
     $('itemName').value = '';
     $('itemCat').value = '';
-    $('itemPhoto').value = '';
+    itemPick.clear();
     $('itemAiHint').className = 'hint';
-    $('itemAiHint').textContent = 'Snap the pack — we\'ll fill in the name and category.';
+    $('itemAiHint').textContent = 'Or just type the name below — a photo is optional.';
     loadItems();
   } catch { alert('Add failed. Please try again.'); }
   btn.disabled = false; btn.textContent = 'Add item';

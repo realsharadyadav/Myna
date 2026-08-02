@@ -1,6 +1,7 @@
 """End-to-end smoke test using FastAPI TestClient (no live server needed)."""
 import io
 import os
+import re
 
 # Prevent .env from being loaded during tests — we don't want real keys.
 os.environ["MYNA_SKIP_DOTENV"] = "1"
@@ -465,7 +466,6 @@ res = client.get("/api/search", params={"q": "kapoor", "lat": 19.076, "long": 72
 assert any(r["item_name"] == "Pooja Camphor Tablets" for r in res.json())
 print("PASS synonym glossary matches daal/dal and kapoor/camphor")
 
-print("\nALL TESTS PASSED")
 
 # 38. Vision/OCR capability: models are tagged, and the self-test reports back
 # instead of leaving a text-only model silently broken.
@@ -485,3 +485,28 @@ res = client.post("/api/admin/llm/vision-test", json={"model": "groq/some-model"
 assert res.status_code == 200
 assert res.json()["status"] == "unconfigured"   # no API keys in tests
 print("PASS vision self-test endpoint")
+
+# 39. Literal shop routes must not be shadowed by /{shop_id}: "/onboard/photo"
+# was being parsed as shop_id="onboard" and returning 422, so signage reading
+# was broken for every shopkeeper regardless of the model configured.
+res = client.post(
+    "/api/shops/onboard/photo",
+    files={"photo": ("board.jpg", io.BytesIO(b"\xff\xd8\xff\xe0" + b"\x00" * 50), "image/jpeg")},
+)
+assert res.status_code == 200, res.text
+assert "suggestion" in res.json()
+assert client.get("/api/shops/geocode/reverse", params={"lat": 19.076, "long": 72.878}).status_code == 200
+print("PASS onboarding photo + geocode routes are not shadowed by /{shop_id}")
+
+# 40. Photo inputs must offer the gallery too — only the camera input captures.
+page = client.get("/shopkeeper").text
+cam_inputs = re.findall(r'<input[^>]*capture="environment"[^>]*>', page)
+assert len(cam_inputs) == 2, cam_inputs            # one camera input per picker
+assert 'id="signFile" accept="image/*"' in page          # gallery/file input, no capture
+assert 'id="itemFile" accept="image/*"' in page
+for _id in ('signCam', 'signFile', 'itemCam', 'itemFile'):
+    assert f'id="{_id}"' in page
+assert 'Upload photo' in page and 'Take photo' in page
+print("PASS shopkeeper offers both camera and upload")
+
+print("\nALL TESTS PASSED")
