@@ -172,6 +172,81 @@
 
   .hint { font-size: .8rem; color: var(--ink-soft); margin-top: 9px; line-height: 1.45; }
   .hint.ok { color: var(--ok); font-weight: 650; }
+  .hint.bad { color: var(--danger); font-weight: 650; }
+
+  /* ---------- three ways to add stock: lists, photo, typing ---------- */
+  .segmented {
+    display: flex; gap: 4px; padding: 4px; margin-top: 14px;
+    background: var(--surface-2); border-radius: 14px; border: 1px solid var(--line);
+  }
+  .segmented button {
+    flex: 1; margin: 0; min-height: 40px; padding: 8px 6px; border-radius: 11px;
+    font-size: .82rem; font-weight: 800; background: transparent; color: var(--ink-soft);
+    box-shadow: none;
+  }
+  .segmented button.active { background: var(--gel-face); color: var(--ink); box-shadow: var(--gel-face-lift); }
+  .segmented button { display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .segmented .ic { width: 16px; height: 16px; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .chip {
+    width: auto; margin: 0; min-height: 38px; padding: 8px 12px; border-radius: 999px;
+    font-size: .8rem; font-weight: 750; background: var(--surface); color: var(--ink);
+    border: 1.5px solid var(--line-strong); box-shadow: none;
+  }
+  .chip.on { background: var(--brand-soft); border-color: var(--brand-strong); color: var(--brand-ink); }
+  [data-theme="dark"] .chip.on { color: var(--brand-deep); }
+  .chip .n { font-weight: 650; color: var(--ink-faint); font-size: .76rem; }
+  .chip.on .n { color: inherit; opacity: .75; }
+
+  .catgroup { margin-top: 18px; }
+  .catgroup-head { display: flex; align-items: center; gap: 10px; }
+  .catgroup-head h3 { font-size: .9rem; font-weight: 800; letter-spacing: -.01em; }
+  .catgroup-head button { width: auto; margin: 0 0 0 auto; min-height: 34px; padding: 6px 12px; font-size: .76rem; border-radius: 10px; }
+  .optgrid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  /* These are <label>s, so the uppercase/letter-spaced field-label styling
+     above has to be undone — product names must read as written. */
+  .opt {
+    position: relative; display: inline-flex; align-items: center; gap: 7px;
+    margin: 0; padding: 9px 13px 9px 11px; border-radius: 13px; cursor: pointer;
+    border: 1.5px solid var(--line-strong); background: var(--surface);
+    font-size: .85rem; font-weight: 650; line-height: 1.25; min-height: 42px;
+    text-transform: none; letter-spacing: normal; color: var(--ink);
+    transition: background .15s ease, border-color .15s ease;
+  }
+  .opt .label { text-transform: none; letter-spacing: normal; }
+  .opt input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .opt .box {
+    width: 18px; height: 18px; flex: 0 0 18px; border-radius: 6px; display: grid; place-items: center;
+    border: 1.5px solid var(--line-strong); background: var(--surface); color: transparent;
+    font-size: .72rem; font-weight: 900;
+  }
+  .opt.on { background: var(--brand-soft); border-color: var(--brand-strong); }
+  .opt.on .box { background: var(--brand-strong); border-color: var(--brand-strong); color: #fff; }
+  .opt input:focus-visible + .box { outline: 3px solid var(--brand); outline-offset: 2px; }
+  .opt.is-added { cursor: default; opacity: .55; }
+  .opt.on .label { color: var(--brand-ink); }
+  [data-theme="dark"] .opt.on .label { color: var(--brand-deep); }
+
+  .found { margin-top: 14px; }
+  .found .opt { display: flex; width: 100%; }
+  .found .opt .label { flex: 1; min-width: 0; }
+  .found .cat { display: block; font-size: .72rem; color: var(--ink-faint); font-weight: 600; margin-top: 2px; }
+
+  .selectbar { background: var(--gel-card); box-shadow: var(--gel-card-lift); }
+  .selectbar {
+    position: fixed; left: 0; right: 0; bottom: calc(58px + env(safe-area-inset-bottom)); z-index: 45;
+    display: flex; align-items: center; gap: 12px; max-width: 680px; margin: 0 auto;
+    padding: 10px 16px calc(10px);
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(18px) saturate(180%); -webkit-backdrop-filter: blur(18px) saturate(180%);
+    border-top: 1px solid var(--line);
+  }
+  .selectbar.hidden { display: none; }
+  .selectbar .count { font-size: .85rem; font-weight: 800; }
+  .selectbar .count span { color: var(--ink-faint); font-weight: 650; display: block; font-size: .74rem; }
+  .selectbar button { margin: 0; width: auto; flex: 1; max-width: 220px; }
+  .search-inline { margin-top: 12px; }
   .item-row { display: flex; gap: 12px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line); }
   .item-row:first-child { border-top: 0; padding-top: 4px; }
   .item-row img, .item-row .thumb {
@@ -396,36 +471,64 @@
   <div id="itemsCard" class="card hidden">
     <div class="step"><span class="num">2</span><h2>Add what you stock</h2><span class="badge" id="shopBadge"></span></div>
 
-    <label>Photo of the item (optional)</label>
-    <div class="picker" id="itemPicker">
-      <div class="picker-empty" id="itemEmpty">
-        <span class="picker-ico"><svg class="ic ic-lg" aria-hidden="true"><use href="#i-bag"/></svg></span>
-        <p>Snap the pack or upload a picture — we'll fill in the name for you.</p>
-      </div>
-      <div class="preview" id="itemPreview" hidden>
-        <img id="itemPreviewImg" alt="The item photo">
-        <div class="preview-meta"><b id="itemFileName"></b><span id="itemFileSize"></span></div>
-        <div class="preview-actions">
-          <button type="button" class="secondary gel btn-icon" id="suggestBtn" onclick="suggestItem()" title="Suggest the name again" aria-label="Suggest the name again"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg></button>
-          <button type="button" class="secondary gel btn-icon" onclick="itemPick.clear()" title="Remove photo" aria-label="Remove photo"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
-        </div>
-      </div>
-      <div class="picker-btns">
-        <button type="button" class="secondary gel" onclick="itemPick.camera()"><svg class="ic" aria-hidden="true"><use href="#i-camera"/></svg> Camera</button>
-        <button type="button" class="secondary gel" onclick="itemPick.upload()"><svg class="ic" aria-hidden="true"><use href="#i-image"/></svg> Gallery</button>
-      </div>
-      <input type="file" id="itemCam" accept="image/*" capture="environment" hidden>
-      <input type="file" id="itemFile" accept="image/*" hidden>
+    <div class="segmented">
+      <button type="button" class="active" data-mode="catalog" aria-pressed="true"><svg class="ic" aria-hidden="true"><use href="#i-check"/></svg> Tick list</button>
+      <button type="button" data-mode="photo" aria-pressed="false"><svg class="ic" aria-hidden="true"><use href="#i-camera"/></svg> Photo</button>
+      <button type="button" data-mode="manual" aria-pressed="false"><svg class="ic" aria-hidden="true"><use href="#i-edit"/></svg> Type</button>
     </div>
-    <div class="hint" id="itemAiHint">Or just type the name below — a photo is optional.</div>
 
-    <label for="itemName">Item name</label>
-    <input type="text" id="itemName" placeholder="e.g. Parle-G Gold 100g">
+    <!-- 2a. The fast path: what kind of shop is this, then tick the products -->
+    <section id="paneCatalog">
+      <div class="hint">What do you sell? Tap the kinds of things you keep — then tick everything you stock.</div>
+      <div class="chips" id="catChips"></div>
+      <div class="search-inline" id="catSearchWrap" hidden>
+        <input type="text" id="catSearch" placeholder="Search all items — e.g. haldi, agarbatti, kaju">
+      </div>
+      <div id="catalogGroups"></div>
+    </section>
 
-    <label for="itemCat">Category</label>
-    <input type="text" id="itemCat" placeholder="e.g. Snacks">
+    <!-- 2b. Photo: one shot of the shelf should list everything on it -->
+    <section id="panePhoto" hidden>
+      <label>Photo of your shelf or an item</label>
+      <div class="picker" id="itemPicker">
+        <div class="picker-empty" id="itemEmpty">
+          <span class="picker-ico"><svg class="ic ic-lg" aria-hidden="true"><use href="#i-bag"/></svg></span>
+          <p>Snap a whole shelf or a single pack — we'll list everything we can see, and you tick what to keep.</p>
+        </div>
+        <div class="preview" id="itemPreview" hidden>
+          <img id="itemPreviewImg" alt="The item photo">
+          <div class="preview-meta"><b id="itemFileName"></b><span id="itemFileSize"></span></div>
+          <div class="preview-actions">
+            <button type="button" class="secondary gel btn-icon" id="suggestBtn" onclick="suggestItem()" title="Read the photo again" aria-label="Read the photo again"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg></button>
+            <button type="button" class="secondary gel btn-icon" onclick="itemPick.clear()" title="Remove photo" aria-label="Remove photo"><svg class="ic" aria-hidden="true"><use href="#i-close"/></svg></button>
+          </div>
+        </div>
+        <div class="picker-btns">
+          <button type="button" class="secondary gel" onclick="itemPick.camera()"><svg class="ic" aria-hidden="true"><use href="#i-camera"/></svg> Camera</button>
+          <button type="button" class="secondary gel" onclick="itemPick.upload()"><svg class="ic" aria-hidden="true"><use href="#i-image"/></svg> Gallery</button>
+        </div>
+        <input type="file" id="itemCam" accept="image/*" capture="environment" hidden>
+        <input type="file" id="itemFile" accept="image/*" hidden>
+      </div>
+      <div class="hint" id="itemAiHint">Point the camera at a full shelf — the more packs in frame, the more we can list.</div>
+      <div class="found" id="foundItems"></div>
+    </section>
 
-    <button class="gel" id="addItemBtn" onclick="addItem()"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg> Add item</button>
+    <!-- 2c. Always available: type anything the lists and the camera missed -->
+    <section id="paneManual" hidden>
+      <label for="itemName">Item name</label>
+      <input type="text" id="itemName" placeholder="e.g. Parle-G Gold 100g">
+
+      <label for="itemCat">Category</label>
+      <input type="text" id="itemCat" placeholder="e.g. Snacks">
+
+      <button class="gel" id="addItemBtn" onclick="addItem()"><svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg> Add item</button>
+    </section>
+  </div>
+
+  <div class="selectbar hidden" id="selectBar">
+    <div class="count"><b id="selCount">0 selected</b><span id="selHint">Tick the products you keep</span></div>
+    <button class="gel" id="addSelectedBtn" onclick="addSelected()"><svg class="ic" aria-hidden="true"><use href="#i-check"/></svg> Add to my shop</button>
   </div>
 
   <div id="listCard" class="card hidden">
@@ -575,6 +678,7 @@ async function loadShop(id) {
     $('onboardCard').classList.add('hidden');
     $('itemsCard').classList.remove('hidden');
     $('listCard').classList.remove('hidden');
+    loadCatalog();
     loadItems();
   } catch { localStorage.removeItem('myna_shop_id'); }
 }
@@ -592,9 +696,13 @@ async function readSignage() {
       $('shopName').value = data.suggestion;
       hint.className = 'hint ok'; hint.textContent = '✓ Name read from photo — edit if needed.';
     } else {
-      hint.textContent = 'Could not read the board. Please type the name below.';
+      hint.className = 'hint bad';
+      hint.textContent = (data.error || 'Could not read the board.') + ' Please type the name below.';
     }
-  } catch { hint.textContent = 'Could not read the board. Please type the name below.'; }
+  } catch {
+    hint.className = 'hint bad';
+    hint.textContent = 'Could not read the board. Please type the name below.';
+  }
   checkReady();
 }
 
@@ -644,21 +752,193 @@ async function saveShop() {
   } catch { alert('Save failed. Please try again.'); btn.disabled = false; btn.textContent = 'Save my shop'; }
 }
 
+/* ---------- how you add stock: tick a list, shoot a photo, or type ---------- */
+document.querySelectorAll('.segmented button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.segmented button').forEach(b => {
+      b.classList.toggle('active', b === btn);
+      b.setAttribute('aria-pressed', b === btn ? 'true' : 'false');
+    });
+    const mode = btn.dataset.mode;
+    $('paneCatalog').hidden = mode !== 'catalog';
+    $('panePhoto').hidden = mode !== 'photo';
+    $('paneManual').hidden = mode !== 'manual';
+  });
+});
+
+/* Everything ticked — from the catalogue *or* from a photo — lands in one
+   map, so the bottom bar always shows one number and one button no matter
+   which tab it was ticked in. name(lowercase) -> {name, category} */
+const picked = new Map();
+let catalogData = [];
+const openCats = new Set();
+let existingNames = new Set();   // already in the shop, shown as done
+
+async function loadCatalog() {
+  if (catalogData.length) return;
+  try {
+    const res = await fetch(`${API}/api/catalog`);
+    catalogData = (await res.json()).categories || [];
+  } catch { return; }
+  $('catChips').innerHTML = catalogData.map(c => `
+    <button type="button" class="chip" data-key="${c.key}" aria-pressed="false">
+      ${c.emoji} ${esc(c.label)} <span class="n">${c.count}</span>
+    </button>`).join('');
+  $('catChips').querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', () => toggleCategory(chip.dataset.key));
+  });
+  $('catSearchWrap').hidden = false;
+  $('catSearch').addEventListener('input', renderGroups);
+}
+
+function toggleCategory(key) {
+  openCats.has(key) ? openCats.delete(key) : openCats.add(key);
+  $('catChips').querySelectorAll('.chip').forEach(chip => {
+    const on = openCats.has(chip.dataset.key);
+    chip.classList.toggle('on', on);
+    chip.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+  renderGroups();
+}
+
+function renderGroups() {
+  const q = $('catSearch').value.trim().toLowerCase();
+  // A search looks across the whole catalogue; without one you only see the
+  // categories you tapped, so the page never opens as 300 checkboxes.
+  const groups = catalogData
+    .map(c => ({ ...c, items: q ? c.items.filter(i => i.toLowerCase().includes(q)) : c.items }))
+    .filter(c => c.items.length && (q || openCats.has(c.key)));
+
+  const box = $('catalogGroups');
+  if (!groups.length) {
+    box.innerHTML = q
+      ? '<div class="state">Nothing matches that. Use “Type it” to add it yourself.</div>'
+      : (openCats.size ? '' : '<div class="state">Pick one or more of the kinds above to see items.</div>');
+    return;
+  }
+  box.innerHTML = groups.map(c => `
+    <div class="catgroup">
+      <div class="catgroup-head">
+        <h3>${c.emoji} ${esc(c.label)}</h3>
+        <button type="button" class="secondary small" data-all="${c.key}">Select all</button>
+      </div>
+      <div class="optgrid">${c.items.map(name => optHtml(name, c.label)).join('')}</div>
+    </div>`).join('');
+
+  box.querySelectorAll('[data-all]').forEach(btn => {
+    btn.addEventListener('click', () => selectAll(btn.closest('.catgroup')));
+  });
+  wireOpts(box);
+}
+
+function optHtml(name, category) {
+  const added = existingNames.has(name.toLowerCase());
+  const on = added || picked.has(name.toLowerCase());
+  return `
+    <label class="opt${on ? ' on' : ''}${added ? ' is-added' : ''}">
+      <input type="checkbox" ${on ? 'checked' : ''} ${added ? 'disabled' : ''}
+             value="${esc(name)}" data-cat="${esc(category)}">
+      <span class="box">✓</span>
+      <span class="label">${esc(name)}${added ? ' <span class="cat">already in your shop</span>' : ''}</span>
+    </label>`;
+}
+
+function wireOpts(root) {
+  root.querySelectorAll('.opt input').forEach(input => {
+    input.addEventListener('change', () => {
+      const name = input.value.trim();
+      input.closest('.opt').classList.toggle('on', input.checked);
+      if (input.checked) picked.set(name.toLowerCase(), { name, category: input.dataset.cat || '' });
+      else picked.delete(name.toLowerCase());
+      refreshBar();
+    });
+  });
+}
+
+function selectAll(group) {
+  const inputs = [...group.querySelectorAll('.opt input:not(:disabled)')];
+  const turnOn = inputs.some(i => !i.checked);
+  inputs.forEach(i => {
+    if (i.checked !== turnOn) { i.checked = turnOn; i.dispatchEvent(new Event('change')); }
+  });
+  group.querySelector('[data-all]').textContent = turnOn ? 'Clear all' : 'Select all';
+}
+
+function refreshBar() {
+  const n = picked.size;
+  $('selectBar').classList.toggle('hidden', n === 0);
+  $('selCount').textContent = n + (n === 1 ? ' item selected' : ' items selected');
+  $('addSelectedBtn').textContent = `Add ${n} to my shop`;
+}
+
+async function addSelected() {
+  const chosen = [...picked.values()];
+  if (!chosen.length) return;
+  const btn = $('addSelectedBtn');
+  btn.disabled = true; btn.textContent = 'Adding…';
+  try {
+    const res = await fetch(`${API}/api/shops/${shopId}/items/bulk`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: chosen }),
+    });
+    if (!res.ok) throw 0;
+    const data = await res.json();
+    picked.clear();
+    $('foundItems').innerHTML = '';
+    await loadItems();
+    renderGroups();
+    const added = data.added.length, skipped = data.skipped.length;
+    $('selHint').textContent = '';
+    const hint = $('itemAiHint');
+    hint.className = 'hint ok';
+    hint.textContent = `✓ Added ${added} item${added === 1 ? '' : 's'}` +
+      (skipped ? ` — ${skipped} were already in your list.` : '.');
+  } catch {
+    alert('Could not add those items. Please try again.');
+  }
+  btn.disabled = false;
+  refreshBar();
+}
+
 async function suggestItem() {
   const f = itemPick.file;
   if (!f) { alert('Please take or upload an item photo first'); return; }
-  const hint = $('itemAiHint');
-  hint.className = 'hint'; hint.textContent = 'Identifying item…';
+  const hint = $('itemAiHint'), found = $('foundItems');
+  hint.className = 'hint'; hint.textContent = 'Looking at the photo…';
+  found.innerHTML = '';
   const fd = new FormData(); fd.append('photo', f);
   try {
     const res = await fetch(`${API}/api/shops/${shopId}/items/suggest`, { method: 'POST', body: fd });
     const data = await res.json();
     pendingItemPhotoUrl = data.photo_url || '';
-    if (data.name) $('itemName').value = data.name;
-    if (data.category) $('itemCat').value = data.category;
-    if (data.name) { hint.className = 'hint ok'; hint.textContent = '✓ Filled in — edit if needed, then Add.'; }
-    else hint.textContent = 'No suggestion available. Type the name and tap Add.';
-  } catch { hint.textContent = 'Suggestion failed. Type the name and tap Add.'; }
+    const items = data.items || (data.name ? [{ name: data.name, category: data.category || '' }] : []);
+    if (!items.length) {
+      hint.className = 'hint bad';
+      hint.textContent = data.error || 'Nothing found in that photo. Try again, or type the name yourself.';
+      return;
+    }
+    // Everything the model saw comes back ticked — un-ticking the odd wrong
+    // guess is much less work than typing the twenty right ones.
+    found.innerHTML = `
+      <div class="catgroup">
+        <div class="catgroup-head">
+          <h3>Found in your photo</h3>
+          <button type="button" class="secondary small" data-all="found">Clear all</button>
+        </div>
+        <div class="optgrid">${items.map(i => optHtml(i.name, i.category || '')).join('')}</div>
+      </div>`;
+    found.querySelector('[data-all]').addEventListener('click', e => selectAll(e.target.closest('.catgroup')));
+    wireOpts(found);
+    found.querySelectorAll('.opt input:not(:disabled)').forEach(input => {
+      if (!input.checked) { input.checked = true; input.dispatchEvent(new Event('change')); }
+    });
+    const n = found.querySelectorAll('.opt input').length;
+    hint.className = 'hint ok';
+    hint.textContent = `✓ Found ${n} item${n === 1 ? '' : 's'} — untick anything that's wrong, then add them.`;
+  } catch {
+    hint.className = 'hint bad';
+    hint.textContent = 'Could not read the photo. Please try again, or type the name yourself.';
+  }
 }
 
 async function addItem() {
@@ -677,8 +957,9 @@ async function addItem() {
     $('itemCat').value = '';
     itemPick.clear();
     $('itemAiHint').className = 'hint';
-    $('itemAiHint').textContent = 'Or just type the name below — a photo is optional.';
-    loadItems();
+    $('itemAiHint').textContent = 'Point the camera at a full shelf — the more packs in frame, the more we can list.';
+    await loadItems();
+    renderGroups();
   } catch { alert('Add failed. Please try again.'); }
   btn.disabled = false; btn.textContent = 'Add item';
 }
@@ -686,6 +967,7 @@ async function addItem() {
 async function loadItems() {
   const res = await fetch(`${API}/api/shops/${shopId}/items`);
   const items = await res.json();
+  existingNames = new Set(items.map(i => i.name.trim().toLowerCase()));
   const list = $('itemList');
   $('countBadge').textContent = items.length ? items.length + (items.length === 1 ? ' item' : ' items') : '';
   if (!items.length) {

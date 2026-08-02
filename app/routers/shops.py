@@ -37,14 +37,14 @@ def onboard_photo(photo: UploadFile = File(), db: Session = Depends(get_db)):
     local_path, public_url = save_upload(photo, retain=retain)
     vision_model = get_default_vision_model(db)
     try:
-        suggestion = ai.suggest_shop_name(local_path, model=vision_model)
+        suggestion, error = ai.suggest_shop_name_detailed(local_path, model=vision_model)
     finally:
         if not retain:
             try:
                 Path(local_path).unlink(missing_ok=True)
             except OSError:
                 pass
-    return {"suggestion": suggestion}
+    return {"suggestion": suggestion, "error": error}
 
 
 @router.get("/geocode/reverse", response_model=dict)

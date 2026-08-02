@@ -275,6 +275,24 @@ def embed_item(item, db=None) -> None:
         item.embedding_model = _stored_model_tag(model)
 
 
+def embed_items(items: list, db=None) -> None:
+    """(Re)generate embeddings for several items in one batched pass.
+
+    Bulk-adding a whole category is dozens of items at once; embedding them
+    one at a time would mean dozens of round trips on the Gemini backend and
+    dozens of separate fastembed calls locally.
+    """
+    if not items:
+        return
+    model = _effective_model(db)
+    stored_tag = _stored_model_tag(model)
+    vectors = embed_passages([item_text(it) for it in items], model=model)
+    for item, vec in zip(items, vectors):
+        if vec:
+            item.embedding = json.dumps(vec)
+            item.embedding_model = stored_tag
+
+
 def backfill(db: Session, batch_size: int = 100) -> int:
     """Embed every item that doesn't have a vector yet, or whose
     embedding_model doesn't match the current default. Returns count embedded."""

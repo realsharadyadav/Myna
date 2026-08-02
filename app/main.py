@@ -70,6 +70,7 @@ app.add_middleware(
 
 app.include_router(shops.router)
 app.include_router(items.router)
+app.include_router(items.catalog_router)
 app.include_router(search.router)
 app.include_router(admin.router)
 
