@@ -506,7 +506,8 @@ assert 'id="signFile" accept="image/*"' in page          # gallery/file input, n
 assert 'id="itemFile" accept="image/*"' in page
 for _id in ('signCam', 'signFile', 'itemCam', 'itemFile'):
     assert f'id="{_id}"' in page
-assert 'Upload photo' in page and 'Take photo' in page
+assert 'signPick.camera()' in page and 'signPick.upload()' in page
+assert 'itemPick.camera()' in page and 'itemPick.upload()' in page
 print("PASS shopkeeper offers both camera and upload")
 
 print("\nALL TESTS PASSED")

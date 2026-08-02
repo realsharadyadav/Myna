@@ -79,7 +79,8 @@
   .header-right { display: flex; align-items: center; gap: 14px; }
   header nav { display: flex; gap: 2px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   header nav::-webkit-scrollbar { display: none; }
-  header nav a { white-space: nowrap; }
+  header nav a { white-space: nowrap; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; }
+  header nav a .ic { width: 19px; height: 19px; }
   header nav a { color: var(--text-soft); text-decoration: none; font-size: .84rem; padding: 8px 12px; border-radius: 10px; transition: background .2s ease, color .2s ease; }
   header nav a:hover { background: var(--row-hover); color: var(--text); }
   .theme-toggle {
@@ -87,6 +88,7 @@
     background: var(--glass); color: var(--text); font-size: 1.1rem; display: grid; place-items: center;
     box-shadow: var(--card-shadow); transition: transform .15s ease, background .3s ease;
   }
+  .theme-toggle .ic { width: 19px; height: 19px; }
   .theme-toggle:hover { transform: translateY(-2px) scale(1.05); }
   .theme-toggle:active { transform: scale(.95); }
   main { max-width: 1020px; margin: 0 auto; padding: 20px 16px 48px; overflow-x: hidden; }
@@ -256,6 +258,76 @@
     .savebar button { flex: 1; }
   }
 
+  /* ================= glossy (gel) surface layer ================= */
+  :root {
+    --gel-face: linear-gradient(180deg, #ffffff 0%, #f8f2e4 100%);
+    --gel-face-lift: inset 0 1px 0 rgba(255,255,255,.95), 0 1px 1px rgba(90,70,20,.10), 0 6px 14px -10px rgba(90,70,20,.45);
+    --gel-brand: linear-gradient(180deg, #ffeec4 0%, #ffdd8d 44%, #f3c75f 100%);
+    --gel-brand-lift: inset 0 1px 0 rgba(255,255,255,.95), inset 0 -2px 3px rgba(170,120,10,.20), 0 1px 1px rgba(120,90,20,.18), 0 8px 18px -10px rgba(150,110,20,.55);
+    --gel-brand-edge: rgba(190,145,40,.42);
+    --gel-card: linear-gradient(180deg, #ffffff 0%, #fffcf2 100%);
+    --gel-card-lift: inset 0 1px 0 #ffffff, 0 1px 2px rgba(60,50,20,.07), 0 16px 34px -22px rgba(90,70,20,.55);
+    --gel-well: linear-gradient(180deg, #f4eee0 0%, #ffffff 58%);
+    --gel-well-lift: inset 0 2px 4px rgba(120,95,30,.13), inset 0 0 0 1px rgba(255,255,255,.55);
+    --sheen: linear-gradient(180deg, rgba(255,255,255,.88), rgba(255,255,255,.10));
+  }
+  [data-theme="dark"] {
+    --gel-face: linear-gradient(180deg, #2a2720 0%, #1d1b15 100%);
+    --gel-face-lift: inset 0 1px 0 rgba(255,255,255,.10), 0 1px 1px rgba(0,0,0,.5), 0 8px 16px -10px rgba(0,0,0,.8);
+    --gel-brand: linear-gradient(180deg, #f0cd7c 0%, #e0b559 45%, #c79a3e 100%);
+    --gel-brand-lift: inset 0 1px 0 rgba(255,255,255,.45), inset 0 -2px 3px rgba(90,60,0,.35), 0 1px 1px rgba(0,0,0,.4), 0 8px 18px -10px rgba(0,0,0,.7);
+    --gel-brand-edge: rgba(120,90,20,.5);
+    --gel-card: linear-gradient(180deg, #232019 0%, #1b1913 100%);
+    --gel-card-lift: inset 0 1px 0 rgba(255,255,255,.07), 0 1px 2px rgba(0,0,0,.45), 0 16px 34px -22px rgba(0,0,0,.9);
+    --gel-well: linear-gradient(180deg, #141209 0%, #221f18 60%);
+    --gel-well-lift: inset 0 2px 4px rgba(0,0,0,.55), inset 0 0 0 1px rgba(255,255,255,.05);
+    --sheen: linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,.02));
+  }
+
+  /* the curved specular reflection across the top of every raised control */
+  .gel { position: relative; isolation: isolate; }
+  .gel::after {
+    content: ""; position: absolute; inset: 1px 1px auto; height: 46%;
+    border-radius: inherit; background: var(--sheen);
+    pointer-events: none; z-index: 1;
+  }
+  .gel > * { position: relative; z-index: 2; }
+
+  .ic { width: 1.15em; height: 1.15em; flex: 0 0 auto; fill: none; stroke: currentColor;
+        stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+  .ic-lg { width: 1.5em; height: 1.5em; }
+
+  .card, .stat-card { background: var(--gel-card); box-shadow: var(--gel-card-lift); }
+  .stat-card { background: var(--gel-brand); border: 1px solid var(--gel-brand-edge); box-shadow: var(--gel-brand-lift); }
+  .tabs button, button.ghost, .theme-toggle, .badge, .setting-ico, .cap {
+    background: var(--gel-face); box-shadow: var(--gel-face-lift);
+  }
+  .tabs button.active, .toolbar button, .savebar button, .actions button:not(.del) {
+    background: var(--gel-brand); border: 1px solid var(--gel-brand-edge);
+    box-shadow: var(--gel-brand-lift); color: var(--btn-text);
+  }
+  .savebar button.ghost { background: var(--gel-face); box-shadow: var(--gel-face-lift); color: var(--text-soft); }
+  .toolbar input[type=text], .toolbar select, select.field, input.field, td input, .switch {
+    background: var(--gel-well); box-shadow: var(--gel-well-lift);
+  }
+  .switch-row input:checked ~ .switch { background: linear-gradient(180deg, #ffe4a2, #edb745); box-shadow: inset 0 1px 0 rgba(255,255,255,.7), 0 1px 2px rgba(120,90,20,.25); }
+  .switch::after { background: linear-gradient(180deg, #fff, #f1ece0); }
+  .tabs button:active, .toolbar button:active { box-shadow: inset 0 2px 5px rgba(120,90,20,.28); }
+
+  /* ---------- icon-first controls ---------- */
+  .tabs button { display: inline-flex; align-items: center; gap: 7px; }
+  .tabs .ic, button .ic { width: 17px; height: 17px; }
+  .setting-ico .ic { width: 20px; height: 20px; color: var(--accent-text); }
+  .btn-icon { width: 38px; height: 38px; padding: 0; display: inline-grid; place-items: center; border-radius: 11px; }
+  .btn-icon .ic { width: 17px; height: 17px; }
+  .actions { display: flex; gap: 6px; justify-content: flex-end; }
+  .note b .ic { width: 16px; height: 16px; vertical-align: -3px; margin-right: 6px; }
+  @media (max-width: 560px) {
+    .tabs button span.tab-text { display: none; }
+    .tabs button.active span.tab-text { display: inline; }
+    .tabs button { padding: 10px 15px; }
+  }
+
   #splash {
     position: fixed; inset: 0; z-index: 9999;
     display: flex; align-items: center; justify-content: center;
@@ -277,6 +349,35 @@
 </style>
 </head>
 <body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M16.6 16.6 21 21"/></symbol>
+    <symbol id="i-dish" viewBox="0 0 24 24"><path d="M3.4 11.4h17.2a8.6 8.6 0 0 1-17.2 0Z"/><path d="M2.4 20.6h19.2"/><path d="M9 8c0-1.3 1.2-1.4 1.2-2.6S9 3.4 9 3.4"/><path d="M14 8c0-1.3 1.2-1.4 1.2-2.6S14 3.4 14 3.4"/></symbol>
+    <symbol id="i-store" viewBox="0 0 24 24"><path d="M3.2 9.4 4.9 4.2h14.2l1.7 5.2"/><path d="M5.2 9.4V20h13.6V9.4"/><path d="M9.8 20v-5.2h4.4V20"/></symbol>
+    <symbol id="i-nav" viewBox="0 0 24 24"><path d="M20.8 3.2 3.4 10.6l7.2 2.8 2.8 7.2Z"/></symbol>
+    <symbol id="i-phone" viewBox="0 0 24 24"><path d="M21 16.9v2.6a2 2 0 0 1-2.2 2 19.6 19.6 0 0 1-8.5-3A19.3 19.3 0 0 1 4.4 12 19.6 19.6 0 0 1 1.5 3.4a2 2 0 0 1 2-2.2h2.6a2 2 0 0 1 2 1.7c.13.95.36 1.87.7 2.75a2 2 0 0 1-.45 2.1L7.2 8.9a15.8 15.8 0 0 0 5.9 5.9l1.15-1.15a2 2 0 0 1 2.1-.45c.88.33 1.8.57 2.75.7a2 2 0 0 1 1.7 2Z"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21.4s7-6.6 7-11.4a7 7 0 1 0-14 0c0 4.8 7 11.4 7 11.4Z"/><circle cx="12" cy="10" r="2.5"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.4 14.8A8.6 8.6 0 0 1 9.2 3.6 8.6 8.6 0 1 0 20.4 14.8Z"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.6v2.2M12 19.2v2.2M2.6 12h2.2M19.2 12h2.2M5.4 5.4l1.6 1.6M17 17l1.6 1.6M18.6 5.4 17 7M7 17l-1.6 1.6"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4.6 12h13.6M12.8 6.6 18.2 12l-5.4 5.4"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 3.2 1.75 5.05L18.8 10l-5.05 1.75L12 16.8l-1.75-5.05L5.2 10l5.05-1.75Z"/><path d="M18.4 15.6l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7Z"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6"/><path d="M3.4 12h17.2"/><path d="M12 3.4a13 13 0 0 1 0 17.2 13 13 0 0 1 0-17.2Z"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 4.6h5.4A2.6 2.6 0 0 1 12 7.2v12a2 2 0 0 0-2-2H4Z"/><path d="M20 4.6h-5.4A2.6 2.6 0 0 0 12 7.2v12a2 2 0 0 1 2-2h6Z"/></symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13.4 2.6 4.8 13.4h6L10.6 21.4l8.6-10.8h-6Z"/></symbol>
+    <symbol id="i-receipt" viewBox="0 0 24 24"><path d="M6 2.8h12v18.4l-2.4-1.6-2.4 1.6-2.4-1.6-2.4 1.6L6 19.6Z"/><path d="M9.2 8h5.6M9.2 12h5.6"/></symbol>
+    <symbol id="i-bag" viewBox="0 0 24 24"><path d="M5.6 7.6h12.8l-1 12.8H6.6Z"/><path d="M9 7.6V6a3 3 0 0 1 6 0v1.6"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5.2 12.6 4.6 4.6L18.8 7.4"/></symbol>
+    <symbol id="i-map" viewBox="0 0 24 24"><path d="M9 4.4 3.4 6.8v12.8L9 17.2l6 2.4 5.6-2.4V4.4L15 6.8Z"/><path d="M9 4.4v12.8M15 6.8v12.8"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6"/><path d="M12 7.2V12l3.2 1.9"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3.4 2.6 20.6h18.8Z"/><path d="M12 10v4.2M12 17.6h.01"/></symbol>
+    <symbol id="i-camera" viewBox="0 0 24 24"><path d="M3.6 7.8h3.2l1.5-2.2h7.4l1.5 2.2h3.2a1.6 1.6 0 0 1 1.6 1.6v8.6a1.6 1.6 0 0 1-1.6 1.6H3.6A1.6 1.6 0 0 1 2 18V9.4a1.6 1.6 0 0 1 1.6-1.6Z"/><circle cx="12" cy="13.4" r="3.4"/></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4.4" width="18" height="15.2" rx="2.2"/><circle cx="8.6" cy="9.8" r="1.6"/><path d="m21 15.6-4.8-4.6L5.6 19.6"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20.2 12a8.2 8.2 0 1 1-2.4-5.8"/><path d="M20.4 3.4v4.8h-4.8"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6.4 6.4 17.6 17.6M17.6 6.4 6.4 17.6"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4.2L19.4 8.8a2.1 2.1 0 0 0-3-3L5.2 17Z"/><path d="M14.8 4.6 19.4 9.2"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.6 6.6h14.8"/><path d="M8.4 6.6V4.4h7.2v2.2"/><path d="M6.6 6.6 7.6 20h8.8l1-13.4"/></symbol>
+    <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.4"/><circle cx="12" cy="12" r="2.4"/><path d="M12 1.8v2.6M12 19.6v2.6M1.8 12h2.6M19.6 12h2.6"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  </defs></svg>
   <div id="splash">
     <div class="splash-inner">
       <img src="/myna-logo.svg" alt="Myna">
@@ -293,20 +394,20 @@
     </div>
     <div class="header-right">
       <nav>
-        <a href="/">Customer Search</a>
-        <a href="/shopkeeper">Shopkeeper</a>
-        <a href="/docs">API Docs</a>
+        <a href="/" title="Customer search" aria-label="Customer search"><svg class="ic" aria-hidden="true"><use href="#i-search"/></svg></a>
+        <a href="/shopkeeper" title="Shopkeeper" aria-label="Shopkeeper"><svg class="ic" aria-hidden="true"><use href="#i-store"/></svg></a>
+        <a href="/docs" title="API docs" aria-label="API docs"><svg class="ic" aria-hidden="true"><use href="#i-book"/></svg></a>
       </nav>
       <button class="theme-toggle" id="themeBtn" title="Toggle theme" aria-label="Toggle dark/light mode"></button>
     </div>
   </header>
 <main>
   <div class="tabs">
-    <button class="active" onclick="showTab('dashboard', this)">Dashboard</button>
-    <button onclick="showTab('shops', this)">Shops</button>
-    <button onclick="showTab('items', this)">All Items</button>
-    <button onclick="showTab('settings', this)">AI Settings</button>
-    <button onclick="showTab('import', this)">Import CSV</button>
+    <button class="active" onclick="showTab('dashboard', this)" title="Dashboard" aria-label="Dashboard"><svg class="ic" aria-hidden="true"><use href="#i-target"/></svg><span class="tab-text">Dashboard</span></button>
+    <button onclick="showTab('shops', this)" title="Shops" aria-label="Shops"><svg class="ic" aria-hidden="true"><use href="#i-store"/></svg><span class="tab-text">Shops</span></button>
+    <button onclick="showTab('items', this)" title="All items" aria-label="All items"><svg class="ic" aria-hidden="true"><use href="#i-bag"/></svg><span class="tab-text">All Items</span></button>
+    <button onclick="showTab('settings', this)" title="AI settings" aria-label="AI settings"><svg class="ic" aria-hidden="true"><use href="#i-spark"/></svg><span class="tab-text">AI Settings</span></button>
+    <button onclick="showTab('import', this)" title="Import CSV" aria-label="Import CSV"><svg class="ic" aria-hidden="true"><use href="#i-receipt"/></svg><span class="tab-text">Import CSV</span></button>
   </div>
 
   <!-- ==================== DASHBOARD ==================== -->
@@ -342,7 +443,7 @@
     <!-- What each model is for, in plain words, one setting per card. -->
     <div class="card setting" id="visionCard">
       <div class="setting-head">
-        <span class="setting-ico">📷</span>
+        <span class="setting-ico"><svg class="ic" aria-hidden="true"><use href="#i-camera"/></svg></span>
         <div>
           <h3>Reading photos (OCR)</h3>
           <p class="setting-why">Used when a shopkeeper photographs their name board or a product — the model reads the text and fills the form.</p>
@@ -352,14 +453,14 @@
       <label class="field-label" for="visionModelSelect">Model</label>
       <select id="visionModelSelect" class="field"></select>
       <div class="setting-actions">
-        <button class="ghost" type="button" id="visionTestBtn" onclick="testVision()">Test with a sample photo</button>
+        <button class="ghost gel" type="button" id="visionTestBtn" onclick="testVision()"><svg class="ic" aria-hidden="true"><use href="#i-camera"/></svg> Test with a sample photo</button>
       </div>
       <div id="visionTestResult"></div>
     </div>
 
     <div class="card setting">
       <div class="setting-head">
-        <span class="setting-ico">🔎</span>
+        <span class="setting-ico"><svg class="ic" aria-hidden="true"><use href="#i-search"/></svg></span>
         <div>
           <h3>Understanding searches</h3>
           <p class="setting-why">Splits what a customer types into separate items, and turns a dish name into its ingredients. Text only — no photos.</p>
@@ -371,7 +472,7 @@
 
     <div class="card setting">
       <div class="setting-head">
-        <span class="setting-ico">🧠</span>
+        <span class="setting-ico"><svg class="ic" aria-hidden="true"><use href="#i-spark"/></svg></span>
         <div>
           <h3>Matching similar words</h3>
           <p class="setting-why">Lets "milk" find items listed as "dairy". Runs locally by default — no API key needed.</p>
@@ -380,7 +481,7 @@
       <label class="field-label" for="embeddingModelSelect">Model</label>
       <select id="embeddingModelSelect" class="field"></select>
       <div class="setting-actions">
-        <button class="ghost" type="button" onclick="runBackfill()">Re-index all items</button>
+        <button class="ghost gel" type="button" onclick="runBackfill()"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg> Re-index all items</button>
         <span class="inline-msg" id="backfillMsg"></span>
       </div>
       <p class="setting-why" id="embedStatus"></p>
@@ -388,7 +489,7 @@
 
     <div class="card setting">
       <div class="setting-head">
-        <span class="setting-ico">🗄️</span>
+        <span class="setting-ico"><svg class="ic" aria-hidden="true"><use href="#i-image"/></svg></span>
         <div>
           <h3>Keeping uploaded photos</h3>
           <p class="setting-why">Off means photos are used for the AI suggestion and then deleted — nothing is stored.</p>
@@ -404,7 +505,7 @@
 
     <div class="card setting">
       <div class="setting-head">
-        <span class="setting-ico">🔌</span>
+        <span class="setting-ico"><svg class="ic" aria-hidden="true"><use href="#i-bolt"/></svg></span>
         <div>
           <h3>Connected providers</h3>
           <p class="setting-why">Set API keys in your <code>.env</code> to add more.</p>
@@ -531,7 +632,7 @@ const API = window.MYNA_API_BASE || '';
   root.setAttribute('data-theme', saved || prefers);
   const btn = document.getElementById('themeBtn');
   function render() {
-    btn.textContent = root.getAttribute('data-theme') === 'dark' ? '☀️' : '🌙';
+    btn.innerHTML = `<svg class="ic" aria-hidden="true"><use href="#i-${root.getAttribute('data-theme') === 'dark' ? 'sun' : 'moon'}"/></svg>`;
   }
   btn.addEventListener('click', () => {
     const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
@@ -632,8 +733,8 @@ async function loadShops() {
       <td><input value="${esc(s.phone)}" onchange="patchShop(${s.shop_id}, 'phone', this.value)"></td>
       <td style="text-align:center">${items.length}</td>
       <td class="actions">
-        <button onclick="toggleItems(this, ${s.shop_id})">Items</button>
-        <button class="del" onclick="deleteShop(${s.shop_id})">Delete</button>
+        <button class="btn-icon" onclick="toggleItems(this, ${s.shop_id})" title="Show items" aria-label="Show items"><svg class="ic" aria-hidden="true"><use href="#i-bag"/></svg></button>
+        <button class="del btn-icon" onclick="deleteShop(${s.shop_id})" title="Delete shop" aria-label="Delete shop"><svg class="ic" aria-hidden="true"><use href="#i-trash"/></svg></button>
       </td>
     `;
     tbody.appendChild(tr);
@@ -673,7 +774,7 @@ async function toggleItems(btn, shopId) {
           <td>${i.item_id}</td>
           <td><input value="${esc(i.name)}" onchange="patchItem(${i.item_id}, 'name', this.value)"></td>
           <td><input value="${esc(i.category)}" onchange="patchItem(${i.item_id}, 'category', this.value)"></td>
-          <td class="actions"><button class="del" onclick="deleteItem(${i.item_id}, ${shopId})">Del</button></td>
+          <td class="actions"><button class="del btn-icon" onclick="deleteItem(${i.item_id}, ${shopId})" title="Delete item" aria-label="Delete item"><svg class="ic" aria-hidden="true"><use href="#i-trash"/></svg></button></td>
         </tr>`).join('') || '<tr><td colspan="4" class="msg">No items</td></tr>'}
       </tbody></table>`;
   } else {
@@ -726,7 +827,7 @@ async function loadAllItems() {
       <td><input value="${esc(i.name)}" onchange="patchItem(${i.item_id}, 'name', this.value)"></td>
       <td><input value="${esc(i.category)}" onchange="patchItem(${i.item_id}, 'category', this.value)"></td>
       <td>${new Date(i.created_at).toLocaleString()}</td>
-      <td class="actions"><button class="del" onclick="deleteItemGlobal(${i.item_id})">Delete</button></td>
+      <td class="actions"><button class="del btn-icon" onclick="deleteItemGlobal(${i.item_id})" title="Delete item" aria-label="Delete item"><svg class="ic" aria-hidden="true"><use href="#i-trash"/></svg></button></td>
     </tr>
   `).join('') || '<tr><td colspan="6" class="msg">No items found.</td></tr>';
 }
@@ -896,6 +997,8 @@ async function saveSettings() {
 }
 
 // --- does this model actually read photos? ------------------------------
+const tagIc = n => `<svg class="ic" aria-hidden="true"><use href="#i-${n}"/></svg>`;
+
 async function testVision() {
   const btn = document.getElementById('visionTestBtn');
   const box = document.getElementById('visionTestResult');
@@ -910,15 +1013,15 @@ async function testVision() {
     const d = await res.json();
     const took = d.latency_ms ? ` · ${(d.latency_ms / 1000).toFixed(1)}s` : '';
     const views = {
-      pass: ['good', '✅ This model reads photos',
+      pass: ['good', tagIc('check') + 'This model reads photos',
              `It read the test board correctly (<code>${esc(d.expected)}</code>)${took}. OCR is working.`],
-      partial: ['warn', '⚠️ Photo went through, but the text was misread',
+      partial: ['warn', tagIc('alert') + 'Photo went through, but the text was misread',
                 `Expected <code>${esc(d.expected)}</code>, model replied <code>${esc(d.reply || '')}</code>${took}. Onboarding will often need manual correction — try a stronger vision model.`],
-      no_vision: ['warn', '❌ This model cannot accept images',
+      no_vision: ['warn', tagIc('close') + 'This model cannot accept images',
                   `The provider rejected the image: <code>${esc(d.detail || '')}</code>. Pick a model from “Can read photos”.`],
-      error: ['warn', '❌ Test failed',
+      error: ['warn', tagIc('close') + 'Test failed',
               esc(d.detail || 'The provider call did not succeed.')],
-      unconfigured: ['warn', '❌ No API key for this provider',
+      unconfigured: ['warn', tagIc('close') + 'No API key for this provider',
                      esc(d.detail || '')],
     };
     const [cls, head, body] = views[d.status] || views.error;

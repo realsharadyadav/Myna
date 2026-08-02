@@ -254,8 +254,9 @@
   .stock-row:first-child { border-top: 0; }
   .thumb {
     width: 46px; height: 46px; flex: 0 0 46px; border-radius: 13px; object-fit: cover;
-    background: var(--surface-2); display: grid; place-items: center; font-size: 1.1rem; color: var(--ink-faint);
+    background: var(--surface-2); display: grid; place-items: center; color: var(--ink-faint);
   }
+  .thumb .ic { width: 20px; height: 20px; }
   .stock-name { font-weight: 700; font-size: .92rem; }
   .stock-cat { font-size: .74rem; color: var(--ink-faint); margin-top: 1px; }
   .match { font-size: .66rem; font-weight: 800; color: var(--brand-ink); background: var(--brand-soft); padding: 2px 7px; border-radius: 999px; margin-left: 6px; vertical-align: 1px; }
@@ -274,6 +275,7 @@
   /* ---------- states ---------- */
   .state { text-align: center; padding: 34px 18px; color: var(--ink-soft); }
   .state .big { font-size: 2rem; }
+  .state > .ic { margin: 0 auto 4px; display: block; }
   .state h3 { margin-top: 10px; font-size: 1rem; font-weight: 800; color: var(--ink); }
   .state p { margin-top: 5px; font-size: .88rem; }
   .skel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-top: 12px; }
@@ -328,12 +330,134 @@
   .splash-status { font-size: .88rem; font-weight: 650; color: var(--ink-soft); }
   .splash-tag { font-size: .78rem; color: var(--ink-faint); margin-top: 5px; }
 
+  /* ================= glossy (gel) surface layer ================= */
+  :root {
+    --gel-face: linear-gradient(180deg, #ffffff 0%, #f8f2e4 100%);
+    --gel-face-lift: inset 0 1px 0 rgba(255,255,255,.95), 0 1px 1px rgba(90,70,20,.10), 0 6px 14px -10px rgba(90,70,20,.45);
+    --gel-brand: linear-gradient(180deg, #ffeec4 0%, #ffdd8d 44%, #f3c75f 100%);
+    --gel-brand-lift: inset 0 1px 0 rgba(255,255,255,.95), inset 0 -2px 3px rgba(170,120,10,.20), 0 1px 1px rgba(120,90,20,.18), 0 8px 18px -10px rgba(150,110,20,.55);
+    --gel-brand-edge: rgba(190,145,40,.42);
+    --gel-card: linear-gradient(180deg, #ffffff 0%, #fffcf2 100%);
+    --gel-card-lift: inset 0 1px 0 #ffffff, 0 1px 2px rgba(60,50,20,.07), 0 16px 34px -22px rgba(90,70,20,.55);
+    --gel-well: linear-gradient(180deg, #f4eee0 0%, #ffffff 58%);
+    --gel-well-lift: inset 0 2px 4px rgba(120,95,30,.13), inset 0 0 0 1px rgba(255,255,255,.55);
+    --sheen: linear-gradient(180deg, rgba(255,255,255,.88), rgba(255,255,255,.10));
+  }
+  [data-theme="dark"] {
+    --gel-face: linear-gradient(180deg, #2a2720 0%, #1d1b15 100%);
+    --gel-face-lift: inset 0 1px 0 rgba(255,255,255,.10), 0 1px 1px rgba(0,0,0,.5), 0 8px 16px -10px rgba(0,0,0,.8);
+    --gel-brand: linear-gradient(180deg, #f0cd7c 0%, #e0b559 45%, #c79a3e 100%);
+    --gel-brand-lift: inset 0 1px 0 rgba(255,255,255,.45), inset 0 -2px 3px rgba(90,60,0,.35), 0 1px 1px rgba(0,0,0,.4), 0 8px 18px -10px rgba(0,0,0,.7);
+    --gel-brand-edge: rgba(120,90,20,.5);
+    --gel-card: linear-gradient(180deg, #232019 0%, #1b1913 100%);
+    --gel-card-lift: inset 0 1px 0 rgba(255,255,255,.07), 0 1px 2px rgba(0,0,0,.45), 0 16px 34px -22px rgba(0,0,0,.9);
+    --gel-well: linear-gradient(180deg, #141209 0%, #221f18 60%);
+    --gel-well-lift: inset 0 2px 4px rgba(0,0,0,.55), inset 0 0 0 1px rgba(255,255,255,.05);
+    --sheen: linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,.02));
+  }
+
+  /* the curved specular reflection across the top of every raised control */
+  .gel { position: relative; isolation: isolate; }
+  .gel::after {
+    content: ""; position: absolute; inset: 1px 1px auto; height: 46%;
+    border-radius: inherit; background: var(--sheen);
+    pointer-events: none; z-index: 1;
+  }
+  .gel > * { position: relative; z-index: 2; }
+
+  .ic { width: 1.15em; height: 1.15em; flex: 0 0 auto; fill: none; stroke: currentColor;
+        stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+  .ic-lg { width: 1.5em; height: 1.5em; }
+
+  /* raised controls */
+  .card { background: var(--gel-card); box-shadow: var(--gel-card-lift); }
+  .icon-btn, .chip, .action, .mode[aria-selected="true"], .cover, .tick {
+    background: var(--gel-face); box-shadow: var(--gel-face-lift);
+  }
+  .go, .action.primary, .avatar {
+    background: var(--gel-brand); border: 1px solid var(--gel-brand-edge);
+    box-shadow: var(--gel-brand-lift); color: var(--brand-ink);
+  }
+  .go:active, .action:active, .icon-btn:active { box-shadow: inset 0 2px 5px rgba(120,90,20,.28); }
+
+  /* recessed wells */
+  .searchbar, .modes, .bar, .splash-bar { background: var(--gel-well); box-shadow: var(--gel-well-lift); }
+  .searchbar { border-color: rgba(190,165,110,.5); }
+  .searchbar:focus-within { border-color: var(--brand-strong); box-shadow: var(--gel-well-lift), 0 0 0 4px var(--brand-soft); }
+  .bar > i { background: linear-gradient(180deg, #ffe9ad, #edb745); box-shadow: inset 0 1px 0 rgba(255,255,255,.8); }
+  .bar > i.full { background: linear-gradient(180deg, #4fd18c, #17914f); }
+  .splash-bar i { background: linear-gradient(180deg, #ffe9ad, #edb745); }
+  .thumb { background: var(--gel-well); box-shadow: var(--gel-well-lift); }
+
+  /* pills read as small gel capsules too */
+  .tag, .term, .pill, .match, .coverage { background: var(--gel-face); box-shadow: var(--gel-face-lift); }
+  .tag, .match { color: var(--brand-deep); }
+  .how-card { background: var(--gel-card); box-shadow: var(--gel-card-lift); }
+  .how-card .ic { color: var(--brand-deep); }
+  .tabbar { background: color-mix(in srgb, var(--bg) 84%, transparent); box-shadow: 0 -1px 0 rgba(255,255,255,.7) inset; }
+
+  /* ---------- icon-first buttons: labels cost width we don't have ---------- */
+  .go { width: 50px; height: 50px; }
+  .go .ic { width: 22px; height: 22px; stroke-width: 2.1; }
+  .icon-btn .ic { width: 20px; height: 20px; }
+  .searchbar .glyph { display: grid; place-items: center; color: var(--ink-faint); }
+  .searchbar .glyph .ic { width: 19px; height: 19px; }
+  .mode { gap: 6px; }
+  .mode .ic { width: 17px; height: 17px; }
+  .chip .ic { width: 14px; height: 14px; margin-right: 5px; vertical-align: -2px; }
+  .tab .ic { width: 21px; height: 21px; }
+  .tag .ic { width: 13px; height: 13px; margin-right: 4px; vertical-align: -2px; }
+
+  .actions { justify-content: flex-end; gap: 10px; }
+  .act {
+    width: 50px; height: 50px; flex: 0 0 50px; border-radius: 16px; border: 1px solid var(--line-strong);
+    display: grid; place-items: center; cursor: pointer; color: var(--ink); text-decoration: none;
+    background: var(--gel-face); box-shadow: var(--gel-face-lift);
+    transition: transform .14s ease;
+  }
+  .act .ic { width: 22px; height: 22px; }
+  .act:active { transform: scale(.94); }
+  .act.primary { background: var(--gel-brand); border-color: var(--gel-brand-edge); box-shadow: var(--gel-brand-lift); color: var(--brand-ink); }
+  .act-label { flex: 1; min-width: 0; font-size: .78rem; color: var(--ink-faint); align-self: center; }
+
+  .shop-addr .ic, .li-sub .ic { width: 13px; height: 13px; vertical-align: -2px; margin-right: 3px; color: var(--brand-deep); }
+  .state .ic { width: 40px; height: 40px; stroke-width: 1.6; color: var(--brand-strong); }
+
   :focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
   @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
   @media (min-width: 560px) { .actions .action { font-size: .9rem; } }
 </style>
 </head>
 <body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M16.6 16.6 21 21"/></symbol>
+    <symbol id="i-dish" viewBox="0 0 24 24"><path d="M3.4 11.4h17.2a8.6 8.6 0 0 1-17.2 0Z"/><path d="M2.4 20.6h19.2"/><path d="M9 8c0-1.3 1.2-1.4 1.2-2.6S9 3.4 9 3.4"/><path d="M14 8c0-1.3 1.2-1.4 1.2-2.6S14 3.4 14 3.4"/></symbol>
+    <symbol id="i-store" viewBox="0 0 24 24"><path d="M3.2 9.4 4.9 4.2h14.2l1.7 5.2"/><path d="M5.2 9.4V20h13.6V9.4"/><path d="M9.8 20v-5.2h4.4V20"/></symbol>
+    <symbol id="i-nav" viewBox="0 0 24 24"><path d="M20.8 3.2 3.4 10.6l7.2 2.8 2.8 7.2Z"/></symbol>
+    <symbol id="i-phone" viewBox="0 0 24 24"><path d="M21 16.9v2.6a2 2 0 0 1-2.2 2 19.6 19.6 0 0 1-8.5-3A19.3 19.3 0 0 1 4.4 12 19.6 19.6 0 0 1 1.5 3.4a2 2 0 0 1 2-2.2h2.6a2 2 0 0 1 2 1.7c.13.95.36 1.87.7 2.75a2 2 0 0 1-.45 2.1L7.2 8.9a15.8 15.8 0 0 0 5.9 5.9l1.15-1.15a2 2 0 0 1 2.1-.45c.88.33 1.8.57 2.75.7a2 2 0 0 1 1.7 2Z"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21.4s7-6.6 7-11.4a7 7 0 1 0-14 0c0 4.8 7 11.4 7 11.4Z"/><circle cx="12" cy="10" r="2.5"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.4 14.8A8.6 8.6 0 0 1 9.2 3.6 8.6 8.6 0 1 0 20.4 14.8Z"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.6v2.2M12 19.2v2.2M2.6 12h2.2M19.2 12h2.2M5.4 5.4l1.6 1.6M17 17l1.6 1.6M18.6 5.4 17 7M7 17l-1.6 1.6"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4.6 12h13.6M12.8 6.6 18.2 12l-5.4 5.4"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 3.2 1.75 5.05L18.8 10l-5.05 1.75L12 16.8l-1.75-5.05L5.2 10l5.05-1.75Z"/><path d="M18.4 15.6l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7Z"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6"/><path d="M3.4 12h17.2"/><path d="M12 3.4a13 13 0 0 1 0 17.2 13 13 0 0 1 0-17.2Z"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 4.6h5.4A2.6 2.6 0 0 1 12 7.2v12a2 2 0 0 0-2-2H4Z"/><path d="M20 4.6h-5.4A2.6 2.6 0 0 0 12 7.2v12a2 2 0 0 1 2-2h6Z"/></symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13.4 2.6 4.8 13.4h6L10.6 21.4l8.6-10.8h-6Z"/></symbol>
+    <symbol id="i-receipt" viewBox="0 0 24 24"><path d="M6 2.8h12v18.4l-2.4-1.6-2.4 1.6-2.4-1.6-2.4 1.6L6 19.6Z"/><path d="M9.2 8h5.6M9.2 12h5.6"/></symbol>
+    <symbol id="i-bag" viewBox="0 0 24 24"><path d="M5.6 7.6h12.8l-1 12.8H6.6Z"/><path d="M9 7.6V6a3 3 0 0 1 6 0v1.6"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5.2 12.6 4.6 4.6L18.8 7.4"/></symbol>
+    <symbol id="i-map" viewBox="0 0 24 24"><path d="M9 4.4 3.4 6.8v12.8L9 17.2l6 2.4 5.6-2.4V4.4L15 6.8Z"/><path d="M9 4.4v12.8M15 6.8v12.8"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6"/><path d="M12 7.2V12l3.2 1.9"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3.4 2.6 20.6h18.8Z"/><path d="M12 10v4.2M12 17.6h.01"/></symbol>
+    <symbol id="i-camera" viewBox="0 0 24 24"><path d="M3.6 7.8h3.2l1.5-2.2h7.4l1.5 2.2h3.2a1.6 1.6 0 0 1 1.6 1.6v8.6a1.6 1.6 0 0 1-1.6 1.6H3.6A1.6 1.6 0 0 1 2 18V9.4a1.6 1.6 0 0 1 1.6-1.6Z"/><circle cx="12" cy="13.4" r="3.4"/></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4.4" width="18" height="15.2" rx="2.2"/><circle cx="8.6" cy="9.8" r="1.6"/><path d="m21 15.6-4.8-4.6L5.6 19.6"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20.2 12a8.2 8.2 0 1 1-2.4-5.8"/><path d="M20.4 3.4v4.8h-4.8"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6.4 6.4 17.6 17.6M17.6 6.4 6.4 17.6"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4.2L19.4 8.8a2.1 2.1 0 0 0-3-3L5.2 17Z"/><path d="M14.8 4.6 19.4 9.2"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.6 6.6h14.8"/><path d="M8.4 6.6V4.4h7.2v2.2"/><path d="M6.6 6.6 7.6 20h8.8l1-13.4"/></symbol>
+    <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.4"/><circle cx="12" cy="12" r="2.4"/><path d="M12 1.8v2.6M12 19.6v2.6M1.8 12h2.6M19.6 12h2.6"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  </defs></svg>
   <div id="splash">
     <div class="splash-in">
       <img src="/myna-logo.svg" alt="">
@@ -350,7 +474,7 @@
         <img src="/myna-logo.svg" alt="Myna">
         <div class="name">My<span>na</span></div>
       </div>
-      <button class="icon-btn" id="themeBtn" title="Switch theme" aria-label="Switch light or dark theme"></button>
+      <button class="icon-btn gel" id="themeBtn" title="Switch theme" aria-label="Switch light or dark theme"></button>
     </div>
   </header>
 
@@ -360,16 +484,16 @@
       <p id="heroSub">Search an item — we'll find shops nearby that have it.</p>
 
       <div class="modes" role="tablist" aria-label="Search mode">
-        <button class="mode" id="modeItems" role="tab" aria-selected="true" aria-controls="results">🔍 Search items</button>
-        <button class="mode" id="modeDish" role="tab" aria-selected="false" aria-controls="results">🍲 By dish</button>
+        <button class="mode" id="modeItems" role="tab" aria-selected="true" aria-controls="results"><svg class="ic" aria-hidden="true"><use href="#i-search"/></svg> Items</button>
+        <button class="mode" id="modeDish" role="tab" aria-selected="false" aria-controls="results"><svg class="ic" aria-hidden="true"><use href="#i-dish"/></svg> By dish</button>
       </div>
 
       <form class="searchbar" id="form" role="search">
-        <span class="glyph" aria-hidden="true">🔎</span>
+        <span class="glyph" aria-hidden="true"><svg class="ic" aria-hidden="true"><use href="#i-search"/></svg></span>
         <input id="q" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off"
                spellcheck="false" aria-label="What are you looking for?"
                placeholder="salt, milk and mango…">
-        <button class="go" id="goBtn" type="submit" aria-label="Search">→</button>
+        <button class="go gel" id="goBtn" type="submit" aria-label="Search" title="Search"><svg class="ic" aria-hidden="true"><use href="#i-arrow"/></svg></button>
       </form>
 
       <div class="chip-row" id="chips"></div>
@@ -384,15 +508,15 @@
     <section id="results" aria-live="polite"></section>
 
     <section class="how" id="how">
-      <div class="how-card"><span>🗺️</span><b>Nearby, not online</b><p>Real kirana shops around you, nearest first.</p></div>
-      <div class="how-card"><span>🍲</span><b>Cook anything</b><p>Name a dish, get every ingredient and who stocks it.</p></div>
-      <div class="how-card"><span>✅</span><b>One trip, not four</b><p>Shops that cover most of your list rank first.</p></div>
+      <div class="how-card"><span><svg class="ic ic-lg" aria-hidden="true"><use href="#i-map"/></svg></span><b>Nearby, not online</b><p>Real kirana shops around you, nearest first.</p></div>
+      <div class="how-card"><span><svg class="ic ic-lg" aria-hidden="true"><use href="#i-dish"/></svg></span><b>Cook anything</b><p>Name a dish, get every ingredient and who stocks it.</p></div>
+      <div class="how-card"><span><svg class="ic ic-lg" aria-hidden="true"><use href="#i-check"/></svg></span><b>One trip, not four</b><p>Shops that cover most of your list rank first.</p></div>
     </section>
   </main>
 
   <nav class="tabbar">
-    <a class="tab active" href="/"><span class="ico">🔎</span>Search</a>
-    <a class="tab" href="/shopkeeper"><span class="ico">🏪</span>List your shop</a>
+    <a class="tab active" href="/"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-search"/></svg></span>Search</a>
+    <a class="tab" href="/shopkeeper"><span class="ico"><svg class="ic" aria-hidden="true"><use href="#i-store"/></svg></span>My shop</a>
   </nav>
 
 <script>
@@ -439,7 +563,7 @@ const title = s => (s || '').replace(/\b\w/g, c => c.toUpperCase());
   root.setAttribute('data-theme', saved || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
   const paint = () => {
     const dark = root.getAttribute('data-theme') === 'dark';
-    btn.textContent = dark ? '☀️' : '🌙';
+    btn.innerHTML = `<svg class="ic" aria-hidden="true"><use href="#i-${dark ? 'sun' : 'moon'}"/></svg>`;
     document.querySelector('meta[name=theme-color]').setAttribute('content', dark ? '#14130f' : '#FFD873');
   };
   btn.addEventListener('click', () => {
@@ -497,10 +621,10 @@ function renderChips() {
   const parts = [];
   if (recents.length) {
     parts.push('<span class="chip-label">Recent</span>');
-    parts.push(...recents.map(r => `<button class="chip" type="button" data-q="${esc(r)}">🕘 ${esc(r)}</button>`));
+    parts.push(...recents.map(r => `<button class="chip gel" type="button" data-q="${esc(r)}"><svg class="ic" aria-hidden="true"><use href="#i-clock"/></svg>${esc(r)}</button>`));
   }
   parts.push(`<span class="chip-label">${cfg.chipLabel}</span>`);
-  parts.push(...cfg.chips.map(c => `<button class="chip" type="button" data-q="${esc(c)}">${esc(title(c))}</button>`));
+  parts.push(...cfg.chips.map(c => `<button class="chip gel" type="button" data-q="${esc(c)}">${esc(title(c))}</button>`));
   $('chips').innerHTML = parts.join('');
 }
 function setMode(next) {
@@ -551,13 +675,14 @@ function skeleton(msg) {
     </div>`).join('');
 }
 
+const tagIcon = name => `<svg class="ic" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 const METHOD_TAG = {
-  'dish-llm-web': '🌐 AI + web recipe',
-  'dish-llm': '🤖 AI recipe',
-  'dish-curated': '📖 Myna recipe book',
-  'concept-llm-web': '🌐 AI + web',
-  'concept-llm': '🤖 AI expanded',
-  'llm': '🤖 AI parsed',
+  'dish-llm-web': tagIcon('globe') + 'AI + web recipe',
+  'dish-llm': tagIcon('spark') + 'AI recipe',
+  'dish-curated': tagIcon('book') + 'Myna recipe book',
+  'concept-llm-web': tagIcon('globe') + 'AI + web',
+  'concept-llm': tagIcon('spark') + 'AI expanded',
+  'llm': tagIcon('spark') + 'AI parsed',
 };
 
 async function search() {
@@ -581,7 +706,7 @@ async function search() {
     scrollTo({ top: box.offsetTop - 72, behavior: 'smooth' });
   } catch (e) {
     box.innerHTML = `<div class="card"><div class="state">
-      <div class="big">📡</div><h3>Search failed</h3>
+      <svg class="ic" aria-hidden="true"><use href="#i-alert"/></svg><h3>Search failed</h3>
       <p>Check your connection and try again.</p></div></div>`;
   }
   btn.disabled = false;
@@ -590,7 +715,7 @@ async function search() {
 function renderResults(q, data) {
   const terms = data.items || [];
   const shops = data.shops || [];
-  const tag = METHOD_TAG[data.method] || '⚡ smart parse';
+  const tag = METHOD_TAG[data.method] || (tagIcon('bolt') + 'smart parse');
   const stocked = (data.shopping_list || []).filter(i => i.in_stock).length;
 
   let html = `<div class="results-head">
@@ -602,10 +727,10 @@ function renderResults(q, data) {
   // Dish mode: the shopping list is the headline — what to buy, and where.
   if (mode === 'dish' && (data.shopping_list || []).length) {
     html += `<div class="card">
-      <div class="list-title">🧾 Shopping list <span class="count">${stocked}/${data.shopping_list.length} nearby</span></div>
+      <div class="list-title"><svg class="ic" aria-hidden="true"><use href="#i-receipt"/></svg> Shopping list <span class="count">${stocked}/${data.shopping_list.length} nearby</span></div>
       ${data.shopping_list.map(i => `
         <div class="li">
-          <button class="tick" type="button" aria-label="Mark ${esc(i.item)} as picked">✓</button>
+          <button class="tick" type="button" aria-label="Mark ${esc(i.item)} as picked"><svg class="ic" aria-hidden="true"><use href="#i-check"/></svg></button>
           <div class="li-body">
             <div class="li-name">${esc(title(i.item))}</div>
             <div class="li-sub ${i.in_stock ? '' : 'none'}">${i.in_stock
@@ -623,9 +748,9 @@ function renderResults(q, data) {
 
   if (!shops.length) {
     return html + `<div class="card"><div class="state">
-        <div class="big">🗺️</div><h3>No shop nearby has these yet</h3>
+        <svg class="ic" aria-hidden="true"><use href="#i-map"/></svg><h3>No shop nearby has these yet</h3>
         <p>Myna is still growing in your area. Know a shop? Ask them to list it — it takes a minute.</p>
-        <a class="action primary" style="margin-top:16px;display:inline-flex;padding:0 18px" href="/shopkeeper">🏪 List a shop</a>
+        <a class="action primary gel" style="margin-top:16px;display:inline-flex;padding:0 18px" href="/shopkeeper"><svg class="ic" aria-hidden="true"><use href="#i-store"/></svg> List a shop</a>
       </div></div>`;
   }
 
@@ -642,7 +767,7 @@ function renderResults(q, data) {
         <div class="shop-id">
           <div class="shop-name">${esc(s.shop_name)}</div>
           ${s.shopkeeper ? `<div class="shop-sub">${esc(s.shopkeeper)}</div>` : ''}
-          <div class="shop-addr">📍 ${esc(s.address)} · ${s.distance_km} km</div>
+          <div class="shop-addr"><svg class="ic" aria-hidden="true"><use href="#i-pin"/></svg>${esc(s.address)} · ${s.distance_km} km</div>
         </div>
         <div class="cover ${full ? 'full' : ''}">
           <b>${s.coverage_count}/${s.coverage_total}</b><small>items</small>
@@ -654,7 +779,7 @@ function renderResults(q, data) {
           <div class="stock-row">
             ${r.item_photo_url
               ? `<img class="thumb" src="${esc(API + r.item_photo_url)}" alt="" loading="lazy">`
-              : `<div class="thumb" aria-hidden="true">🛍️</div>`}
+              : `<div class="thumb" aria-hidden="true"><svg class="ic" aria-hidden="true"><use href="#i-bag"/></svg></div>`}
             <div class="li-body">
               <div class="stock-name">${esc(r.item_name)}${r.matched_term ? `<span class="match">${esc(r.matched_term)}</span>` : ''}</div>
               ${r.item_category ? `<div class="stock-cat">${esc(r.item_category)}</div>` : ''}
@@ -664,8 +789,9 @@ function renderResults(q, data) {
       ${missing.length ? `<div class="missing">Not here: ${missing.slice(0, 4).map(m => esc(title(m))).join(', ')}${
           missing.length > 4 ? ` +${missing.length - 4} more` : ''}</div>` : ''}
       <div class="actions">
-        <a class="action primary" href="${esc(maps)}" target="_blank" rel="noopener">🧭 Directions</a>
-        ${s.phone ? `<a class="action" href="tel:${encodeURIComponent(s.phone)}">📞 Call</a>` : ''}
+        <span class="act-label">${s.distance_km} km away</span>
+        <a class="act primary gel" href="${esc(maps)}" target="_blank" rel="noopener" title="Directions" aria-label="Directions to ${esc(s.shop_name)}"><svg class="ic" aria-hidden="true"><use href="#i-nav"/></svg></a>
+        ${s.phone ? `<a class="act gel" href="tel:${encodeURIComponent(s.phone)}" title="Call" aria-label="Call ${esc(s.shop_name)}"><svg class="ic" aria-hidden="true"><use href="#i-phone"/></svg></a>` : ''}
       </div>
     </div>`;
   }).join('');
