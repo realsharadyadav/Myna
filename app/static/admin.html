@@ -175,9 +175,39 @@
     .card { border-radius: 18px; padding: 16px; }
     .toolbar button { width: 100%; }
   }
+
+  #splash {
+    position: fixed; inset: 0; z-index: 9999;
+    display: flex; align-items: center; justify-content: center;
+    background:
+      radial-gradient(1200px 600px at 15% -10%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 60%),
+      radial-gradient(1000px 500px at 110% 10%, color-mix(in srgb, var(--accent-2) 12%, transparent), transparent 55%),
+      linear-gradient(160deg, var(--bg-0), var(--bg-1));
+    transition: opacity .45s ease;
+  }
+  #splash.splash-hide { opacity: 0; pointer-events: none; }
+  .splash-inner { text-align: center; padding: 0 24px; }
+  .splash-inner img { width: 64px; height: 64px; filter: drop-shadow(0 0 16px color-mix(in srgb, var(--accent) 55%, transparent)); }
+  .splash-inner h1 {
+    margin-top: 14px; font-size: 1.6rem; font-weight: 800; letter-spacing: -.02em;
+    background: var(--brand); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .splash-bar { width: 220px; height: 4px; border-radius: 999px; background: var(--input-border); margin: 22px auto 16px; overflow: hidden; }
+  .splash-bar-fill { height: 100%; width: 8%; border-radius: 999px; background: var(--brand); transition: width .4s ease; }
+  .splash-status { font-size: .92rem; font-weight: 600; color: var(--text-soft); }
+  .splash-tagline { font-size: .8rem; color: var(--text-faint); margin-top: 6px; }
 </style>
 </head>
 <body>
+  <div id="splash">
+    <div class="splash-inner">
+      <img src="/myna-logo.svg" alt="Myna">
+      <h1>Myna</h1>
+      <div class="splash-bar"><div class="splash-bar-fill" id="splashFill"></div></div>
+      <p class="splash-status" id="splashStatus">Waking up services…</p>
+      <p class="splash-tagline">Owner panel loading…</p>
+    </div>
+  </div>
   <header>
     <div class="brand">
       <img src="/myna-logo.svg" alt="Myna AI">
@@ -329,6 +359,55 @@
 </main>
 <script>
 const API = window.MYNA_API_BASE || '';
+
+(function () {
+  const splash = document.getElementById('splash');
+  const fill = document.getElementById('splashFill');
+  const status = document.getElementById('splashStatus');
+  let progress = 8;
+  fill.style.width = progress + '%';
+  const tick = setInterval(() => {
+    progress = Math.min(progress + (100 - progress) * 0.12, 92);
+    fill.style.width = progress + '%';
+  }, 400);
+
+  const messages = ['Waking up services…', 'Free-tier backend can take up to a minute…', 'Almost there…'];
+  let mi = 0;
+  const msgTimer = setInterval(() => {
+    mi = Math.min(mi + 1, messages.length - 1);
+    status.textContent = messages[mi];
+  }, 7000);
+
+  function hideSplash(finalMessage, delay) {
+    clearInterval(tick);
+    clearInterval(msgTimer);
+    fill.style.width = '100%';
+    status.textContent = finalMessage;
+    setTimeout(() => {
+      splash.classList.add('splash-hide');
+      setTimeout(() => splash.remove(), 500);
+    }, delay);
+  }
+
+  async function ping() {
+    try {
+      const res = await fetch(`${API}/`, { cache: 'no-store' });
+      return res.ok;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  (async function waitForBackend() {
+    const deadline = Date.now() + 90000;
+    while (Date.now() < deadline) {
+      if (await ping()) { hideSplash('Ready', 250); return; }
+      await new Promise(r => setTimeout(r, 2000));
+    }
+    hideSplash('Taking longer than usual — you can still continue.', 900);
+  })();
+})();
+
 (function () {
   const root = document.documentElement;
   const saved = localStorage.getItem('myna_theme');
