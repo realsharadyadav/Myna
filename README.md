@@ -24,7 +24,7 @@ Then open:
 - **Shop onboarding** — signage photo → AI reads shop name (Claude Vision), GPS auto-capture, address auto-filled via OpenStreetMap reverse geocoding, manual override everywhere
 - **Item add (semi-auto)** — item photo → AI suggests name/category → shopkeeper confirms → listed as available
 - **Item edit/delete** anytime
-- **Customer search** — fuzzy text match across item name, category, shop name, shopkeeper name & address, results sorted nearest-first (Haversine)
+- **Customer search** — multi-item agentic pipeline: the query is parsed into individual items (LLM, with rule-based fallback so it works without an API key), each item is fuzzy-matched across name/category/shop/shopkeeper/address, then results are aggregated per shop — shops that stock more of your list rank first, then nearest-first (Haversine). Handles multi-item and Hinglish queries: *"salt milk and mango"*, *"atta chawal aur namak"*
 - **Owner panel** — dashboard stats (shops/items counts), shop list with search, inline edit/delete, LLM provider + model selector (default saved in DB)
 - **CSV import** — owner can download a blank template (or 50-shop demo dataset) and upload a filled CSV to bulk-create/update shops & items; optional "wipe existing data first"
 
@@ -51,7 +51,8 @@ app/
   models.py          shops + items tables
   schemas.py         Pydantic request/response models
   geo.py             Haversine distance + Nominatim reverse geocode
-  ai.py              Multi-provider Vision AI (Anthropic / Groq / Gemini)
+  ai.py              Multi-provider AI (Anthropic / Groq / Gemini) — vision + text
+  agent.py           Agentic search pipeline: query→items parsing (LLM + fallback)
   storage.py         Image upload saving
   routers/
     shops.py         Shop CRUD, onboarding photo, geocode endpoint
@@ -74,12 +75,16 @@ run.sh               Creates venv, installs deps, starts uvicorn
 | `POST` | `/api/shops` | Register a shop (lat/long required; address auto-geocoded if blank) |
 | `GET/PATCH` | `/api/shops/{id}` | Fetch / update shop |
 | `POST` | `/api/shops/{id}/photo` | Upload shop signage photo |
+| `GET` | `/api/search/shops?q&lat&long&limit` | Agentic pipeline output grouped per shop (coverage score + matched items) |
+| `GET` | `/api/search/one-tap?q&lat&long&limit` | Pipeline + instant shopping list (one product per requested item) |
 | `POST` | `/api/shops/onboard/photo` | AI-read shop name from signage photo |
 | `GET` | `/api/shops/geocode/reverse?lat&long` | GPS → address |
 | `GET/POST` | `/api/shops/{id}/items` | List / add items (multipart: name, category, photo) |
 | `PATCH/DELETE` | `/api/shops/{id}/items/{item_id}` | Edit / remove item |
 | `POST` | `/api/shops/{id}/items/suggest` | AI-suggest item name/category from photo |
-| `GET` | `/api/search?q&lat&long&limit` | Find matching items at any shop, nearest first (no range filter) |
+| `GET` | `/api/search?q&lat&long&limit` | Agentic search — parses query into items, matches each, groups+scores per shop (coverage-first, then nearest) |
+| `GET` | `/api/search/shops?q&lat&long&limit` | Same pipeline, returned as one card per shop with matched items + coverage (e.g. "2/3 items here") |
+| `GET` | `/api/search/one-tap?q&lat&long&limit` | Pipeline plus a ready shopping list — one best product per requested item from the nearest shop that stocks it |
 | `GET` | `/api/admin/stats` | Owner dashboard stats (shop/item counts, recent shops) |
 | `GET` | `/api/admin/shops?q` | List/search all shops |
 | `GET/PATCH/DELETE` | `/api/admin/shops/{id}` | Shop detail / update / delete |

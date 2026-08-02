@@ -114,6 +114,31 @@
     white-space: nowrap; box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--accent) 50%, transparent);
   }
   .msg { text-align: center; color: var(--msg); padding: 28px 0; font-size: .95rem; }
+  .pipeline { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:6px; font-size:.86rem; color:var(--text-soft); }
+  .pipeline .crumb { color:var(--text-faint); }
+  .chip {
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    color: var(--accent); font-weight:700; font-size:.78rem;
+    padding:5px 11px; border-radius:999px;
+  }
+  .loader { width:16px; height:16px; border:2px solid var(--input-border); border-top-color:var(--accent); border-radius:50%; display:inline-block; animation:spin 1s linear infinite; vertical-align:middle; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .coverage { font-size:.8rem; font-weight:800; color:#fff; background:var(--brand); padding:6px 12px; border-radius:999px; white-space:nowrap; }
+  .badge { font-size:.68rem; font-weight:700; color:var(--accent); background:color-mix(in srgb, var(--accent) 12%, transparent); padding:2px 8px; border-radius:999px; margin-left:6px; vertical-align:middle; }
+  .missing { font-size:.8rem; color:var(--text-faint); margin-top:10px; padding-top:10px; border-top:1px dashed var(--input-border); }
+  .shop-group { animation: rise .35s ease backwards; }
+  .shop-head { display:flex; align-items:flex-start; gap:10px; }
+  .shop-head .sinfo { flex:1; min-width:0; }
+  .shop-head .sname { font-weight:800; font-size:1.05rem; }
+  .shop-head .skeeper { font-size:.82rem; color:var(--text-soft); margin-top:2px; }
+  .shop-head .saddr { font-size:.78rem; color:var(--text-soft); margin-top:4px; line-height:1.4; }
+  .shop-items { margin-top:12px; }
+  .shop-items .sitem { display:flex; gap:12px; align-items:center; padding:9px 0; }
+  .shop-items .sitem + .sitem { border-top:1px solid var(--input-border); }
+  .shop-items img { width:52px; height:52px; object-fit:cover; border-radius:14px; background:var(--input-bg); flex-shrink:0; }
+  .shop-items .iinfo { flex:1; min-width:0; }
+  .shop-items .iname { font-weight:700; font-size:.94rem; }
+  .shop-items .icat { font-size:.72rem; color:var(--text-faint); margin-top:1px; }
   .link { text-align: center; margin: 22px 0 0; font-size: .86rem; color: var(--text-soft); }
   .link a { color: var(--accent); font-weight: 600; text-decoration: none; }
   .link a:hover { text-decoration: underline; }
@@ -139,7 +164,7 @@
   <main>
     <div class="card controls">
       <label for="q">What are you looking for?</label>
-      <input type="text" id="q" placeholder="e.g. Parle-G, sugar, charger…" onkeydown="if(event.key==='Enter')doSearch()">
+      <input type="text" id="q" placeholder="e.g. salt milk and mango, doodh 1L…" onkeydown="if(event.key==='Enter')doSearch()">
       <button id="searchBtn" onclick="doSearch()">Search nearby</button>
     </div>
     <div id="results"></div>
@@ -176,31 +201,54 @@ if (navigator.geolocation) {
   document.getElementById('results').innerHTML = '<div class="msg">⚠️ Location not available (needs HTTPS). Search will use default location (Mumbai).</div>';
 }
 
+const PLACEHOLDER_IMG = 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22/>';
+
 async function doSearch() {
   const q = document.getElementById('q').value.trim();
   if (!q) return;
   const loc = userLoc || { lat: 19.076, long: 72.8777 }; // fallback: Mumbai
   const btn = document.getElementById('searchBtn');
-  btn.disabled = true; btn.textContent = 'Searching…';
   const box = document.getElementById('results');
+  btn.disabled = true; btn.textContent = 'Searching…';
+  box.innerHTML = '<div class="msg"><span class="loader"></span>&nbsp; Understanding your list…</div>';
   try {
-    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&lat=${loc.lat}&long=${loc.long}`);
+    const res = await fetch(`/api/search/shops?q=${encodeURIComponent(q)}&lat=${loc.lat}&long=${loc.long}`);
     const data = await res.json();
-    if (!data.length) {
-      box.innerHTML = '<div class="msg">No shops found with “' + esc(q) + '”.</div>';
+    const chips = (data.items || []).map(i => `<span class="chip">${esc(i)}</span>`).join('<span class="crumb">·</span>');
+    const agentTag = data.method === 'llm' ? '🤖 AI parsed' : '⚡ smart parse';
+    let html = `<div class="card"><div class="pipeline">Found <b>&nbsp;${(data.items||[]).length} item(s)&nbsp;</b> ${chips} <span class="crumb">(${agentTag})</span></div></div>`;
+    if (!data.shops || !data.shops.length) {
+      html += '<div class="msg">No shops found with “' + esc(q) + '”.</div>';
     } else {
-      box.innerHTML = data.map(r => `
-        <div class="card result">
-          ${r.item_photo_url ? `<img src="${r.item_photo_url}" alt="">` : '<img alt="" src="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22/>">'}
-          <div class="info">
-            <div class="item">${esc(r.item_name)}</div>
-            ${r.item_category ? `<div class="cat">${esc(r.item_category)}</div>` : ''}
-            <div class="shop">🏪 ${esc(r.shop_name)}${r.shopkeeper ? ' · ' + esc(r.shopkeeper) : ''}</div>
-            <div class="addr">${esc(r.address)}${r.phone ? ' · 📞 ' + esc(r.phone) : ''}</div>
+      html += data.shops.map(s => {
+        const matchedTerms = new Set(s.items.map(i => i.matched_term));
+        const missing = (data.items || []).filter(i => !matchedTerms.has(i));
+        return `
+        <div class="card shop-group">
+          <div class="shop-head">
+            <div class="sinfo">
+              <div class="sname">🏪 ${esc(s.shop_name)}</div>
+              ${s.shopkeeper ? `<div class="skeeper">👤 ${esc(s.shopkeeper)}</div>` : ''}
+              <div class="saddr">${esc(s.address)}${s.phone ? ' · 📞 ' + esc(s.phone) : ''}</div>
+            </div>
+            <div class="coverage">${s.coverage_count}/${s.coverage_total} items</div>
           </div>
-          <div class="dist">${r.distance_km} km</div>
-        </div>`).join('');
+          <div class="shop-items">
+            ${s.items.map(r => `
+              <div class="sitem">
+                <img src="${r.item_photo_url || PLACEHOLDER_IMG}" alt="">
+                <div class="iinfo">
+                  <div class="iname">${esc(r.item_name)}${r.matched_term ? `<span class="badge">${esc(r.matched_term)}</span>` : ''}</div>
+                  ${r.item_category ? `<div class="icat">${esc(r.item_category)}</div>` : ''}
+                </div>
+                <div class="dist">${s.distance_km} km</div>
+              </div>`).join('')}
+          </div>
+          ${missing.length ? `<div class="missing">⚠️ Not here: ${missing.map(esc).join(', ')}</div>` : ''}
+        </div>`;
+      }).join('');
     }
+    box.innerHTML = html;
   } catch (e) {
     box.innerHTML = '<div class="msg">Search failed. Please try again.</div>';
   }

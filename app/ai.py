@@ -154,6 +154,68 @@ def _call_gemini(api_key: str, model: str, image_path: str, prompt: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Text call implementations (used by agentic pipelines, no images)
+# ---------------------------------------------------------------------------
+
+def _text_anthropic(api_key: str, model: str, prompt: str, max_tokens: int) -> str:
+    resp = httpx.post(
+        "https://api.anthropic.com/v1/messages",
+        headers={
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        },
+        json={
+            "model": model,
+            "max_tokens": max_tokens,
+            "messages": [{"role": "user", "content": prompt}],
+        },
+        timeout=30.0,
+    )
+    resp.raise_for_status()
+    blocks = resp.json().get("content", [])
+    return "".join(b.get("text", "") for b in blocks if b.get("type") == "text").strip()
+
+
+def _text_groq(api_key: str, model: str, prompt: str, max_tokens: int) -> str:
+    resp = httpx.post(
+        "https://api.groq.com/openai/v1/chat/completions",
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "model": model,
+            "max_tokens": max_tokens,
+            "messages": [{"role": "user", "content": prompt}],
+        },
+        timeout=30.0,
+    )
+    resp.raise_for_status()
+    choices = resp.json().get("choices", [])
+    return choices[0]["message"]["content"].strip() if choices else ""
+
+
+def _text_gemini(api_key: str, model: str, prompt: str, max_tokens: int) -> str:
+    resp = httpx.post(
+        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+        f"?key={api_key}",
+        headers={"Content-Type": "application/json"},
+        json={
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"maxOutputTokens": max_tokens},
+        },
+        timeout=30.0,
+    )
+    resp.raise_for_status()
+    candidates = resp.json().get("candidates", [])
+    if not candidates:
+        return ""
+    parts = candidates[0].get("content", {}).get("parts", [])
+    return "".join(p.get("text", "") for p in parts).strip()
+
+
+# ---------------------------------------------------------------------------
 # Model listing implementations
 # ---------------------------------------------------------------------------
 
@@ -244,18 +306,21 @@ PROVIDERS = {
         "api_key": ANTHROPIC_API_KEY,
         "default_model": "claude-sonnet-4-20250514",
         "call": _call_anthropic,
+        "text_call": _text_anthropic,
         "list_models": _list_anthropic_models,
     },
     "groq": {
         "api_key": GROQ_API_KEY,
         "default_model": "meta-llama/llama-4-scout-17b-16e-instruct",
         "call": _call_groq,
+        "text_call": _text_groq,
         "list_models": _list_groq_models,
     },
     "gemini": {
         "api_key": GEMINI_API_KEY,
         "default_model": "gemini-2.5-flash",
         "call": _call_gemini,
+        "text_call": _text_gemini,
         "list_models": _list_gemini_models,
     },
 }
@@ -320,6 +385,21 @@ def _call_vision(image_path: str, prompt: str, db_default: str = "") -> str:
 # ---------------------------------------------------------------------------
 # Public API (called from routers — pass db_default to honour saved setting)
 # ---------------------------------------------------------------------------
+
+def call_text(prompt: str, db_default: str = "", max_tokens: int = 300) -> str:
+    """Route a plain-text LLM call through the default provider. Returns '' on failure."""
+    default = get_effective_default(db_default)
+    if not default:
+        return ""
+    provider_name, model = default.split("/", 1)
+    provider = PROVIDERS.get(provider_name)
+    if not provider or not provider["api_key"]:
+        return ""
+    try:
+        return provider["text_call"](provider["api_key"], model, prompt, max_tokens)
+    except Exception:
+        return ""
+
 
 def suggest_shop_name(image_path: str, db_default: str = "") -> str:
     return _call_vision(image_path, _SIGNAGE_PROMPT, db_default)

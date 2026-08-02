@@ -106,6 +106,35 @@ res = client.get("/api/search", params={"q": "grocery", "lat": 19.076, "long": 7
 assert len(res.json()) >= 1
 print("PASS search matches item category")
 
+# 9e. Agentic flat search — multi-item query parsed via fallback (no API keys in tests)
+res = client.get("/api/search", params={"q": "parle and salt", "lat": 19.076, "long": 72.878})
+results = res.json()
+assert len(results) >= 2
+assert all(r["coverage_total"] == 2 for r in results)
+assert {r["matched_term"] for r in results} == {"parle", "salt"}
+# shop with both items ranks first
+assert results[0]["coverage_count"] == 2
+print("PASS agentic flat search (multi-term fallback, coverage ranking)")
+
+# 9f. Agentic grouped search — one card per shop with coverage score
+res = client.get("/api/search/shops", params={"q": "parle and salt", "lat": 19.076, "long": 72.878})
+data = res.json()
+assert data["items"] == ["parle", "salt"]
+assert data["method"] == "fallback"          # no API key in tests
+assert len(data["shops"]) >= 1
+top = data["shops"][0]
+assert top["coverage_count"] == 2 and top["coverage_total"] == 2
+assert {i["matched_term"] for i in top["items"]} == {"parle", "salt"}
+print("PASS agentic grouped search (/api/search/shops)")
+
+# 9g. One-tap search — shopping list picks one product per term
+res = client.get("/api/search/one-tap", params={"q": "parle and salt", "lat": 19.076, "long": 72.878})
+data = res.json()
+assert [i["item"] for i in data["shopping_list"]] == ["parle", "salt"]
+assert all(i["in_stock"] for i in data["shopping_list"])
+assert data["shopping_list"][0]["product"] == "Parle-G Gold 100g"
+print("PASS one-tap search (shopping list)")
+
 # 10. Update + delete item
 res = client.patch(f"/api/shops/{shop_id}/items/{item_id}", json={"name": "Parle-G Gold 200g"})
 assert res.json()["name"] == "Parle-G Gold 200g"
