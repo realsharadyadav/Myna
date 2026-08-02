@@ -4,70 +4,193 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Myna — Owner Panel</title>
+<link rel="icon" type="image/svg+xml" href="/static/myna-logo.svg">
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, system-ui, sans-serif; }
-  body { background: #f4f6f8; color: #222; min-height: 100vh; }
-  header { background: #1a1a2e; color: #fff; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
-  header h1 { font-size: 1.3rem; }
-  header nav a { color: #7fbf7f; text-decoration: none; font-size: .85rem; margin-left: 16px; }
-  header nav a:hover { text-decoration: underline; }
-  main { max-width: 960px; margin: 0 auto; padding: 20px; }
+  :root {
+    --bg-0: #f4f7fb;
+    --bg-1: #e9eef7;
+    --glass: rgba(255,255,255,.72);
+    --glass-border: rgba(255,255,255,.9);
+    --card-shadow: 0 8px 32px rgba(30,42,80,.10), 0 2px 8px rgba(30,42,80,.06);
+    --text: #182033;
+    --text-soft: #5a6b8c;
+    --text-faint: #8a97b3;
+    --input-bg: rgba(255,255,255,.85);
+    --input-border: rgba(120,140,180,.25);
+    --accent: #00b3a4;
+    --accent-2: #5b7cfa;
+    --btn-text: #ffffff;
+    --brand: linear-gradient(135deg,#00b3a4,#5b7cfa);
+    --msg: #8a97b3;
+    --danger: #e5484d;
+    --danger-bg: rgba(229,72,77,.12);
+    --row-hover: color-mix(in srgb, var(--accent) 6%, transparent);
+    --cell-border: rgba(120,140,180,.15);
+  }
+  [data-theme="dark"] {
+    --bg-0: #0b1020;
+    --bg-1: #101830;
+    --glass: rgba(23,32,60,.66);
+    --glass-border: rgba(120,150,220,.16);
+    --card-shadow: 0 8px 32px rgba(0,0,0,.45), 0 2px 8px rgba(0,0,0,.3);
+    --text: #e7ecf6;
+    --text-soft: #a7b4cc;
+    --text-faint: #7c8aa8;
+    --input-bg: rgba(10,16,34,.6);
+    --input-border: rgba(120,150,220,.22);
+    --accent: #00d4c0;
+    --accent-2: #7c99ff;
+    --brand: linear-gradient(135deg,#00d4c0,#7c99ff);
+    --msg: #7c8aa8;
+    --danger: #ff6b6b;
+    --danger-bg: rgba(255,107,107,.14);
+    --row-hover: color-mix(in srgb, var(--accent) 8%, transparent);
+    --cell-border: rgba(120,150,220,.14);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    background:
+      radial-gradient(1200px 600px at 15% -10%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 60%),
+      radial-gradient(1000px 500px at 110% 10%, color-mix(in srgb, var(--accent-2) 12%, transparent), transparent 55%),
+      linear-gradient(160deg, var(--bg-0), var(--bg-1));
+    color: var(--text);
+    min-height: 100vh;
+    transition: background .4s ease, color .4s ease;
+  }
+  header {
+    position: sticky; top: 0; z-index: 10;
+    backdrop-filter: blur(18px) saturate(160%);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+    background: color-mix(in srgb, var(--bg-0) 72%, transparent);
+    border-bottom: 1px solid var(--glass-border);
+    padding: 14px 24px;
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand img { width: 38px; height: 38px; filter: drop-shadow(0 0 10px color-mix(in srgb, var(--accent) 50%, transparent)); }
+  .brand h1 { font-size: 1.25rem; font-weight: 800; letter-spacing: -.02em;
+    background: var(--brand); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .header-right { display: flex; align-items: center; gap: 14px; }
+  header nav { display: flex; gap: 4px; flex-wrap: wrap; }
+  header nav a { color: var(--text-soft); text-decoration: none; font-size: .84rem; padding: 8px 12px; border-radius: 10px; transition: background .2s ease, color .2s ease; }
+  header nav a:hover { background: var(--row-hover); color: var(--text); }
+  .theme-toggle {
+    width: 42px; height: 42px; border-radius: 13px; cursor: pointer; border: 1px solid var(--glass-border);
+    background: var(--glass); color: var(--text); font-size: 1.1rem; display: grid; place-items: center;
+    box-shadow: var(--card-shadow); transition: transform .15s ease, background .3s ease;
+  }
+  .theme-toggle:hover { transform: translateY(-2px) scale(1.05); }
+  .theme-toggle:active { transform: scale(.95); }
+  main { max-width: 1020px; margin: 0 auto; padding: 20px 16px 48px; }
 
-  .tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
-  .tabs button { padding: 8px 18px; border: 1px solid #ddd; border-radius: 8px; background: #fff; cursor: pointer; font-size: .9rem; font-weight: 600; color: #555; }
-  .tabs button.active { background: #1a1a2e; color: #fff; border-color: #1a1a2e; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 18px; flex-wrap: wrap; }
+  .tabs button {
+    padding: 10px 18px; border: 1px solid var(--input-border); border-radius: 13px; background: var(--glass);
+    cursor: pointer; font-size: .88rem; font-weight: 700; color: var(--text-soft);
+    backdrop-filter: blur(12px); transition: all .2s ease;
+  }
+  .tabs button:hover { color: var(--text); transform: translateY(-1px); }
+  .tabs button.active { background: var(--brand); color: #fff; border-color: transparent; box-shadow: 0 8px 20px -8px color-mix(in srgb, var(--accent) 55%, transparent); }
 
-  .card { background: #fff; border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .card {
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: 22px;
+    padding: 20px;
+    margin-bottom: 14px;
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    box-shadow: var(--card-shadow);
+    transition: background .4s ease, border-color .4s ease;
+  }
+  h3, h4 { color: var(--text-soft); font-weight: 700; }
+  h3 { font-size: .9rem; margin-bottom: 12px; }
+  h4 { font-size: .82rem; margin: 16px 0 10px; }
 
-  /* Stats */
-  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
-  .stat-card { background: #1a1a2e; color: #fff; padding: 20px; border-radius: 12px; text-align: center; }
-  .stat-card .num { font-size: 2rem; font-weight: 700; }
-  .stat-card .label { font-size: .8rem; opacity: .8; margin-top: 4px; }
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
+  .stat-card {
+    background: var(--brand); color: #fff; padding: 22px; border-radius: 20px; text-align: center;
+    box-shadow: 0 12px 28px -12px color-mix(in srgb, var(--accent) 60%, transparent);
+  }
+  .stat-card .num { font-size: 2.1rem; font-weight: 800; letter-spacing: -.02em; }
+  .stat-card .label { font-size: .8rem; opacity: .85; margin-top: 4px; font-weight: 600; }
 
-  /* Shop list */
-  table { width: 100%; border-collapse: collapse; font-size: .9rem; }
-  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #eee; }
-  th { font-size: .75rem; text-transform: uppercase; color: #888; font-weight: 600; }
-  tr:hover td { background: #f9f9f9; }
-  .actions button, .actions a { padding: 4px 10px; font-size: .78rem; border: 1px solid #ddd; border-radius: 6px; background: #fff; cursor: pointer; color: #333; text-decoration: none; margin-right: 4px; }
-  .actions button.del { color: #c0392b; border-color: #c0392b; }
-  .actions button.del:hover { background: #c0392b; color: #fff; }
-  .actions a:hover, .actions button:hover { background: #f0f0f0; }
+  .toolbar { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; }
+  .toolbar input[type=text], .toolbar select {
+    flex: 1; min-width: 180px; padding: 11px 14px; border: 1.5px solid var(--input-border); border-radius: 13px;
+    font-size: .9rem; background: var(--input-bg); color: var(--text); transition: border-color .2s ease, box-shadow .2s ease;
+  }
+  .toolbar select { flex: 0 1 auto; min-width: 150px; }
+  .toolbar input[type=text]:focus, .toolbar select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent); }
+  .toolbar input[type=text]::placeholder { color: var(--text-faint); }
+  .toolbar button {
+    padding: 11px 18px; border: none; border-radius: 13px; font-size: .88rem; font-weight: 700; cursor: pointer;
+    background: var(--brand); color: var(--btn-text); transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .toolbar button:hover { transform: translateY(-1px); }
+  .count { font-size: .78rem; color: var(--msg); white-space: nowrap; }
 
-  /* Editing inline */
-  td input { width: 100%; padding: 4px 6px; border: 1px solid #ddd; border-radius: 4px; font-size: .85rem; }
+  table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+  th, td { text-align: left; padding: 11px 10px; border-bottom: 1px solid var(--cell-border); }
+  th { font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-faint); font-weight: 700; }
+  tr:hover td { background: var(--row-hover); }
+  td input {
+    width: 100%; padding: 6px 9px; border: 1.5px solid transparent; border-radius: 9px; font-size: .85rem;
+    background: transparent; color: var(--text); transition: border-color .2s ease, background .2s ease;
+  }
+  td input:hover { border-color: var(--input-border); background: var(--input-bg); }
+  td input:focus { outline: none; border-color: var(--accent); background: var(--input-bg); }
+  .actions button, .actions a {
+    padding: 6px 12px; font-size: .76rem; border: 1.5px solid var(--input-border); border-radius: 10px;
+    background: var(--input-bg); cursor: pointer; color: var(--text); text-decoration: none; margin-right: 4px;
+    font-weight: 600; transition: all .15s ease;
+  }
+  .actions button:hover, .actions a:hover { border-color: var(--accent); color: var(--accent); }
+  .actions button.del { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, transparent); background: var(--danger-bg); }
+  .actions button.del:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
 
-  /* AI settings */
-  .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: .75rem; font-weight: 700; }
-  .badge.on { background: #e6f4ea; color: #1e7e34; }
-  .badge.off { background: #fdecea; color: #c0392b; }
-  .model-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f0f0f0; flex-wrap: wrap; }
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: .72rem; font-weight: 700; }
+  .badge.on { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+  .badge.off { background: var(--danger-bg); color: var(--danger); border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent); }
+  .model-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--cell-border); flex-wrap: wrap; }
   .model-row .name { font-weight: 600; min-width: 220px; }
-  .model-row select { padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: .85rem; }
-  .env-hint { background: #fff8e1; border: 1px solid #ffe082; border-radius: 8px; padding: 12px; font-size: .82rem; color: #555; margin-top: 12px; }
-  .env-hint code { background: #eee; padding: 2px 5px; border-radius: 4px; font-size: .8rem; }
+  .model-row select { padding: 6px 10px; border: 1.5px solid var(--input-border); border-radius: 9px; font-size: .85rem; background: var(--input-bg); color: var(--text); }
+  .env-hint { background: color-mix(in srgb, #f5a623 8%, var(--glass)); border: 1px solid color-mix(in srgb, #f5a623 40%, transparent); border-radius: 14px; padding: 14px; font-size: .82rem; color: var(--text-soft); margin-top: 12px; }
+  .env-hint code { background: var(--input-bg); padding: 2px 6px; border-radius: 6px; font-size: .8rem; color: var(--accent); }
 
-  /* Items sub-panel */
-  .items-drawer { margin-top: 8px; padding: 12px; background: #f9f9f9; border-radius: 8px; }
-  .items-drawer table { font-size: .82rem; }
+  .items-drawer { margin-top: 10px; padding: 14px; background: color-mix(in srgb, var(--input-bg) 70%, transparent); border-radius: 16px; border: 1px solid var(--cell-border); }
+  .items-drawer table { font-size: .8rem; }
 
-  .msg { text-align: center; color: #888; padding: 24px 0; }
+  .msg { text-align: center; color: var(--msg); padding: 26px 0; }
+  .default-row { background: color-mix(in srgb, #f5a623 8%, transparent); }
+  @media (max-width: 640px) {
+    main { padding: 14px 12px 40px; }
+    .card { border-radius: 18px; padding: 16px; }
+    .toolbar button { width: 100%; }
+  }
 </style>
 </head>
 <body>
-<header>
-  <h1>🐦 Myna — Owner Panel</h1>
-  <nav>
-    <a href="/">Customer Search</a>
-    <a href="/shopkeeper">Shopkeeper</a>
-    <a href="/docs">API Docs</a>
-  </nav>
-</header>
+  <header>
+    <div class="brand">
+      <img src="/static/myna-logo.svg" alt="Myna AI">
+      <h1>Myna — Owner Panel</h1>
+    </div>
+    <div class="header-right">
+      <nav>
+        <a href="/">Customer Search</a>
+        <a href="/shopkeeper">Shopkeeper</a>
+        <a href="/docs">API Docs</a>
+      </nav>
+      <button class="theme-toggle" id="themeBtn" title="Toggle theme" aria-label="Toggle dark/light mode"></button>
+    </div>
+  </header>
 <main>
   <div class="tabs">
     <button class="active" onclick="showTab('dashboard', this)">Dashboard</button>
     <button onclick="showTab('shops', this)">Shops</button>
+    <button onclick="showTab('items', this)">All Items</button>
     <button onclick="showTab('ai', this)">AI Settings</button>
   </div>
 
@@ -75,7 +198,7 @@
   <div id="tab-dashboard">
     <div class="stats-grid" id="statsGrid"></div>
     <div class="card" style="margin-top:16px">
-      <h3 style="font-size:.9rem; margin-bottom:10px; color:#555">Recently registered shops</h3>
+      <h3>Recently registered shops</h3>
       <table>
         <thead><tr><th>ID</th><th>Name</th><th>Registered</th></tr></thead>
         <tbody id="recentShops"></tbody>
@@ -86,42 +209,93 @@
   <!-- ==================== SHOPS ==================== -->
   <div id="tab-shops" style="display:none">
     <div class="card">
-      <div style="display:flex; gap:8px; margin-bottom:12px">
-        <input id="shopSearch" type="text" placeholder="Search shops…" style="flex:1; padding:8px 12px; border:1px solid #ddd; border-radius:8px; font-size:.9rem" onkeydown="if(event.key==='Enter')loadShops()">
-        <button onclick="loadShops()" style="padding:8px 16px; border:1px solid #ddd; border-radius:8px; background:#fff; cursor:pointer; font-weight:600">Search</button>
+      <div class="toolbar">
+        <input id="shopSearch" type="text" placeholder="Search shops…" onkeydown="if(event.key==='Enter')loadShops()">
+        <button onclick="loadShops()">Search</button>
       </div>
       <table>
-        <thead><tr><th>ID</th><th>Name</th><th>Address</th><th>Phone</th><th>Items</th><th>Actions</th></tr></thead>
+        <thead><tr><th>ID</th><th>Name</th><th>Shopkeeper</th><th>Address</th><th>Phone</th><th>Items</th><th>Actions</th></tr></thead>
         <tbody id="shopTable"></tbody>
       </table>
-      <div style="margin-top:10px; font-size:.8rem; color:#888" id="shopCount"></div>
+      <div class="count" style="margin-top:10px" id="shopCount"></div>
     </div>
   </div>
 
   <!-- ==================== AI SETTINGS ==================== -->
   <div id="tab-ai" style="display:none">
     <div class="card">
-      <h3 style="font-size:.9rem; margin-bottom:10px; color:#555">LLM Vision Providers</h3>
+      <h3>LLM Vision Providers</h3>
       <div id="llmProviders"></div>
-      <div class="env-hint">
-        To change the default model, set <code>MYNA_DEFAULT_MODEL</code> in your environment
-        (e.g. <code>anthropic/claude-sonnet-4-20250514</code>) and restart the server.
+
+      <div style="margin:16px 0 8px; font-size:.85rem; color:var(--text-soft)">
+        Select default model
+        <span style="font-size:.75rem; color:var(--text-faint)">(used across the app for signage/item recognition)</span>
       </div>
+      <div class="toolbar" style="margin-bottom:16px">
+        <select id="defaultModelSelect" style="flex:1; min-width:280px; padding:11px 14px; border:1.5px solid var(--input-border); border-radius:13px; font-size:.9rem; background:var(--input-bg); color:var(--text)"></select>
+        <button onclick="saveDefaultModel()">Save</button>
+      </div>
+      <span id="defaultModelMsg" style="font-size:.8rem; color:var(--accent)"></span>
+
+      <h4>Available models</h4>
+      <div class="toolbar">
+        <select id="providerFilter" onchange="renderModelTable()"></select>
+        <input id="modelSearch" type="text" placeholder="Search models…" oninput="renderModelTable()">
+        <span class="count" id="modelCount"></span>
+      </div>
+      <table>
+        <thead><tr><th>Model</th><th>Provider</th><th>Context</th><th>Max Output</th><th>Price</th><th></th></tr></thead>
+        <tbody id="modelTable"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ==================== ALL ITEMS ==================== -->
+  <div id="tab-items" style="display:none">
+    <div class="card">
+      <div class="toolbar">
+        <input id="itemSearch" type="text" placeholder="Search items…" onkeydown="if(event.key==='Enter')loadAllItems()">
+        <button onclick="loadAllItems()">Search</button>
+        <span class="count" id="itemCount"></span>
+      </div>
+      <table>
+        <thead><tr><th>ID</th><th>Shop</th><th>Name</th><th>Category</th><th>Created</th><th>Actions</th></tr></thead>
+        <tbody id="itemTable"></tbody>
+      </table>
     </div>
   </div>
 </main>
 <script>
+(function () {
+  const root = document.documentElement;
+  const saved = localStorage.getItem('myna_theme');
+  const prefers = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  root.setAttribute('data-theme', saved || prefers);
+  const btn = document.getElementById('themeBtn');
+  function render() {
+    btn.textContent = root.getAttribute('data-theme') === 'dark' ? '☀️' : '🌙';
+  }
+  btn.addEventListener('click', () => {
+    const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    localStorage.setItem('myna_theme', next);
+    render();
+  });
+  render();
+})();
+
 // ---------------------------------------------------------------------------
 // Tabs
 // ---------------------------------------------------------------------------
 function showTab(name, btn) {
   document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  ['dashboard', 'shops', 'ai'].forEach(t => {
+  ['dashboard', 'shops', 'items', 'ai'].forEach(t => {
     document.getElementById('tab-' + t).style.display = t === name ? '' : 'none';
   });
   if (name === 'dashboard') loadStats();
   if (name === 'shops') loadShops();
+  if (name === 'items') { loadShopNames(); loadAllItems(); }
   if (name === 'ai') loadLLM();
 }
 
@@ -157,6 +331,7 @@ async function loadShops() {
     tr.innerHTML = `
       <td>${s.shop_id}</td>
       <td><input value="${esc(s.name)}" onchange="patchShop(${s.shop_id}, 'name', this.value)"></td>
+      <td><input value="${esc(s.shopkeeper)}" onchange="patchShop(${s.shop_id}, 'shopkeeper', this.value)"></td>
       <td><input value="${esc(s.address)}" onchange="patchShop(${s.shop_id}, 'address', this.value)"></td>
       <td><input value="${esc(s.phone)}" onchange="patchShop(${s.shop_id}, 'phone', this.value)"></td>
       <td style="text-align:center">${items.length}</td>
@@ -168,10 +343,10 @@ async function loadShops() {
     tbody.appendChild(tr);
     const drawer = document.createElement('tr');
     drawer.style.display = 'none';
-    drawer.innerHTML = `<td colspan="6"><div class="items-drawer" id="items-${s.shop_id}"></div></td>`;
+    drawer.innerHTML = `<td colspan="7"><div class="items-drawer" id="items-${s.shop_id}"></div></td>`;
     tbody.appendChild(drawer);
   }
-  if (!shops.length) tbody.innerHTML = '<tr><td colspan="6" class="msg">No shops found.</td></tr>';
+  if (!shops.length) tbody.innerHTML = '<tr><td colspan="7" class="msg">No shops found.</td></tr>';
 }
 
 async function patchShop(id, field, value) {
@@ -203,7 +378,7 @@ async function toggleItems(btn, shopId) {
           <td><input value="${esc(i.name)}" onchange="patchItem(${i.item_id}, 'name', this.value)"></td>
           <td><input value="${esc(i.category)}" onchange="patchItem(${i.item_id}, 'category', this.value)"></td>
           <td class="actions"><button class="del" onclick="deleteItem(${i.item_id}, ${shopId})">Del</button></td>
-        </tr>`).join('') || '<tr><td colspan="4" style="text-align:center;color:#888">No items</td></tr>'}
+        </tr>`).join('') || '<tr><td colspan="4" class="msg">No items</td></tr>'}
       </tbody></table>`;
   } else {
     drawer.style.display = 'none';
@@ -231,23 +406,138 @@ async function deleteItem(itemId, shopId) {
 }
 
 // ---------------------------------------------------------------------------
+// All Items (global view)
+// ---------------------------------------------------------------------------
+let shopNames = {};
+
+async function loadShopNames() {
+  const res = await fetch('/api/admin/shops');
+  const shops = await res.json();
+  shopNames = {};
+  shops.forEach(s => { shopNames[s.shop_id] = s.name; });
+}
+
+async function loadAllItems() {
+  const q = document.getElementById('itemSearch').value.trim();
+  const res = await fetch('/api/admin/items?q=' + encodeURIComponent(q));
+  const items = await res.json();
+  document.getElementById('itemCount').textContent = items.length + ' item(s)';
+  const tbody = document.getElementById('itemTable');
+  tbody.innerHTML = items.map(i => `
+    <tr>
+      <td>${i.item_id}</td>
+      <td>${esc(shopNames[i.shop_id] || 'Shop #' + i.shop_id)}</td>
+      <td><input value="${esc(i.name)}" onchange="patchItem(${i.item_id}, 'name', this.value)"></td>
+      <td><input value="${esc(i.category)}" onchange="patchItem(${i.item_id}, 'category', this.value)"></td>
+      <td>${new Date(i.created_at).toLocaleString()}</td>
+      <td class="actions"><button class="del" onclick="deleteItemGlobal(${i.item_id})">Delete</button></td>
+    </tr>
+  `).join('') || '<tr><td colspan="6" class="msg">No items found.</td></tr>';
+}
+
+async function deleteItemGlobal(itemId) {
+  if (!confirm('Delete item #' + itemId + '?')) return;
+  await fetch(`/api/admin/items/${itemId}`, { method: 'DELETE' });
+  loadAllItems();
+}
+
+// ---------------------------------------------------------------------------
 // AI Settings
 // ---------------------------------------------------------------------------
+let llmModels = [];
+let currentDefault = '';
+
 async function loadLLM() {
-  const res = await fetch('/api/admin/llm/providers');
-  const data = await res.json();
-  const container = document.getElementById('llmProviders');
-  if (!data.providers.length) {
-    container.innerHTML = '<div class="msg">No LLM providers configured. Set API keys in your environment.</div>';
-    return;
+  const [provRes, modelsRes] = await Promise.all([
+    fetch('/api/admin/llm/providers'),
+    fetch('/api/admin/llm/models'),
+  ]);
+  const provData = await provRes.json();
+  const modelsData = await modelsRes.json();
+  llmModels = modelsData.models || [];
+  currentDefault = provData.default_model || '';
+
+  // Provider badges
+  const provContainer = document.getElementById('llmProviders');
+  const provs = provData.configured_providers || [];
+  if (!provs.length) {
+    provContainer.innerHTML = '<div class="msg">No LLM providers configured. Set API keys in your .env file.</div>';
+  } else {
+    provContainer.innerHTML = provs.map(p => `<span class="badge on" style="margin-right:6px">${esc(p)}</span>`).join('');
   }
-  container.innerHTML = data.providers.map(p => {
-    const isDefault = p.label === data.default_model;
-    return `<div class="model-row">
-      <span class="name">${esc(p.label)}</span>
-      <span class="badge ${isDefault ? 'on' : 'off'}">${isDefault ? 'DEFAULT' : 'available'}</span>
-    </div>`;
-  }).join('');
+
+  // Populate provider filter dropdown
+  const filterSelect = document.getElementById('providerFilter');
+  const uniqueProviders = [...new Set(llmModels.map(m => m.provider))].sort();
+  filterSelect.innerHTML = '<option value="">All providers</option>' +
+    uniqueProviders.map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
+
+  // Build default-model dropdown (shows all models regardless of filter)
+  const select = document.getElementById('defaultModelSelect');
+  select.innerHTML = llmModels.map(m =>
+    `<option value="${esc(m.label)}" ${m.label === currentDefault ? 'selected' : ''}>${esc(m.label)}</option>`
+  ).join('');
+
+  renderModelTable();
+}
+
+function renderModelTable() {
+  const providerFilter = document.getElementById('providerFilter').value;
+  const search = document.getElementById('modelSearch').value.trim().toLowerCase();
+
+  let filtered = llmModels;
+  if (providerFilter) {
+    filtered = filtered.filter(m => m.provider === providerFilter);
+  }
+  if (search) {
+    filtered = filtered.filter(m =>
+      (m.display_name || m.model || '').toLowerCase().includes(search) ||
+      (m.model || '').toLowerCase().includes(search)
+    );
+  }
+
+  document.getElementById('modelCount').textContent = filtered.length + ' of ' + llmModels.length + ' models';
+
+  document.getElementById('modelTable').innerHTML = filtered.map(m => {
+    const ctx = m.context_window ? (m.context_window >= 1000 ? (m.context_window/1000).toFixed(0) + 'k' : m.context_window) : '—';
+    const maxOut = m.max_output_tokens ? (m.max_output_tokens >= 1000 ? (m.max_output_tokens/1000).toFixed(0) + 'k' : m.max_output_tokens) : '—';
+    const price = m.pricing ? '$' + (m.pricing.prompt || m.pricing.input || '?') : '—';
+    const isDefault = m.label === currentDefault;
+    return `<tr${isDefault ? ' class="default-row"' : ''}>
+      <td style="font-weight:${isDefault ? '700' : '500'}">${esc(m.display_name || m.model)}</td>
+      <td>${esc(m.provider)}</td>
+      <td>${ctx}</td>
+      <td>${maxOut}</td>
+      <td>${price}</td>
+      <td>${isDefault ? '<span class="badge on">Default</span>' : `<button onclick="quickSelectDefault('${esc(m.label)}')" style="padding:6px 12px; font-size:.75rem; border:1.5px solid var(--input-border); border-radius:10px; background:var(--input-bg); color:var(--text); cursor:pointer; font-weight:600">Set default</button>`}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="6" class="msg">No models match.</td></tr>';
+}
+
+async function quickSelectDefault(label) {
+  document.getElementById('defaultModelSelect').value = label;
+  await saveDefaultModel();
+}
+
+async function saveDefaultModel() {
+  const model = document.getElementById('defaultModelSelect').value;
+  const msg = document.getElementById('defaultModelMsg');
+  const res = await fetch('/api/admin/llm/default-model', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model }),
+  });
+  const data = await res.json();
+  if (res.ok) {
+    currentDefault = model;
+    msg.textContent = '✓ Saved: ' + model;
+    msg.style.color = 'var(--accent)';
+    renderModelTable();
+  } else {
+    msg.textContent = 'Error: ' + (data.detail || 'failed');
+    msg.style.color = 'var(--danger)';
+  }
+  setTimeout(() => msg.textContent = '', 4000);
 }
 
 // ---------------------------------------------------------------------------

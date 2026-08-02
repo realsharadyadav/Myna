@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 class ShopCreate(BaseModel):
     name: str
+    shopkeeper: Optional[str] = ""
     lat: float
     long: float
     address: Optional[str] = ""
@@ -14,6 +15,7 @@ class ShopCreate(BaseModel):
 
 class ShopUpdate(BaseModel):
     name: Optional[str] = None
+    shopkeeper: Optional[str] = None
     address: Optional[str] = None
     phone: Optional[str] = None
 
@@ -21,6 +23,7 @@ class ShopUpdate(BaseModel):
 class ShopOut(BaseModel):
     shop_id: int
     name: str
+    shopkeeper: str
     lat: float
     long: float
     address: str
@@ -57,6 +60,7 @@ class ItemOut(BaseModel):
 class SearchResult(BaseModel):
     shop_id: int
     shop_name: str
+    shopkeeper: str
     address: str
     phone: str
     distance_km: float

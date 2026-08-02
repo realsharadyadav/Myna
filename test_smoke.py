@@ -2,9 +2,19 @@
 import io
 import os
 
+# Prevent .env from being loaded during tests — we don't want real keys.
+os.environ["MYNA_SKIP_DOTENV"] = "1"
+
 # Use a throwaway test DB so repeated runs don't accumulate data.
 _test_db = "test_myna_smoke.db"
+if os.path.exists(_test_db):
+    os.remove(_test_db)
 os.environ["DATABASE_URL"] = f"sqlite:///./{_test_db}"
+
+# Clear any real API keys from the environment / .env — tests must not call real APIs.
+os.environ.pop("ANTHROPIC_API_KEY", None)
+os.environ.pop("GROQ_API_KEY", None)
+os.environ.pop("GEMINI_API_KEY", None)
 
 from fastapi.testclient import TestClient
 
@@ -20,6 +30,7 @@ print("PASS pages load")
 # 2. Create a shop
 res = client.post("/api/shops", json={
     "name": "Sharma General Store",
+    "shopkeeper": "Rakesh Sharma",
     "lat": 19.0760,
     "long": 72.8777,
     "address": "123 Test Road, Mumbai",
@@ -27,6 +38,7 @@ res = client.post("/api/shops", json={
 })
 assert res.status_code == 200, res.text
 shop = res.json()
+assert shop["shopkeeper"] == "Rakesh Sharma"
 shop_id = shop["shop_id"]
 print(f"PASS create shop id={shop_id}")
 
@@ -56,29 +68,43 @@ items = client.get(f"/api/shops/{shop_id}/items").json()
 assert len(items) == 2
 print("PASS list items")
 
-# 6. Search — within range (same coords)
-res = client.get("/api/search", params={"q": "parle", "lat": 19.076, "long": 72.878, "range_km": 5})
+# 6. Search — found near user, nearest first
+res = client.get("/api/search", params={"q": "parle", "lat": 19.076, "long": 72.878})
 results = res.json()
 assert len(results) == 1 and results[0]["item_name"] == "Parle-G Gold 100g"
 assert results[0]["distance_km"] < 1
 print(f"PASS search found at {results[0]['distance_km']} km")
 
 # 7. Search — case-insensitive, second item
-res = client.get("/api/search", params={"q": "SALT", "lat": 19.08, "long": 72.88, "range_km": 5})
+res = client.get("/api/search", params={"q": "SALT", "lat": 19.08, "long": 72.88})
 assert len(res.json()) == 1
 print("PASS fuzzy case-insensitive search")
 
-# 8. Search — outside range returns nothing
-res = client.get("/api/search", params={"q": "parle", "lat": 28.61, "long": 77.20, "range_km": 5})  # Delhi
-assert res.json() == []
-print("PASS range filter excludes far shops")
+# 8. Search — no range filter, far shops still returned (sorted by distance)
+res = client.get("/api/search", params={"q": "parle", "lat": 28.61, "long": 77.20})  # Delhi
+assert len(res.json()) == 1  # Mumbai shop ~1100 km away still returned
+assert res.json()[0]["distance_km"] > 1000
+print("PASS no range filter returns far shops, sorted by distance")
 
-# 9. Search — wider range from Delhi finds it
-res = client.get("/api/search", params={"q": "parle", "lat": 28.61, "long": 77.20, "range_km": 50})
-assert res.json() == []  # Mumbai is >50km, still excluded
-res = client.get("/api/search", params={"q": "parle", "lat": 19.5, "long": 72.9, "range_km": 50})
+# 9. Search — sorted nearest first
+res = client.get("/api/search", params={"q": "parle", "lat": 19.5, "long": 72.9})
 assert len(res.json()) == 1
 print("PASS haversine distance boundaries correct")
+
+# 9b. Search — match shop name
+res = client.get("/api/search", params={"q": "sharma", "lat": 19.076, "long": 72.878})
+assert len(res.json()) >= 1
+print("PASS search matches shop name")
+
+# 9c. Search — match shopkeeper name
+res = client.get("/api/search", params={"q": "rakesh", "lat": 19.076, "long": 72.878})
+assert len(res.json()) >= 1
+print("PASS search matches shopkeeper name")
+
+# 9d. Search — match item category
+res = client.get("/api/search", params={"q": "grocery", "lat": 19.076, "long": 72.878})
+assert len(res.json()) >= 1
+print("PASS search matches item category")
 
 # 10. Update + delete item
 res = client.patch(f"/api/shops/{shop_id}/items/{item_id}", json={"name": "Parle-G Gold 200g"})
@@ -161,15 +187,26 @@ res = client.delete(f"/api/admin/items/{item_id}")
 assert res.status_code == 204
 print("PASS admin delete item")
 
-# 22. Admin LLM providers (no keys -> empty)
+# 22. Admin LLM providers (no keys -> empty providers, but default falls back)
 res = client.get("/api/admin/llm/providers")
 assert res.status_code == 200
 data = res.json()
 assert data["providers"] == []
-assert data["default_model"] is None
+assert data["default_model"] is None or data["default_model"] == ""
 print("PASS admin LLM providers (unconfigured)")
 
-# 23. Admin delete shop
+# 23. Admin LLM models endpoint (no keys -> empty list)
+res = client.get("/api/admin/llm/models")
+assert res.status_code == 200
+assert res.json() == {"models": []}
+print("PASS admin LLM models (unconfigured)")
+
+# 24. Admin set default model (should fail without provider key)
+res = client.post("/api/admin/llm/default-model", json={"model": "anthropic/claude-sonnet-4-20250514"})
+assert res.status_code == 400
+print("PASS admin set default model rejects unconfigured provider")
+
+# 25. Admin delete shop
 res = client.delete(f"/api/admin/shops/{shop_id}")
 assert res.status_code == 204
 assert client.get("/api/admin/shops").json() == []

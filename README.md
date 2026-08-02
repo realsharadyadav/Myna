@@ -24,8 +24,8 @@ Then open:
 - **Shop onboarding** — signage photo → AI reads shop name (Claude Vision), GPS auto-capture, address auto-filled via OpenStreetMap reverse geocoding, manual override everywhere
 - **Item add (semi-auto)** — item photo → AI suggests name/category → shopkeeper confirms → listed as available
 - **Item edit/delete** anytime
-- **Customer search** — fuzzy text match + KM-range slider, results sorted nearest-first (Haversine)
-- **Owner panel** — dashboard stats (shops/items counts), shop list with search, inline edit/delete, LLM provider status
+- **Customer search** — fuzzy text match across item name, category, shop name, shopkeeper name & address, results sorted nearest-first (Haversine)
+- **Owner panel** — dashboard stats (shops/items counts), shop list with search, inline edit/delete, LLM provider + model selector (default saved in DB)
 
 ## Configuration
 
@@ -34,8 +34,8 @@ Then open:
 | `ANTHROPIC_API_KEY` | _(empty)_ | Claude Vision for signage/item recognition. |
 | `GROQ_API_KEY` | _(empty)_ | Groq Vision (e.g. Llama 4 Scout) for signage/item recognition. |
 | `GEMINI_API_KEY` | _(empty)_ | Gemini Vision (e.g. 2.5 Flash) for signage/item recognition. |
-| `MYNA_DEFAULT_MODEL` | _(empty)_ | Override which vision model to use. Format: `provider/model`. Falls back to first configured provider's default. |
-| `DATABASE_URL` | `sqlite:///./myna.db` | Set to a PostgreSQL URL in production. |
+| `MYNA_DATABASE_URL` | _(falls back to `DATABASE_URL`, then SQLite)_ | Postgres URL. Checked first; `DATABASE_URL` (auto-set by Render/Heroku) is the fallback. |
+| `DATABASE_URL` | `sqlite:///./myna.db` | Postgres URL supplied by hosting platform, or a manual override. |
 | `UPLOAD_DIR` | `./uploads` | Where item/shop photos are stored. Swap for Cloudinary/Supabase in production. |
 
 > **AI works without any API key** — name/category fields just stay manual. Set any provider key to enable AI suggestions.
@@ -77,14 +77,27 @@ run.sh               Creates venv, installs deps, starts uvicorn
 | `GET/POST` | `/api/shops/{id}/items` | List / add items (multipart: name, category, photo) |
 | `PATCH/DELETE` | `/api/shops/{id}/items/{item_id}` | Edit / remove item |
 | `POST` | `/api/shops/{id}/items/suggest` | AI-suggest item name/category from photo |
-| `GET` | `/api/search?q&lat&long&range_km` | Find matching items at nearby shops, nearest first |
+| `GET` | `/api/search?q&lat&long&limit` | Find matching items at any shop, nearest first (no range filter) |
 | `GET` | `/api/admin/stats` | Owner dashboard stats (shop/item counts, recent shops) |
 | `GET` | `/api/admin/shops?q` | List/search all shops |
 | `GET/PATCH/DELETE` | `/api/admin/shops/{id}` | Shop detail / update / delete |
 | `GET` | `/api/admin/shops/{id}/items` | Items for a shop |
 | `PATCH/DELETE` | `/api/admin/items/{id}` | Edit / remove any item |
 | `GET` | `/api/admin/llm/providers` | Configured AI providers and default model |
+| `GET` | `/api/admin/llm/models` | Fetch all available vision models from configured providers |
+| `POST` | `/api/admin/llm/default-model` | Set the default model (persisted in DB) |
 | `GET` | `/admin` | Owner panel UI (dashboard, shops, AI settings) |
+
+## Deploy to Render
+
+One-click deploy using the included `render.yaml` blueprint:
+
+1. Push this repo to GitHub, then in Render: **New → Blueprint** → select the repo.
+2. Render creates the web service, a free PostgreSQL DB, and a 1 GB uploads disk automatically.
+3. After deploy, go to the service's **Environment** tab and add your API keys (`ANTHROPIC_API_KEY` / `GROQ_API_KEY` / `GEMINI_API_KEY`) — they're marked `sync: false` in the blueprint.
+4. Open `https://<your-service>.onrender.com/admin` to pick the default model.
+
+SQLite (`myna.db`) is only for local dev — production uses Postgres via `DATABASE_URL` (auto-injected by Render), and uploads go to the persistent disk (`UPLOAD_DIR=/var/data/uploads`).
 
 ## Deferred (per plan)
 

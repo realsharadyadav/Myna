@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
@@ -13,34 +14,43 @@ def search(
     q: str = Query(..., min_length=1),
     lat: float = Query(...),
     long: float = Query(...),
-    range_km: float = Query(5.0, gt=0, le=50),
+    limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
 ):
-    """Find items matching `q` at shops within `range_km` of (lat, long), nearest first."""
+    """Find items matching `q` across item name, item category, shop name,
+    shopkeeper name and shop address, nearest first (no range filter)."""
     pattern = f"%{q.strip()}%"
     rows = (
         db.query(models.Item, models.Shop)
         .join(models.Shop, models.Item.shop_id == models.Shop.shop_id)
-        .filter(models.Item.name.ilike(pattern))
+        .filter(
+            or_(
+                models.Item.name.ilike(pattern),
+                models.Item.category.ilike(pattern),
+                models.Shop.name.ilike(pattern),
+                models.Shop.shopkeeper.ilike(pattern),
+                models.Shop.address.ilike(pattern),
+            )
+        )
         .all()
     )
 
     results = []
     for item, shop in rows:
         dist = haversine_km(lat, long, shop.lat, shop.long)
-        if dist <= range_km:
-            results.append(
-                schemas.SearchResult(
-                    shop_id=shop.shop_id,
-                    shop_name=shop.name,
-                    address=shop.address,
-                    phone=shop.phone,
-                    distance_km=round(dist, 2),
-                    item_id=item.item_id,
-                    item_name=item.name,
-                    item_category=item.category,
-                    item_photo_url=item.photo_url,
-                )
+        results.append(
+            schemas.SearchResult(
+                shop_id=shop.shop_id,
+                shop_name=shop.name,
+                shopkeeper=shop.shopkeeper,
+                address=shop.address,
+                phone=shop.phone,
+                distance_km=round(dist, 2),
+                item_id=item.item_id,
+                item_name=item.name,
+                item_category=item.category,
+                item_photo_url=item.photo_url,
             )
+        )
     results.sort(key=lambda r: r.distance_km)
-    return results
+    return results[:limit]

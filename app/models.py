@@ -6,11 +6,21 @@ from sqlalchemy.orm import relationship
 from .database import Base
 
 
+class AppSetting(Base):
+    """Non-secret runtime settings stored in DB."""
+    __tablename__ = "app_settings"
+
+    key = Column(String, primary_key=True)
+    value = Column(String, default="")
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class Shop(Base):
     __tablename__ = "shops"
 
     shop_id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
+    shopkeeper = Column(String, default="")
     lat = Column(Float, nullable=False)
     long = Column(Float, nullable=False)
     address = Column(String, default="")

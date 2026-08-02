@@ -7,7 +7,6 @@ from .config import (
     ANTHROPIC_API_KEY,
     GROQ_API_KEY,
     GEMINI_API_KEY,
-    MYNA_DEFAULT_MODEL,
 )
 
 _SIGNAGE_PROMPT = (
@@ -27,7 +26,7 @@ _ITEM_PROMPT = (
 
 
 # ---------------------------------------------------------------------------
-# Provider registry — each entry knows how to make a vision call.
+# Helpers
 # ---------------------------------------------------------------------------
 
 def _image_to_b64(image_path: str) -> tuple[str, str]:
@@ -42,6 +41,23 @@ def _image_to_b64(image_path: str) -> tuple[str, str]:
     b64 = base64.standard_b64encode(Path(image_path).read_bytes()).decode("utf-8")
     return b64, media_type
 
+
+def _has_image_support(model: dict) -> bool:
+    """Heuristic: skip text-only / embedding / audio-only models."""
+    mid = model.get("id", "").lower()
+    if any(x in mid for x in ("embed", "whisper", "tts", "audio", "speech")):
+        return False
+    # Groq exposes capabilities under "capabilities"; Anthropic/Gemini don't
+    caps = model.get("capabilities")
+    if caps and isinstance(caps, dict):
+        if not caps.get("vision", True):
+            return False
+    return True
+
+
+# ---------------------------------------------------------------------------
+# Vision call implementations
+# ---------------------------------------------------------------------------
 
 def _call_anthropic(api_key: str, model: str, image_path: str, prompt: str) -> str:
     b64, media_type = _image_to_b64(image_path)
@@ -137,22 +153,110 @@ def _call_gemini(api_key: str, model: str, image_path: str, prompt: str) -> str:
     return "".join(p.get("text", "") for p in parts).strip()
 
 
-# Each provider:  env key, default model, and the call function.
+# ---------------------------------------------------------------------------
+# Model listing implementations
+# ---------------------------------------------------------------------------
+
+def _list_anthropic_models(api_key: str) -> list[dict]:
+    resp = httpx.get(
+        "https://api.anthropic.com/v1/models",
+        headers={"x-api-key": api_key, "anthropic-version": "2023-06-01"},
+        timeout=30.0,
+    )
+    resp.raise_for_status()
+    models = resp.json().get("data", [])
+    out = []
+    for m in models:
+        mid = m.get("id", "")
+        if not _has_image_support(m):
+            continue
+        out.append({
+            "provider": "anthropic",
+            "model": mid,
+            "label": f"anthropic/{mid}",
+            "display_name": m.get("display_name", mid),
+            "context_window": m.get("context_window"),
+            "max_output_tokens": m.get("max_output_tokens"),
+            "pricing": m.get("pricing"),          # not provided by API, will be None
+        })
+    return out
+
+
+def _list_groq_models(api_key: str) -> list[dict]:
+    resp = httpx.get(
+        "https://api.groq.com/openai/v1/models",
+        headers={"Authorization": f"Bearer {api_key}"},
+        timeout=30.0,
+    )
+    resp.raise_for_status()
+    models = resp.json().get("data", [])
+    out = []
+    for m in models:
+        mid = m.get("id", "")
+        if not _has_image_support(m):
+            continue
+        caps = m.get("capabilities") or {}
+        out.append({
+            "provider": "groq",
+            "model": mid,
+            "label": f"groq/{mid}",
+            "display_name": mid,
+            "context_window": m.get("context_window"),
+            "max_output_tokens": m.get("max_completion_tokens"),
+            "pricing": m.get("pricing"),          # not provided by API
+        })
+    return out
+
+
+def _list_gemini_models(api_key: str) -> list[dict]:
+    resp = httpx.get(
+        f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}",
+        timeout=30.0,
+    )
+    resp.raise_for_status()
+    models = resp.json().get("models", [])
+    out = []
+    for m in models:
+        mid = m.get("name", "").replace("models/", "")
+        if not _has_image_support(m):
+            continue
+        methods = m.get("supportedGenerationMethods", [])
+        if "generateContent" not in methods:
+            continue
+        out.append({
+            "provider": "gemini",
+            "model": mid,
+            "label": f"gemini/{mid}",
+            "display_name": m.get("displayName", mid),
+            "context_window": m.get("inputTokenLimit"),
+            "max_output_tokens": m.get("outputTokenLimit"),
+            "pricing": None,                       # Google doesn't expose this via API
+        })
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Provider registry
+# ---------------------------------------------------------------------------
+
 PROVIDERS = {
     "anthropic": {
         "api_key": ANTHROPIC_API_KEY,
         "default_model": "claude-sonnet-4-20250514",
         "call": _call_anthropic,
+        "list_models": _list_anthropic_models,
     },
     "groq": {
         "api_key": GROQ_API_KEY,
         "default_model": "meta-llama/llama-4-scout-17b-16e-instruct",
         "call": _call_groq,
+        "list_models": _list_groq_models,
     },
     "gemini": {
         "api_key": GEMINI_API_KEY,
         "default_model": "gemini-2.5-flash",
         "call": _call_gemini,
+        "list_models": _list_gemini_models,
     },
 }
 
@@ -162,53 +266,68 @@ def configured_providers() -> list[str]:
     return [name for name, p in PROVIDERS.items() if p["api_key"]]
 
 
-def get_default_model() -> str | None:
-    """Return the 'provider/model' string to use, or None if nothing configured."""
-    if MYNA_DEFAULT_MODEL:
-        provider = MYNA_DEFAULT_MODEL.split("/", 1)[0]
+def fetch_all_models() -> list[dict]:
+    """Fetch available vision models from all configured providers."""
+    all_models = []
+    for name, p in PROVIDERS.items():
+        if not p["api_key"]:
+            continue
+        try:
+            models = p["list_models"](p["api_key"])
+            all_models.extend(models)
+        except Exception:
+            # If listing fails, offer at least the default model
+            all_models.append({
+                "provider": name,
+                "model": p["default_model"],
+                "label": f"{name}/{p['default_model']}",
+                "display_name": p["default_model"],
+                "context_window": None,
+                "max_output_tokens": None,
+                "pricing": None,
+            })
+    return all_models
+
+
+def get_effective_default(db_default: str) -> str | None:
+    """Resolve the default model to use. db_default takes priority;
+    falls back to first provider's default model if no DB setting."""
+    if db_default:
+        provider = db_default.split("/", 1)[0]
         if provider in PROVIDERS and PROVIDERS[provider]["api_key"]:
-            return MYNA_DEFAULT_MODEL
-    # Fall back to first configured provider with its default model
+            return db_default
     for name, p in PROVIDERS.items():
         if p["api_key"]:
             return f"{name}/{p['default_model']}"
     return None
 
 
-def list_models() -> list[dict]:
-    """All available models across configured providers."""
-    out = []
-    for name, p in PROVIDERS.items():
-        if not p["api_key"]:
-            continue
-        out.append({
-            "provider": name,
-            "model": p["default_model"],
-            "label": f"{name}/{p['default_model']}",
-        })
-    return out
-
-
-def _call_vision(image_path: str, prompt: str) -> str:
+def _call_vision(image_path: str, prompt: str, db_default: str = "") -> str:
     """Route a vision call through the default provider. Returns '' on failure."""
-    default = get_default_model()
+    default = get_effective_default(db_default)
     if not default:
         return ""
     provider_name, model = default.split("/", 1)
-    provider = PROVIDERS[provider_name]
+    provider = PROVIDERS.get(provider_name)
+    if not provider or not provider["api_key"]:
+        return ""
     try:
         return provider["call"](provider["api_key"], model, image_path, prompt)
     except Exception:
         return ""
 
 
-def suggest_shop_name(image_path: str) -> str:
-    return _call_vision(image_path, _SIGNAGE_PROMPT)
+# ---------------------------------------------------------------------------
+# Public API (called from routers — pass db_default to honour saved setting)
+# ---------------------------------------------------------------------------
+
+def suggest_shop_name(image_path: str, db_default: str = "") -> str:
+    return _call_vision(image_path, _SIGNAGE_PROMPT, db_default)
 
 
-def suggest_item(image_path: str) -> tuple[str, str]:
+def suggest_item(image_path: str, db_default: str = "") -> tuple[str, str]:
     """Returns (name, category). Either may be empty on failure."""
-    text = _call_vision(image_path, _ITEM_PROMPT)
+    text = _call_vision(image_path, _ITEM_PROMPT, db_default)
     if "|" in text:
         name, _, category = text.partition("|")
         return name.strip(), category.strip()

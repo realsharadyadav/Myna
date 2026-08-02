@@ -1,0 +1,35 @@
+# Render blueprint — deploys Myna as a web service with PostgreSQL + persistent uploads disk.
+# Docs: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: myna
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /
+    disk:
+      name: myna-uploads
+      mountPath: /var/data/uploads
+      sizeGB: 1
+    envVars:
+      # App's own store (supersedes Render's auto DATABASE_URL for clarity)
+      - key: MYNA_DATABASE_URL
+        fromDatabase:
+          name: myna-db
+          property: connectionString
+      - key: UPLOAD_DIR
+        value: /var/data/uploads
+      # ---- Set these in the Render dashboard (Environment tab) after deploy ----
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+
+databases:
+  - name: myna-db
+    plan: free
+    databaseName: myna
+    user: myna

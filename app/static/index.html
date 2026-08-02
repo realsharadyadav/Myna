@@ -4,74 +4,190 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Myna — Find it nearby</title>
+<link rel="icon" type="image/svg+xml" href="/static/myna-logo.svg">
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, system-ui, sans-serif; }
-  body { background: #f4f6f8; color: #222; min-height: 100vh; }
-  header { background: #0f7b6c; color: #fff; padding: 16px; text-align: center; }
-  header h1 { font-size: 1.4rem; }
-  header p { font-size: .85rem; opacity: .9; margin-top: 2px; }
-  main { max-width: 640px; margin: 0 auto; padding: 16px; }
-  .card { background: #fff; border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
-  .controls label { display: block; font-size: .8rem; font-weight: 600; margin: 10px 0 4px; color: #555; }
-  .controls input[type=text] { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; }
-  .range-row { display: flex; align-items: center; gap: 12px; }
-  .range-row input[type=range] { flex: 1; }
-  .range-row span { font-weight: 700; color: #0f7b6c; min-width: 56px; text-align: right; }
-  button { width: 100%; padding: 13px; border: none; border-radius: 8px; background: #0f7b6c; color: #fff; font-size: 1rem; font-weight: 600; cursor: pointer; margin-top: 14px; }
-  button:disabled { background: #9dc7c1; }
-  .result { display: flex; gap: 12px; align-items: center; }
-  .result img { width: 72px; height: 72px; object-fit: cover; border-radius: 8px; background: #eee; flex-shrink: 0; }
+  :root {
+    --bg-0: #f4f7fb;
+    --bg-1: #e9eef7;
+    --glass: rgba(255,255,255,.72);
+    --glass-border: rgba(255,255,255,.9);
+    --card-shadow: 0 8px 32px rgba(30,42,80,.10), 0 2px 8px rgba(30,42,80,.06);
+    --text: #182033;
+    --text-soft: #5a6b8c;
+    --text-faint: #8a97b3;
+    --input-bg: rgba(255,255,255,.85);
+    --input-border: rgba(120,140,180,.25);
+    --accent: #00b3a4;
+    --accent-2: #5b7cfa;
+    --btn-text: #ffffff;
+    --brand: linear-gradient(135deg,#00b3a4,#5b7cfa);
+    --msg: #8a97b3;
+  }
+  [data-theme="dark"] {
+    --bg-0: #0b1020;
+    --bg-1: #101830;
+    --glass: rgba(23,32,60,.66);
+    --glass-border: rgba(120,150,220,.16);
+    --card-shadow: 0 8px 32px rgba(0,0,0,.45), 0 2px 8px rgba(0,0,0,.3);
+    --text: #e7ecf6;
+    --text-soft: #a7b4cc;
+    --text-faint: #7c8aa8;
+    --input-bg: rgba(10,16,34,.6);
+    --input-border: rgba(120,150,220,.22);
+    --accent: #00d4c0;
+    --accent-2: #7c99ff;
+    --brand: linear-gradient(135deg,#00d4c0,#7c99ff);
+    --msg: #7c8aa8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    background:
+      radial-gradient(1200px 600px at 15% -10%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 60%),
+      radial-gradient(1000px 500px at 110% 10%, color-mix(in srgb, var(--accent-2) 12%, transparent), transparent 55%),
+      linear-gradient(160deg, var(--bg-0), var(--bg-1));
+    color: var(--text);
+    min-height: 100vh;
+    transition: background .4s ease, color .4s ease;
+  }
+  header {
+    position: sticky; top: 0; z-index: 10;
+    backdrop-filter: blur(18px) saturate(160%);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+    background: color-mix(in srgb, var(--bg-0) 72%, transparent);
+    border-bottom: 1px solid var(--glass-border);
+    padding: 14px 20px;
+  }
+  .header-inner { max-width: 640px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand img { width: 42px; height: 42px; filter: drop-shadow(0 0 10px color-mix(in srgb, var(--accent) 50%, transparent)); }
+  .brand h1 { font-size: 1.35rem; font-weight: 800; letter-spacing: -.02em;
+    background: var(--brand); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .theme-toggle {
+    width: 44px; height: 44px; border-radius: 14px; cursor: pointer; border: 1px solid var(--glass-border);
+    background: var(--glass); color: var(--text); font-size: 1.15rem; display: grid; place-items: center;
+    box-shadow: var(--card-shadow); transition: transform .15s ease, background .3s ease;
+  }
+  .theme-toggle:hover { transform: translateY(-2px) scale(1.05); }
+  .theme-toggle:active { transform: scale(.95); }
+  main { max-width: 640px; margin: 0 auto; padding: 20px 16px 48px; }
+
+  .card {
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: 22px;
+    padding: 20px;
+    margin-bottom: 14px;
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    box-shadow: var(--card-shadow);
+    transition: background .4s ease, border-color .4s ease;
+  }
+  .controls label { display: block; font-size: .78rem; font-weight: 700; margin: 12px 0 6px; color: var(--text-soft); text-transform: uppercase; letter-spacing: .06em; }
+  .controls input[type=text] {
+    width: 100%; padding: 15px 16px; border: 1.5px solid var(--input-border); border-radius: 16px; font-size: 1rem;
+    background: var(--input-bg); color: var(--text); transition: border-color .2s ease, box-shadow .2s ease;
+  }
+  .controls input[type=text]::placeholder { color: var(--text-faint); }
+  .controls input[type=text]:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent); }
+  button {
+    width: 100%; padding: 15px; border: none; border-radius: 16px; font-size: 1rem; font-weight: 700; cursor: pointer;
+    background: var(--brand); color: var(--btn-text); margin-top: 16px;
+    box-shadow: 0 10px 24px -10px color-mix(in srgb, var(--accent) 55%, transparent);
+    transition: transform .15s ease, box-shadow .15s ease, opacity .15s ease;
+  }
+  button:hover { transform: translateY(-2px); box-shadow: 0 14px 28px -10px color-mix(in srgb, var(--accent) 65%, transparent); }
+  button:active { transform: translateY(0) scale(.98); }
+  button:disabled { opacity: .55; transform: none; box-shadow: none; }
+
+  .result { display: flex; gap: 14px; align-items: center; animation: rise .35s ease backwards; }
+  .result:nth-child(2) { animation-delay: .03s; }
+  .result img { width: 72px; height: 72px; object-fit: cover; border-radius: 18px; background: var(--input-bg); flex-shrink: 0; }
   .result .info { flex: 1; min-width: 0; }
-  .result .item { font-weight: 700; }
-  .result .cat { font-size: .75rem; color: #888; }
-  .result .shop { font-size: .9rem; margin-top: 4px; }
-  .result .addr { font-size: .78rem; color: #777; margin-top: 2px; }
-  .dist { background: #e6f4f1; color: #0f7b6c; font-weight: 700; font-size: .8rem; padding: 6px 10px; border-radius: 999px; white-space: nowrap; }
-  .msg { text-align: center; color: #888; padding: 24px 0; }
-  .link { text-align: center; margin: 18px 0; font-size: .85rem; }
-  .link a { color: #0f7b6c; }
+  .result .item { font-weight: 700; font-size: 1.02rem; }
+  .result .cat { font-size: .74rem; color: var(--text-faint); margin-top: 1px; }
+  .result .shop { font-size: .9rem; margin-top: 6px; font-weight: 600; }
+  .result .addr { font-size: .78rem; color: var(--text-soft); margin-top: 3px; line-height: 1.4; }
+  .dist {
+    background: var(--brand); color: #fff; font-weight: 700; font-size: .8rem; padding: 7px 12px; border-radius: 999px;
+    white-space: nowrap; box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--accent) 50%, transparent);
+  }
+  .msg { text-align: center; color: var(--msg); padding: 28px 0; font-size: .95rem; }
+  .link { text-align: center; margin: 22px 0 0; font-size: .86rem; color: var(--text-soft); }
+  .link a { color: var(--accent); font-weight: 600; text-decoration: none; }
+  .link a:hover { text-decoration: underline; }
+
+  @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+  @media (max-width: 480px) {
+    .brand h1 { font-size: 1.15rem; }
+    .card { border-radius: 18px; padding: 16px; }
+  }
 </style>
 </head>
 <body>
-<header>
-  <h1>🐦 Myna</h1>
-  <p>"Yahan available hai" — find products in shops near you</p>
-</header>
-<main>
-  <div class="card controls">
-    <label for="q">What are you looking for?</label>
-    <input type="text" id="q" placeholder="e.g. Parle-G, sugar, charger…" onkeydown="if(event.key==='Enter')doSearch()">
-    <label for="range">Search range</label>
-    <div class="range-row">
-      <input type="range" id="range" min="1" max="25" value="5" step="1" oninput="document.getElementById('rangeVal').textContent=this.value+' km'">
-      <span id="rangeVal">5 km</span>
+  <header>
+    <div class="header-inner">
+      <div class="brand">
+        <img src="/static/myna-logo.svg" alt="Myna AI">
+        <h1>Myna</h1>
+      </div>
+      <button class="theme-toggle" id="themeBtn" title="Toggle theme" aria-label="Toggle dark/light mode"></button>
     </div>
-    <button id="searchBtn" onclick="doSearch()">Search nearby</button>
-  </div>
-  <div id="results"></div>
-  <div class="link">Shopkeeper? <a href="/shopkeeper">List your shop →</a></div>
-</main>
+  </header>
+  <main>
+    <div class="card controls">
+      <label for="q">What are you looking for?</label>
+      <input type="text" id="q" placeholder="e.g. Parle-G, sugar, charger…" onkeydown="if(event.key==='Enter')doSearch()">
+      <button id="searchBtn" onclick="doSearch()">Search nearby</button>
+    </div>
+    <div id="results"></div>
+    <div class="link">Shopkeeper? <a href="/shopkeeper">List your shop →</a></div>
+  </main>
 <script>
+(function () {
+  const root = document.documentElement;
+  const saved = localStorage.getItem('myna_theme');
+  const prefers = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  root.setAttribute('data-theme', saved || prefers);
+  const btn = document.getElementById('themeBtn');
+  function render() {
+    const dark = root.getAttribute('data-theme') === 'dark';
+    btn.textContent = dark ? '☀️' : '🌙';
+  }
+  btn.addEventListener('click', () => {
+    const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    localStorage.setItem('myna_theme', next);
+    render();
+  });
+  render();
+})();
+
 let userLoc = null;
 
-navigator.geolocation.getCurrentPosition(
-  p => { userLoc = { lat: p.coords.latitude, long: p.coords.longitude }; },
-  () => { document.getElementById('results').innerHTML = '<div class="msg">⚠️ Location access denied. Search will use default location (Mumbai).</div>'; }
-);
+if (navigator.geolocation) {
+  navigator.geolocation.getCurrentPosition(
+    p => { userLoc = { lat: p.coords.latitude, long: p.coords.longitude }; },
+    () => { document.getElementById('results').innerHTML = '<div class="msg">⚠️ Location access denied. Search will use default location (Mumbai).</div>'; }
+  );
+} else {
+  document.getElementById('results').innerHTML = '<div class="msg">⚠️ Location not available (needs HTTPS). Search will use default location (Mumbai).</div>';
+}
 
 async function doSearch() {
   const q = document.getElementById('q').value.trim();
   if (!q) return;
-  const range = document.getElementById('range').value;
   const loc = userLoc || { lat: 19.076, long: 72.8777 }; // fallback: Mumbai
   const btn = document.getElementById('searchBtn');
   btn.disabled = true; btn.textContent = 'Searching…';
   const box = document.getElementById('results');
   try {
-    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&lat=${loc.lat}&long=${loc.long}&range_km=${range}`);
+    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&lat=${loc.lat}&long=${loc.long}`);
     const data = await res.json();
     if (!data.length) {
-      box.innerHTML = '<div class="msg">No shops found with “' + esc(q) + '” within ' + range + ' km.</div>';
+      box.innerHTML = '<div class="msg">No shops found with “' + esc(q) + '”.</div>';
     } else {
       box.innerHTML = data.map(r => `
         <div class="card result">
@@ -79,7 +195,7 @@ async function doSearch() {
           <div class="info">
             <div class="item">${esc(r.item_name)}</div>
             ${r.item_category ? `<div class="cat">${esc(r.item_category)}</div>` : ''}
-            <div class="shop">🏪 ${esc(r.shop_name)}</div>
+            <div class="shop">🏪 ${esc(r.shop_name)}${r.shopkeeper ? ' · ' + esc(r.shopkeeper) : ''}</div>
             <div class="addr">${esc(r.address)}${r.phone ? ' · 📞 ' + esc(r.phone) : ''}</div>
           </div>
           <div class="dist">${r.distance_km} km</div>

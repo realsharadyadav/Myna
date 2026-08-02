@@ -4,42 +4,150 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Myna — Shopkeeper</title>
+<link rel="icon" type="image/svg+xml" href="/static/myna-logo.svg">
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, system-ui, sans-serif; }
-  body { background: #f4f6f8; color: #222; min-height: 100vh; }
-  header { background: #0f7b6c; color: #fff; padding: 16px; text-align: center; }
-  header h1 { font-size: 1.4rem; }
-  header p { font-size: .85rem; opacity: .9; margin-top: 2px; }
-  main { max-width: 640px; margin: 0 auto; padding: 16px; }
-  .card { background: #fff; border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
-  h2 { font-size: 1.05rem; margin-bottom: 10px; }
-  label { display: block; font-size: .8rem; font-weight: 600; margin: 10px 0 4px; color: #555; }
-  input[type=text], input[type=tel] { width: 100%; padding: 11px; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; }
-  input[type=file] { width: 100%; margin-top: 4px; font-size: .85rem; }
-  button { padding: 12px; border: none; border-radius: 8px; background: #0f7b6c; color: #fff; font-size: .95rem; font-weight: 600; cursor: pointer; margin-top: 12px; width: 100%; }
-  button.secondary { background: #e6f4f1; color: #0f7b6c; }
-  button.danger { background: #fdecea; color: #c0392b; padding: 6px 10px; width: auto; margin: 0; font-size: .8rem; }
-  button.small { padding: 6px 10px; width: auto; margin: 0; font-size: .8rem; }
-  button:disabled { background: #9dc7c1; }
-  .hint { font-size: .78rem; color: #888; margin-top: 6px; }
-  .item-row { display: flex; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+  :root {
+    --bg-0: #f4f7fb;
+    --bg-1: #e9eef7;
+    --glass: rgba(255,255,255,.72);
+    --glass-border: rgba(255,255,255,.9);
+    --card-shadow: 0 8px 32px rgba(30,42,80,.10), 0 2px 8px rgba(30,42,80,.06);
+    --text: #182033;
+    --text-soft: #5a6b8c;
+    --text-faint: #8a97b3;
+    --input-bg: rgba(255,255,255,.85);
+    --input-border: rgba(120,140,180,.25);
+    --accent: #00b3a4;
+    --accent-2: #5b7cfa;
+    --btn-text: #ffffff;
+    --brand: linear-gradient(135deg,#00b3a4,#5b7cfa);
+    --msg: #8a97b3;
+    --danger: #e5484d;
+    --danger-bg: rgba(229,72,77,.12);
+    --divider: rgba(120,140,180,.18);
+  }
+  [data-theme="dark"] {
+    --bg-0: #0b1020;
+    --bg-1: #101830;
+    --glass: rgba(23,32,60,.66);
+    --glass-border: rgba(120,150,220,.16);
+    --card-shadow: 0 8px 32px rgba(0,0,0,.45), 0 2px 8px rgba(0,0,0,.3);
+    --text: #e7ecf6;
+    --text-soft: #a7b4cc;
+    --text-faint: #7c8aa8;
+    --input-bg: rgba(10,16,34,.6);
+    --input-border: rgba(120,150,220,.22);
+    --accent: #00d4c0;
+    --accent-2: #7c99ff;
+    --brand: linear-gradient(135deg,#00d4c0,#7c99ff);
+    --msg: #7c8aa8;
+    --danger: #ff6b6b;
+    --danger-bg: rgba(255,107,107,.14);
+    --divider: rgba(120,150,220,.16);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    background:
+      radial-gradient(1200px 600px at 15% -10%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 60%),
+      radial-gradient(1000px 500px at 110% 10%, color-mix(in srgb, var(--accent-2) 12%, transparent), transparent 55%),
+      linear-gradient(160deg, var(--bg-0), var(--bg-1));
+    color: var(--text);
+    min-height: 100vh;
+    transition: background .4s ease, color .4s ease;
+  }
+  header {
+    position: sticky; top: 0; z-index: 10;
+    backdrop-filter: blur(18px) saturate(160%);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+    background: color-mix(in srgb, var(--bg-0) 72%, transparent);
+    border-bottom: 1px solid var(--glass-border);
+    padding: 14px 20px;
+  }
+  .header-inner { max-width: 640px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand img { width: 42px; height: 42px; filter: drop-shadow(0 0 10px color-mix(in srgb, var(--accent) 50%, transparent)); }
+  .brand h1 { font-size: 1.25rem; font-weight: 800; letter-spacing: -.02em;
+    background: var(--brand); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .theme-toggle {
+    width: 44px; height: 44px; border-radius: 14px; cursor: pointer; border: 1px solid var(--glass-border);
+    background: var(--glass); color: var(--text); font-size: 1.15rem; display: grid; place-items: center;
+    box-shadow: var(--card-shadow); transition: transform .15s ease, background .3s ease;
+  }
+  .theme-toggle:hover { transform: translateY(-2px) scale(1.05); }
+  .theme-toggle:active { transform: scale(.95); }
+  main { max-width: 640px; margin: 0 auto; padding: 20px 16px 48px; }
+
+  .card {
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: 22px;
+    padding: 20px;
+    margin-bottom: 14px;
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    box-shadow: var(--card-shadow);
+    transition: background .4s ease, border-color .4s ease;
+    animation: rise .35s ease backwards;
+  }
+  #itemsCard { animation-delay: .06s; }
+  #listCard { animation-delay: .12s; }
+  h2 { font-size: 1.02rem; margin-bottom: 6px; font-weight: 800; letter-spacing: -.01em; }
+  label { display: block; font-size: .78rem; font-weight: 700; margin: 14px 0 6px; color: var(--text-soft); text-transform: uppercase; letter-spacing: .06em; }
+  input[type=text], input[type=tel] {
+    width: 100%; padding: 13px 14px; border: 1.5px solid var(--input-border); border-radius: 14px; font-size: 1rem;
+    background: var(--input-bg); color: var(--text); transition: border-color .2s ease, box-shadow .2s ease;
+  }
+  input[type=text]::placeholder, input[type=tel]::placeholder { color: var(--text-faint); }
+  input[type=text]:focus, input[type=tel]:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent); }
+  input[type=file] { width: 100%; margin-top: 4px; font-size: .85rem; color: var(--text-soft); }
+  input[type=file]::file-selector-button {
+    padding: 10px 16px; border: 1.5px solid var(--input-border); border-radius: 12px; background: var(--input-bg);
+    color: var(--text); font-weight: 600; cursor: pointer; margin-right: 10px; transition: border-color .2s ease;
+  }
+  input[type=file]::file-selector-button:hover { border-color: var(--accent); }
+  button {
+    padding: 13px; border: none; border-radius: 14px; font-size: .95rem; font-weight: 700; cursor: pointer; margin-top: 12px; width: 100%;
+    background: var(--brand); color: var(--btn-text);
+    box-shadow: 0 10px 24px -10px color-mix(in srgb, var(--accent) 55%, transparent);
+    transition: transform .15s ease, box-shadow .15s ease, opacity .15s ease;
+  }
+  button:hover { transform: translateY(-2px); }
+  button:active { transform: translateY(0) scale(.98); }
+  button.secondary { background: transparent; color: var(--accent); border: 1.5px solid color-mix(in srgb, var(--accent) 45%, transparent); box-shadow: none; }
+  button.secondary:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  button.danger { background: var(--danger-bg); color: var(--danger); border: 1px solid transparent; padding: 7px 12px; width: auto; margin: 0; font-size: .78rem; box-shadow: none; }
+  button.danger:hover { border-color: var(--danger); }
+  button.small { padding: 7px 12px; width: auto; margin: 0; font-size: .78rem; }
+  button:disabled { opacity: .55; transform: none; box-shadow: none; }
+  .hint { font-size: .78rem; color: var(--text-soft); margin-top: 8px; line-height: 1.45; }
+  .item-row { display: flex; gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--divider); }
   .item-row:last-child { border-bottom: none; }
-  .item-row img { width: 52px; height: 52px; object-fit: cover; border-radius: 8px; background: #eee; flex-shrink: 0; }
+  .item-row img { width: 52px; height: 52px; object-fit: cover; border-radius: 14px; background: var(--input-bg); flex-shrink: 0; }
   .item-row .info { flex: 1; min-width: 0; }
-  .item-row .name { font-weight: 600; font-size: .95rem; }
-  .item-row .cat { font-size: .75rem; color: #888; }
-  .msg { text-align: center; color: #888; padding: 16px 0; font-size: .9rem; }
+  .item-row .name { font-weight: 700; font-size: .95rem; }
+  .item-row .cat { font-size: .75rem; color: var(--text-faint); margin-top: 1px; }
+  .msg { text-align: center; color: var(--msg); padding: 18px 0; font-size: .9rem; }
   .hidden { display: none; }
-  .link { text-align: center; margin: 18px 0; font-size: .85rem; }
-  .link a { color: #0f7b6c; }
-  .badge { display: inline-block; background: #e6f4f1; color: #0f7b6c; padding: 2px 8px; border-radius: 999px; font-size: .72rem; font-weight: 600; }
+  .link { text-align: center; margin: 22px 0 0; font-size: .86rem; color: var(--text-soft); }
+  .link a { color: var(--accent); font-weight: 600; text-decoration: none; }
+  .link a:hover { text-decoration: underline; }
+  .badge { display: inline-block; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); padding: 3px 10px; border-radius: 999px; font-size: .72rem; font-weight: 700; border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+
+  @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  @media (max-width: 480px) { .brand h1 { font-size: 1.05rem; } .card { border-radius: 18px; padding: 16px; } }
 </style>
 </head>
 <body>
-<header>
-  <h1>🐦 Myna — Shopkeeper</h1>
-  <p>List your shop & items in minutes, no typing needed</p>
-</header>
+  <header>
+    <div class="header-inner">
+      <div class="brand">
+        <img src="/static/myna-logo.svg" alt="Myna AI">
+        <h1>Myna — Shopkeeper</h1>
+      </div>
+      <button class="theme-toggle" id="themeBtn" title="Toggle theme" aria-label="Toggle dark/light mode"></button>
+    </div>
+  </header>
 <main>
   <!-- STEP 1: Onboarding -->
   <div id="onboardCard" class="card">
@@ -51,6 +159,9 @@
 
     <label for="shopName">Shop name</label>
     <input type="text" id="shopName" placeholder="e.g. Sharma General Store">
+
+    <label for="shopkeeper">Your name (shopkeeper)</label>
+    <input type="text" id="shopkeeper" placeholder="e.g. Rakesh Sharma">
 
     <label for="shopPhone">Phone (optional)</label>
     <input type="tel" id="shopPhone" placeholder="e.g. 98123 45678">
@@ -90,6 +201,24 @@
   <div class="link">Looking for something? <a href="/">Search shops →</a></div>
 </main>
 <script>
+(function () {
+  const root = document.documentElement;
+  const saved = localStorage.getItem('myna_theme');
+  const prefers = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  root.setAttribute('data-theme', saved || prefers);
+  const btn = document.getElementById('themeBtn');
+  function render() {
+    btn.textContent = root.getAttribute('data-theme') === 'dark' ? '☀️' : '🌙';
+  }
+  btn.addEventListener('click', () => {
+    const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    localStorage.setItem('myna_theme', next);
+    render();
+  });
+  render();
+})();
+
 let shopId = localStorage.getItem('myna_shop_id');
 let pendingItemPhotoUrl = '';
 
@@ -155,6 +284,7 @@ async function saveShop() {
   btn.disabled = true; btn.textContent = 'Saving…';
   const body = {
     name: document.getElementById('shopName').value.trim(),
+    shopkeeper: document.getElementById('shopkeeper').value.trim(),
     lat: window._gps.lat,
     long: window._gps.long,
     address: document.getElementById('shopAddr').value.trim(),

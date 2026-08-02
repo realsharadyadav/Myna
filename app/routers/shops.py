@@ -14,6 +14,7 @@ def create_shop(payload: schemas.ShopCreate, db: Session = Depends(get_db)):
     address = payload.address or reverse_geocode(payload.lat, payload.long)
     shop = models.Shop(
         name=payload.name,
+        shopkeeper=payload.shopkeeper or "",
         lat=payload.lat,
         long=payload.long,
         address=address,
