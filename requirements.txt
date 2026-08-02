@@ -8,3 +8,4 @@ pillow==12.3.0
 python-dotenv==1.2.1
 psycopg[binary]==3.2.12
 fastembed>=0.4.1
+ddgs==9.14.4

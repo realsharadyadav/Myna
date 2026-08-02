@@ -217,7 +217,9 @@ async function doSearch() {
     const res = await fetch(`${API}/api/search/shops?q=${encodeURIComponent(q)}&lat=${loc.lat}&long=${loc.long}`);
     const data = await res.json();
     const chips = (data.items || []).map(i => `<span class="chip">${esc(i)}</span>`).join('<span class="crumb">·</span>');
-    const agentTag = data.method === 'llm' ? '🤖 AI parsed' : '⚡ smart parse';
+    const agentTag = data.method === 'concept-llm-web' ? '🌐 AI + web parsed'
+      : data.method.startsWith('llm') || data.method.startsWith('concept-llm') ? '🤖 AI parsed'
+      : '⚡ smart parse';
     let html = `<div class="card"><div class="pipeline">Found <b>&nbsp;${(data.items||[]).length} item(s)&nbsp;</b> ${chips} <span class="crumb">(${agentTag})</span></div></div>`;
     if (!data.shops || !data.shops.length) {
       html += '<div class="msg">No shops found with “' + esc(q) + '”.</div>';
