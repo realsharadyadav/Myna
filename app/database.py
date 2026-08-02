@@ -21,7 +21,6 @@ def get_db():
 # Non-secret runtime settings (stored in DB so they survive restarts)
 # ---------------------------------------------------------------------------
 
-_SETTING_DEFAULT_MODEL = "default_model"
 _SETTING_RETAIN_IMAGES = "retain_uploaded_images"
 _SETTING_VISION_MODEL = "default_vision_model"
 _SETTING_SEARCH_MODEL = "default_search_model"
@@ -45,15 +44,6 @@ def set_setting(db, key: str, value: str) -> None:
         row = models.AppSetting(key=key, value=value)
         db.add(row)
     db.commit()
-
-
-def get_default_model(db) -> str:
-    """Return the currently selected default LLM model ('provider/model') or ''."""
-    return get_setting(db, _SETTING_DEFAULT_MODEL, "")
-
-
-def set_default_model(db, model: str) -> None:
-    set_setting(db, _SETTING_DEFAULT_MODEL, model)
 
 
 def get_retain_uploaded_images(db) -> bool:

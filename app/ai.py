@@ -73,6 +73,15 @@ def resolve_model(model_str: str) -> tuple[str, str] | None:
     return None
 
 
+def _resolve_effective_model(model: str = "", db_default: str = "") -> tuple[str, str] | None:
+    """Resolve explicit/default model settings to (provider, model_id)."""
+    resolved = resolve_model(model)
+    if resolved:
+        return resolved
+    effective_default = get_effective_default(db_default)
+    return resolve_model(effective_default or "")
+
+
 # ---------------------------------------------------------------------------
 # Vision call implementations
 # ---------------------------------------------------------------------------
@@ -395,13 +404,10 @@ def _call_vision(image_path: str, prompt: str, db_default: str = "", model: str 
     model: explicit 'provider:model_id' or 'provider/model_id' string.
     db_default: fallback DB-stored default model string.
     """
-    effective = resolve_model(model) or get_effective_default(db_default)
-    if not effective:
+    resolved = _resolve_effective_model(model, db_default)
+    if not resolved:
         return ""
-    if "/" in effective:
-        provider_name, model_id = effective.split("/", 1)
-    else:
-        provider_name, model_id = effective.split(":", 1)
+    provider_name, model_id = resolved
     provider = PROVIDERS.get(provider_name)
     if not provider or not provider["api_key"]:
         return ""
@@ -422,13 +428,10 @@ def call_text(prompt: str, db_default: str = "", max_tokens: int = 300, model: s
     model: explicit 'provider:model_id' or 'provider/model_id' string.
     db_default: fallback DB-stored default model string.
     """
-    effective = resolve_model(model) or get_effective_default(db_default)
-    if not effective:
+    resolved = _resolve_effective_model(model, db_default)
+    if not resolved:
         return ""
-    if "/" in effective:
-        provider_name, model_id = effective.split("/", 1)
-    else:
-        provider_name, model_id = effective.split(":", 1)
+    provider_name, model_id = resolved
     provider = PROVIDERS.get(provider_name)
     if not provider or not provider["api_key"]:
         return ""

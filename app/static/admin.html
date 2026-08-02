@@ -196,8 +196,7 @@
     <button class="active" onclick="showTab('dashboard', this)">Dashboard</button>
     <button onclick="showTab('shops', this)">Shops</button>
     <button onclick="showTab('items', this)">All Items</button>
-    <button onclick="showTab('ai', this)">AI Settings</button>
-    <button onclick="showTab('settings', this)">Settings</button>
+    <button onclick="showTab('settings', this)">AI Settings</button>
     <button onclick="showTab('import', this)">Import CSV</button>
   </div>
 
@@ -228,37 +227,13 @@
     </div>
   </div>
 
-  <!-- ==================== AI SETTINGS ==================== -->
-  <div id="tab-ai" style="display:none">
-    <div class="card">
-      <h3>LLM Vision Providers</h3>
-      <div id="llmProviders"></div>
-
-      <div style="margin:16px 0 8px; font-size:.85rem; color:var(--text-soft)">
-        Select default model
-        <span style="font-size:.75rem; color:var(--text-faint)">(used across the app for signage/item recognition)</span>
-      </div>
-      <div class="toolbar" style="margin-bottom:16px">
-        <select id="defaultModelSelect" style="flex:1; min-width:280px; padding:11px 14px; border:1.5px solid var(--input-border); border-radius:13px; font-size:.9rem; background:var(--input-bg); color:var(--text)"></select>
-        <button onclick="saveDefaultModel()">Save</button>
-      </div>
-      <span id="defaultModelMsg" style="font-size:.8rem; color:var(--accent)"></span>
-
-      <h4>Available models</h4>
-      <div class="toolbar">
-        <select id="providerFilter" onchange="renderModelTable()"></select>
-        <input id="modelSearch" type="text" placeholder="Search models…" oninput="renderModelTable()">
-        <span class="count" id="modelCount"></span>
-      </div>
-      <table>
-        <thead><tr><th>Model</th><th>Provider</th><th>Context</th><th>Max Output</th><th>Price</th><th></th></tr></thead>
-        <tbody id="modelTable"></tbody>
-      </table>
-    </div>
-  </div>
-
   <!-- ==================== SETTINGS ==================== -->
   <div id="tab-settings" style="display:none">
+    <div class="card">
+      <h3>LLM Providers</h3>
+      <div id="llmProviders"></div>
+    </div>
+
     <div class="card">
       <h3>Image Retention</h3>
       <p style="font-size:.85rem; color:var(--text-soft); margin-bottom:12px">
@@ -294,6 +269,22 @@
       <h4 style="margin-top:24px">Embeddings</h4>
       <button class="ghost" onclick="runBackfill()">Backfill embeddings</button>
       <span id="backfillMsg" style="font-size:.8rem; color:var(--accent); margin-left:12px"></span>
+    </div>
+
+    <div class="card">
+      <h3>Available Models</h3>
+      <p style="font-size:.85rem; color:var(--text-soft); margin-bottom:12px">
+        Reference list of models offered by your configured providers — use these labels above.
+      </p>
+      <div class="toolbar">
+        <select id="providerFilter" onchange="renderModelTable()"></select>
+        <input id="modelSearch" type="text" placeholder="Search models…" oninput="renderModelTable()">
+        <span class="count" id="modelCount"></span>
+      </div>
+      <table>
+        <thead><tr><th>Model</th><th>Provider</th><th>Context</th><th>Max Output</th><th>Price</th></tr></thead>
+        <tbody id="modelTable"></tbody>
+      </table>
     </div>
   </div>
 
@@ -360,13 +351,12 @@
 function showTab(name, btn) {
   document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  ['dashboard', 'shops', 'items', 'ai', 'import'].forEach(t => {
+  ['dashboard', 'shops', 'items', 'settings', 'import'].forEach(t => {
     document.getElementById('tab-' + t).style.display = t === name ? '' : 'none';
   });
   if (name === 'dashboard') loadStats();
   if (name === 'shops') loadShops();
   if (name === 'items') { loadShopNames(); loadAllItems(); }
-  if (name === 'ai') loadLLM();
   if (name === 'settings') loadSettings();
 }
 
@@ -551,43 +541,51 @@ async function deleteItemGlobal(itemId) {
 }
 
 // ---------------------------------------------------------------------------
-// AI Settings
+// Settings (retention, per-purpose models, provider/model reference)
 // ---------------------------------------------------------------------------
 let llmModels = [];
-let currentDefault = '';
+let settingsData = {};
 
-async function loadLLM() {
-  const [provRes, modelsRes] = await Promise.all([
+async function loadSettings() {
+  const [settingsRes, provRes, modelsRes, embModelsRes] = await Promise.all([
+    fetch('/api/admin/settings'),
     fetch('/api/admin/llm/providers'),
     fetch('/api/admin/llm/models'),
+    fetch('/api/admin/llm/embedding-models'),
   ]);
+  settingsData = await settingsRes.json();
   const provData = await provRes.json();
   const modelsData = await modelsRes.json();
+  const embModelsData = await embModelsRes.json();
   llmModels = modelsData.models || [];
-  currentDefault = provData.default_model || '';
+
+  document.getElementById('retainImages').checked = settingsData.retain_uploaded_images;
 
   // Provider badges
   const provContainer = document.getElementById('llmProviders');
   const provs = provData.configured_providers || [];
-  if (!provs.length) {
-    provContainer.innerHTML = '<div class="msg">No LLM providers configured. Set API keys in your .env file.</div>';
-  } else {
-    provContainer.innerHTML = provs.map(p => `<span class="badge on" style="margin-right:6px">${esc(p)}</span>`).join('');
-  }
+  provContainer.innerHTML = provs.length
+    ? provs.map(p => `<span class="badge on" style="margin-right:6px">${esc(p)}</span>`).join('')
+    : '<div class="msg">No LLM providers configured. Set API keys in your .env file.</div>';
 
-  // Populate provider filter dropdown
+  // Populate provider filter dropdown for the reference table
   const filterSelect = document.getElementById('providerFilter');
   const uniqueProviders = [...new Set(llmModels.map(m => m.provider))].sort();
   filterSelect.innerHTML = '<option value="">All providers</option>' +
     uniqueProviders.map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
-
-  // Build default-model dropdown (shows all models regardless of filter)
-  const select = document.getElementById('defaultModelSelect');
-  select.innerHTML = llmModels.map(m =>
-    `<option value="${esc(m.label)}" ${m.label === currentDefault ? 'selected' : ''}>${esc(m.label)}</option>`
-  ).join('');
-
   renderModelTable();
+
+  // Populate the three purpose-specific model dropdowns
+  const allModels = llmModels.map(m => m.label);
+  const embeddingModels = (embModelsData.models || []).map(m => m.label);
+  const populate = (select, options, current) => {
+    select.innerHTML = options.map(m =>
+      `<option value="${esc(m)}" ${m === current ? 'selected' : ''}>${esc(m)}</option>`
+    ).join('');
+  };
+  populate(document.getElementById('visionModelSelect'), allModels, settingsData.default_vision_model);
+  populate(document.getElementById('searchModelSelect'), allModels, settingsData.default_search_model);
+  populate(document.getElementById('embeddingModelSelect'), embeddingModels, settingsData.default_embedding_model);
 }
 
 function renderModelTable() {
@@ -611,77 +609,14 @@ function renderModelTable() {
     const ctx = m.context_window ? (m.context_window >= 1000 ? (m.context_window/1000).toFixed(0) + 'k' : m.context_window) : '—';
     const maxOut = m.max_output_tokens ? (m.max_output_tokens >= 1000 ? (m.max_output_tokens/1000).toFixed(0) + 'k' : m.max_output_tokens) : '—';
     const price = m.pricing ? '$' + (m.pricing.prompt || m.pricing.input || '?') : '—';
-    const isDefault = m.label === currentDefault;
-    return `<tr${isDefault ? ' class="default-row"' : ''}>
-      <td style="font-weight:${isDefault ? '700' : '500'}">${esc(m.display_name || m.model)}</td>
+    return `<tr>
+      <td style="font-weight:500">${esc(m.display_name || m.model)}</td>
       <td>${esc(m.provider)}</td>
       <td>${ctx}</td>
       <td>${maxOut}</td>
       <td>${price}</td>
-      <td>${isDefault ? '<span class="badge on">Default</span>' : `<button onclick="quickSelectDefault('${esc(m.label)}')" style="padding:6px 12px; font-size:.75rem; border:1.5px solid var(--input-border); border-radius:10px; background:var(--input-bg); color:var(--text); cursor:pointer; font-weight:600">Set default</button>`}</td>
     </tr>`;
-  }).join('') || '<tr><td colspan="6" class="msg">No models match.</td></tr>';
-}
-
-async function quickSelectDefault(label) {
-  document.getElementById('defaultModelSelect').value = label;
-  await saveDefaultModel();
-}
-
-async function saveDefaultModel() {
-  const model = document.getElementById('defaultModelSelect').value;
-  const msg = document.getElementById('defaultModelMsg');
-  const res = await fetch('/api/admin/llm/default-model', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model }),
-  });
-  const data = await res.json();
-  if (res.ok) {
-    currentDefault = model;
-    msg.textContent = '✓ Saved: ' + model;
-    msg.style.color = 'var(--accent)';
-    renderModelTable();
-  } else {
-    msg.textContent = 'Error: ' + (data.detail || 'failed');
-    msg.style.color = 'var(--danger)';
-  }
-  setTimeout(() => msg.textContent = '', 4000);
-}
-
-// ---------------------------------------------------------------------------
-// Settings
-// ---------------------------------------------------------------------------
-let settingsData = {};
-
-async function loadSettings() {
-  const res = await fetch('/api/admin/settings');
-  settingsData = await res.json();
-  document.getElementById('retainImages').checked = settingsData.retain_uploaded_images;
-
-  // Populate model dropdowns with all available models
-  const [provRes, modelsRes] = await Promise.all([
-    fetch('/api/admin/llm/providers'),
-    fetch('/api/admin/llm/models'),
-  ]);
-  const provData = await provRes.json();
-  const modelsData = await modelsRes.json();
-  llmModels = modelsData.models || [];
-
-  const allModels = llmModels.map(m => m.label);
-  const visionSelect = document.getElementById('visionModelSelect');
-  const searchSelect = document.getElementById('searchModelSelect');
-  const embeddingSelect = document.getElementById('embeddingModelSelect');
-
-  const populate = (select, current) => {
-    select.innerHTML = allModels.map(m =>
-      `<option value="${esc(m)}" ${m === current ? 'selected' : ''}>${esc(m)}</option>`
-    ).join('');
-  };
-
-  populate(visionSelect, settingsData.default_vision_model);
-  populate(searchSelect, settingsData.default_search_model);
-  populate(embeddingSelect, settingsData.default_embedding_model);
+  }).join('') || '<tr><td colspan="5" class="msg">No models match.</td></tr>';
 }
 
 async function saveSetting(key, value) {

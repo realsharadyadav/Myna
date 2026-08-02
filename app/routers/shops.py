@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from .. import ai, models, schemas
-from ..database import get_db, get_retain_uploaded_images
+from ..database import get_db, get_default_vision_model, get_retain_uploaded_images
 from ..geo import reverse_geocode
 from ..storage import save_upload
 
@@ -57,6 +57,8 @@ def upload_shop_photo(shop_id: int, photo: UploadFile = File(...), db: Session =
     local_path, public_url = save_upload(photo, retain=retain)
     if retain:
         shop.photo_url = public_url
+    else:
+        Path(local_path).unlink(missing_ok=True)
     db.commit()
     db.refresh(shop)
     return shop
@@ -67,8 +69,9 @@ def onboard_photo(photo: UploadFile = File(), db: Session = Depends(get_db)):
     """Accept a signage photo, use it for OCR, then discard if retention is off."""
     retain = get_retain_uploaded_images(db)
     local_path, public_url = save_upload(photo, retain=retain)
+    vision_model = get_default_vision_model(db)
     try:
-        suggestion = ai.suggest_shop_name(local_path)
+        suggestion = ai.suggest_shop_name(local_path, model=vision_model)
     finally:
         if not retain:
             try:

@@ -39,13 +39,9 @@ def create_item(
     _get_shop(shop_id, db)
     retain = get_retain_uploaded_images(db)
     local_path, public_url = save_upload(photo, retain=retain) if photo else ("", "")
+    if local_path and not retain:
+        Path(local_path).unlink(missing_ok=True)
     item = models.Item(shop_id=shop_id, name=name, category=category, photo_url=public_url)
-    vision_model = get_default_vision_model(db)
-    if photo and retain:
-        try:
-            ai.suggest_item(local_path, model=vision_model)
-        finally:
-            pass
     embeddings.embed_item(item, db)
     db.add(item)
     db.commit()

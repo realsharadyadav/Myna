@@ -216,12 +216,12 @@ res = client.delete(f"/api/admin/items/{item_id}")
 assert res.status_code == 204
 print("PASS admin delete item")
 
-# 22. Admin LLM providers (no keys -> empty providers, but default falls back)
+# 22. Admin LLM providers (no keys -> empty providers)
 res = client.get("/api/admin/llm/providers")
 assert res.status_code == 200
 data = res.json()
 assert data["providers"] == []
-assert data["default_model"] is None or data["default_model"] == ""
+assert data["configured_providers"] == []
 print("PASS admin LLM providers (unconfigured)")
 
 # 23. Admin LLM models endpoint (no keys -> empty list)
@@ -230,10 +230,11 @@ assert res.status_code == 200
 assert res.json() == {"models": []}
 print("PASS admin LLM models (unconfigured)")
 
-# 24. Admin set default model (should fail without provider key)
-res = client.post("/api/admin/llm/default-model", json={"model": "anthropic/claude-sonnet-4-20250514"})
-assert res.status_code == 400
-print("PASS admin set default model rejects unconfigured provider")
+# 24. Admin embedding models endpoint (no keys -> empty list)
+res = client.get("/api/admin/llm/embedding-models")
+assert res.status_code == 200
+assert res.json() == {"models": []}
+print("PASS admin embedding models (unconfigured)")
 
 # 25. Admin CSV template (blank)
 res = client.get("/api/admin/import/template")

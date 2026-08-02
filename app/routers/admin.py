@@ -12,12 +12,10 @@ from ..database import (
     get_default_embedding_model,
     get_default_search_model,
     get_default_vision_model,
-    get_default_model,
     get_retain_uploaded_images,
     set_default_embedding_model,
     set_default_search_model,
     set_default_vision_model,
-    set_default_model,
     set_retain_uploaded_images,
 )
 from ..sample_data import CSV_HEADERS, build_shops, shops_to_csv_rows
@@ -174,37 +172,25 @@ def delete_any_item(item_id: int, db: Session = Depends(get_db)):
 # ---------------------------------------------------------------------------
 
 @router.get("/llm/providers")
-def llm_providers(db: Session = Depends(get_db)):
-    """Which providers have keys configured and which model is default.
-    Fetches real model lists from each provider's API."""
-    model_list = ai.fetch_all_models()
-    default = get_default_model(db) or ai.get_effective_default("") or ""
+def llm_providers():
+    """Which providers have keys configured. Fetches real model lists
+    from each provider's API."""
     return {
-        "providers": model_list,
-        "default_model": default,
+        "providers": ai.fetch_all_models(),
         "configured_providers": ai.configured_providers(),
     }
-
-
-@router.post("/llm/default-model")
-def set_llm_default(payload: dict, db: Session = Depends(get_db)):
-    """Persist the owner's chosen default model to DB."""
-    model = payload.get("model", "")
-    if not model:
-        raise HTTPException(400, "model is required")
-    provider = model.split("/", 1)[0]
-    if provider not in ai.PROVIDERS:
-        raise HTTPException(400, f"Unknown provider: {provider}")
-    if not ai.PROVIDERS[provider]["api_key"]:
-        raise HTTPException(400, f"No API key configured for {provider}")
-    set_default_model(db, model)
-    return {"ok": True, "default_model": model}
 
 
 @router.get("/llm/models")
 def llm_models():
     """Fetch all available vision models from configured providers (real API lists)."""
     return {"models": ai.fetch_all_models()}
+
+
+@router.get("/llm/embedding-models")
+def llm_embedding_models():
+    """Fetch embedding-capable models (separate from vision/text models above)."""
+    return {"models": embeddings.fetch_embedding_models()}
 
 
 # ---------------------------------------------------------------------------
@@ -419,32 +405,3 @@ def import_csv(
         "errors": errors[:20],
         "total_errors": len(errors),
     }
-
-
-# ---------------------------------------------------------------------------
-# Semantic search (embeddings backfill)
-# ---------------------------------------------------------------------------
-
-@router.get("/embeddings/status")
-def embeddings_status(db: Session = Depends(get_db)):
-    total = db.query(func.count(models.Item.item_id)).scalar() or 0
-    embedded = (
-        db.query(func.count(models.Item.item_id))
-        .filter(models.Item.embedding != "", models.Item.embedding.isnot(None))
-        .scalar()
-    ) or 0
-    return {
-        "enabled": embeddings.enabled(),
-        "total_items": total,
-        "embedded_items": embedded,
-        "pending_items": total - embedded,
-    }
-
-
-@router.post("/embeddings/backfill")
-def embeddings_backfill(db: Session = Depends(get_db)):
-    """Embed all items missing a vector (idempotent)."""
-    if not embeddings.enabled():
-        raise HTTPException(400, "GEMINI_API_KEY not configured")
-    done = embeddings.backfill(db)
-    return {"embedded": done}

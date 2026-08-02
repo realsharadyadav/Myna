@@ -1,80 +1,36 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
   <defs>
-    <linearGradient id="vRoof" x1="0%" y1="0%" x2="0%" y2="100%">
+    <linearGradient id="vPin" x1="0%" y1="0%" x2="0%" y2="100%">
       <stop offset="0%" stop-color="#00d4c0"/>
       <stop offset="100%" stop-color="#009d94"/>
     </linearGradient>
-    <linearGradient id="vWall" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#eaf4f8"/>
-      <stop offset="100%" stop-color="#d5e6f0"/>
-    </linearGradient>
-    <linearGradient id="vLantern" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#7c99ff"/>
-      <stop offset="100%" stop-color="#5b7cfa"/>
-    </linearGradient>
-    <linearGradient id="vSign" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#00d4c0"/>
-      <stop offset="100%" stop-color="#7c99ff"/>
-    </linearGradient>
-    <radialGradient id="vGlow" cx="50%" cy="45%" r="60%">
-      <stop offset="0%" stop-color="#00d4c0" stop-opacity="0.28"/>
-      <stop offset="100%" stop-color="#00d4c0" stop-opacity="0"/>
-    </radialGradient>
   </defs>
 
-  <!-- Brand glow -->
-  <circle cx="60" cy="58" r="52" fill="url(#vGlow)"/>
+  <!-- Location pin -->
+  <path d="M60,62
+    C74,62 86,73.5 86,87.5
+    C86,98 74,111 60,120
+    C46,111 34,98 34,87.5
+    C34,73.5 46,62 60,62 Z" fill="url(#vPin)"/>
+  <!-- Pin hole -->
+  <circle cx="60" cy="84" r="8" fill="#ffffff"/>
 
-  <!-- Village shop -->
-  <g transform="translate(60,42)">
-    <!-- Curved tiled roof with upturned eaves (teal) -->
-    <path d="M-46,-8 C-38,-16 -14,-20 0,-20 C14,-20 38,-16 46,-8 C44,-4 42,-3 38,-3 L-38,-3 C-42,-3 -44,-4 -46,-8 Z" fill="url(#vRoof)"/>
-    <!-- Upturned eave tips -->
-    <path d="M-46,-8 C-50,-12 -52,-16 -50,-20 C-48,-16 -46,-12 -46,-8 Z" fill="url(#vRoof)"/>
-    <path d="M46,-8 C50,-12 52,-16 50,-20 C48,-16 46,-12 46,-8 Z" fill="url(#vRoof)"/>
-    <!-- Roof tile ridges -->
-    <path d="M0,-20 L0,-8" stroke="#00bbaa" stroke-width="1.5" opacity="0.7"/>
-    <path d="M-15,-18 L-15,-8" stroke="#00bbaa" stroke-width="1.2" opacity="0.5"/>
-    <path d="M15,-18 L15,-8" stroke="#00bbaa" stroke-width="1.2" opacity="0.5"/>
-    <path d="M-30,-14 L-30,-8" stroke="#00bbaa" stroke-width="1" opacity="0.4"/>
-    <path d="M30,-14 L30,-8" stroke="#00bbaa" stroke-width="1" opacity="0.4"/>
-
-    <!-- Shop wall (soft blue-white) -->
-    <rect x="-40" y="-3" width="80" height="58" rx="5" fill="url(#vWall)" stroke="#8fb4cc" stroke-width="2.5"/>
-
-    <!-- Open doorway (teal) -->
-    <rect x="-14" y="12" width="28" height="43" rx="3" fill="#00a99c"/>
-    <!-- Door frame -->
-    <path d="M-14,12 L14,12 L14,55 L-14,55 Z" fill="none" stroke="#8fb4cc" stroke-width="2.5"/>
-
-    <!-- Side window -->
-    <rect x="-33" y="2" width="14" height="18" rx="3" fill="#8fb4cc"/>
-    <rect x="-33" y="2" width="14" height="18" rx="3" fill="none" stroke="#00a99c" stroke-width="2.5"/>
-
-    <!-- Hanging lantern (left, blue) -->
-    <g transform="translate(-26,-20)">
-      <line x1="0" y1="-6" x2="0" y2="0" stroke="#8fb4cc" stroke-width="1.5"/>
-      <rect x="-3" y="0" width="6" height="2.5" rx="1" fill="#8fb4cc"/>
-      <path d="M-6,3 C-6,12 6,12 6,3 Z" fill="url(#vLantern)"/>
-      <rect x="-3" y="9" width="6" height="2.5" rx="1" fill="#8fb4cc"/>
-      <line x1="0" y1="11.5" x2="0" y2="14" stroke="#8fb4cc" stroke-width="1"/>
-      <circle cx="0" cy="3" r="1.4" fill="#dce8ff"/>
-    </g>
-
-    <!-- Hanging lantern (right, blue) -->
-    <g transform="translate(26,-20)">
-      <line x1="0" y1="-6" x2="0" y2="0" stroke="#8fb4cc" stroke-width="1.5"/>
-      <rect x="-3" y="0" width="6" height="2.5" rx="1" fill="#8fb4cc"/>
-      <path d="M-6,3 C-6,12 6,12 6,3 Z" fill="url(#vLantern)"/>
-      <rect x="-3" y="9" width="6" height="2.5" rx="1" fill="#8fb4cc"/>
-      <line x1="0" y1="11.5" x2="0" y2="14" stroke="#8fb4cc" stroke-width="1"/>
-      <circle cx="0" cy="3" r="1.4" fill="#dce8ff"/>
-    </g>
-
-    <!-- Shop sign (brand gradient + white brush strokes) -->
-    <rect x="-22" y="0" width="44" height="12" rx="2" fill="url(#vSign)"/>
-    <path d="M-18,2 L-8,8 M-18,10 L-8,4" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>
-    <line x1="-4" y1="6" x2="6" y2="6" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>
-    <circle cx="12" cy="6" r="3.5" fill="none" stroke="#fff" stroke-width="1.6"/>
+  <!-- Myna bird perched on the pin -->
+  <g>
+    <!-- Tail -->
+    <path d="M42,48 C30,48 18,52 13,64 C20,63 28,59 36,55 Z" fill="#1f2a30"/>
+    <!-- Body -->
+    <ellipse cx="50" cy="54" rx="15" ry="11" fill="#1f2a30"/>
+    <!-- Head -->
+    <circle cx="65" cy="44" r="10" fill="#1f2a30"/>
+    <!-- Crest -->
+    <path d="M61,36 C61,30 65,28 67,33 Z" fill="#1f2a30"/>
+    <!-- Beak -->
+    <path d="M74,40 L86,45 L74,48 Z" fill="#ffb020"/>
+    <!-- Eye -->
+    <circle cx="69" cy="42" r="2" fill="#ffffff"/>
+    <!-- Legs -->
+    <line x1="47" y1="63" x2="44" y2="67" stroke="#1f2a30" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="53" y1="63" x2="56" y2="67" stroke="#1f2a30" stroke-width="2.5" stroke-linecap="round"/>
   </g>
 </svg>
