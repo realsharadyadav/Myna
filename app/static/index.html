@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#FFC21A">
+<meta name="theme-color" content="#FFD873">
 <meta name="description" content="Myna — find nearby shops that actually have what you need. Search items, or name a dish and get every ingredient.">
 <title>Myna — Find it nearby</title>
 <link rel="icon" type="image/svg+xml" href="/myna-logo.svg">
@@ -21,16 +21,17 @@
     --ink: #1b1a17;
     --ink-soft: #6b6455;
     --ink-faint: #9c9484;
-    --brand: #ffc21a;
-    --brand-soft: #ffe9a8;
-    --brand-strong: #f5a300;
-    --brand-ink: #4a3400;
+    --brand: #ffd873;
+    --brand-soft: #fff5da;
+    --brand-strong: #edb745;
+    --brand-ink: #3d2e05;
+    --brand-deep: #8a6100;
     --ok: #17914f;
     --ok-soft: #e6f6ec;
     --danger: #cf4141;
     --shadow-sm: 0 1px 2px rgba(60,50,20,.06), 0 2px 8px rgba(60,50,20,.05);
     --shadow-md: 0 2px 6px rgba(60,50,20,.06), 0 10px 28px -12px rgba(90,70,20,.22);
-    --shadow-brand: 0 8px 20px -8px rgba(245,163,0,.55);
+    --shadow-brand: 0 1px 2px rgba(60,50,20,.08), 0 4px 12px -6px rgba(150,110,20,.28);
     --radius: 20px;
   }
   [data-theme="dark"] {
@@ -44,16 +45,17 @@
     --ink: #f7f2e6;
     --ink-soft: #bab2a0;
     --ink-faint: #8b8474;
-    --brand: #ffc93d;
-    --brand-soft: #4a3a10;
-    --brand-strong: #ffb300;
-    --brand-ink: #2a1d00;
+    --brand: #e3ba5c;
+    --brand-soft: #37301b;
+    --brand-strong: #cfa544;
+    --brand-ink: #241b02;
+    --brand-deep: #f0c868;
     --ok: #4ecb84;
     --ok-soft: #16301f;
     --danger: #ff7a7a;
     --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
     --shadow-md: 0 2px 6px rgba(0,0,0,.35), 0 14px 30px -14px rgba(0,0,0,.7);
-    --shadow-brand: 0 8px 20px -8px rgba(255,180,0,.35);
+    --shadow-brand: 0 1px 2px rgba(0,0,0,.35);
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -62,8 +64,8 @@
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
     background: var(--bg);
     background-image:
-      radial-gradient(120% 60% at 50% -12%, rgba(255,194,26,.28), rgba(255,194,26,0) 62%),
-      radial-gradient(80% 40% at 100% 6%, rgba(255,163,0,.14), transparent 60%);
+      radial-gradient(120% 60% at 50% -12%, rgba(255,216,115,.30), rgba(255,194,26,0) 62%),
+      radial-gradient(80% 40% at 100% 6%, rgba(255,216,115,.16), transparent 60%);
     background-repeat: no-repeat;
     background-attachment: fixed;
     color: var(--ink);
@@ -96,7 +98,7 @@
   .brand { display: flex; align-items: center; gap: 9px; min-width: 0; }
   .brand img { width: 34px; height: 34px; border-radius: 11px; box-shadow: var(--shadow-sm); }
   .brand .name { font-size: 1.12rem; font-weight: 850; letter-spacing: -.02em; }
-  .brand .name span { color: var(--brand-strong); }
+  .brand .name span { color: var(--brand-deep); }
   .icon-btn {
     width: 40px; height: 40px; flex: 0 0 40px; border-radius: 13px; cursor: pointer;
     border: 1px solid var(--line); background: color-mix(in srgb, var(--surface) 82%, transparent);
@@ -111,7 +113,7 @@
   /* ---------- hero ---------- */
   .hero { padding: 82px 0 4px; text-align: center; }
   .hero h1 { font-size: clamp(1.6rem, 7vw, 2.1rem); font-weight: 850; letter-spacing: -.035em; line-height: 1.15; }
-  .hero h1 em { font-style: normal; color: var(--brand-strong); }
+  .hero h1 em { font-style: normal; color: var(--brand-deep); }
   .hero p { margin-top: 8px; color: var(--ink-soft); font-size: .94rem; }
 
   /* ---------- mode switch ---------- */
@@ -145,7 +147,7 @@
   .searchbar input::placeholder { color: var(--ink-faint); }
   .go {
     flex: 0 0 auto; width: 48px; height: 48px; border: 0; border-radius: 14px; cursor: pointer;
-    background: linear-gradient(160deg, var(--brand), var(--brand-strong));
+    background: var(--brand);
     color: var(--brand-ink); font-size: 1.15rem; font-weight: 800;
     display: grid; place-items: center; box-shadow: var(--shadow-brand);
     transition: transform .15s ease, opacity .2s ease;
@@ -175,7 +177,7 @@
     display: flex; align-items: center; justify-content: center; gap: 6px;
     margin-top: 12px; font-size: .8rem; color: var(--ink-faint);
   }
-  .locbar button { border: 0; background: none; font: inherit; font-weight: 700; color: var(--brand-strong); cursor: pointer; padding: 4px; text-decoration: underline; }
+  .locbar button { border: 0; background: none; font: inherit; font-weight: 700; color: var(--brand-deep); cursor: pointer; padding: 4px; text-decoration: underline; }
   .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft); flex: 0 0 auto; }
   .dot.pending { background: var(--brand-strong); box-shadow: 0 0 0 3px var(--brand-soft); }
   .dot.off { background: var(--ink-faint); box-shadow: none; }
@@ -195,7 +197,7 @@
     display: inline-flex; align-items: center; gap: 5px; font-size: .72rem; font-weight: 800;
     color: var(--brand-ink); background: var(--brand-soft); padding: 4px 9px; border-radius: 999px;
   }
-  [data-theme="dark"] .tag { color: var(--brand); }
+  [data-theme="dark"] .tag { color: var(--brand-deep); }
   .term-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
   .term {
     font-size: .78rem; font-weight: 700; padding: 5px 10px; border-radius: 999px;
@@ -228,7 +230,7 @@
   .shop-top { display: flex; gap: 12px; align-items: flex-start; }
   .avatar {
     width: 44px; height: 44px; flex: 0 0 44px; border-radius: 14px; display: grid; place-items: center;
-    background: linear-gradient(160deg, var(--brand), var(--brand-strong)); color: var(--brand-ink);
+    background: var(--brand); color: var(--brand-ink);
     font-weight: 850; font-size: 1.1rem; box-shadow: var(--shadow-brand);
   }
   .shop-id { flex: 1; min-width: 0; }
@@ -244,7 +246,7 @@
   .cover.full { background: var(--ok-soft); border-color: transparent; }
   .cover.full b { color: var(--ok); }
   .bar { height: 5px; border-radius: 999px; background: var(--surface-2); margin-top: 12px; overflow: hidden; }
-  .bar > i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--brand), var(--brand-strong)); }
+  .bar > i { display: block; height: 100%; border-radius: 999px; background: var(--brand-strong); }
   .bar > i.full { background: var(--ok); }
 
   .stock { margin-top: 12px; display: flex; flex-direction: column; }
@@ -257,7 +259,7 @@
   .stock-name { font-weight: 700; font-size: .92rem; }
   .stock-cat { font-size: .74rem; color: var(--ink-faint); margin-top: 1px; }
   .match { font-size: .66rem; font-weight: 800; color: var(--brand-ink); background: var(--brand-soft); padding: 2px 7px; border-radius: 999px; margin-left: 6px; vertical-align: 1px; }
-  [data-theme="dark"] .match { color: var(--brand); }
+  [data-theme="dark"] .match { color: var(--brand-deep); }
   .missing { margin-top: 12px; padding-top: 11px; border-top: 1px dashed var(--line-strong); font-size: .78rem; color: var(--ink-faint); }
   .actions { display: flex; gap: 8px; margin-top: 14px; }
   .action {
@@ -267,7 +269,7 @@
     transition: border-color .2s ease, background .2s ease;
   }
   .action:active { background: var(--surface-2); transform: scale(.99); }
-  .action.primary { background: linear-gradient(160deg, var(--brand), var(--brand-strong)); color: var(--brand-ink); border-color: transparent; box-shadow: var(--shadow-brand); }
+  .action.primary { background: var(--brand); color: var(--brand-ink); border-color: transparent; box-shadow: var(--shadow-brand); }
 
   /* ---------- states ---------- */
   .state { text-align: center; padding: 34px 18px; color: var(--ink-soft); }
@@ -306,13 +308,13 @@
     font-size: .7rem; font-weight: 750; min-height: 44px; justify-content: center;
   }
   .tab .ico { font-size: 1.12rem; line-height: 1; }
-  .tab.active { color: var(--brand-strong); }
+  .tab.active { color: var(--brand-deep); }
 
   /* ---------- splash ---------- */
   #splash {
     position: fixed; inset: 0; z-index: 90; display: grid; place-items: center;
     background: var(--bg);
-    background-image: radial-gradient(120% 60% at 50% 0%, rgba(255,194,26,.3), transparent 60%);
+    background-image: radial-gradient(120% 60% at 50% 0%, rgba(255,216,115,.3), transparent 60%);
     transition: opacity .4s ease;
   }
   #splash.hide { opacity: 0; pointer-events: none; }
@@ -320,9 +322,9 @@
   .splash-in img { width: 76px; height: 76px; border-radius: 24px; box-shadow: var(--shadow-md); animation: pop .5s cubic-bezier(.2,1.2,.4,1) backwards; }
   @keyframes pop { from { opacity: 0; transform: scale(.8); } to { opacity: 1; transform: none; } }
   .splash-in h1 { margin-top: 16px; font-size: 1.7rem; font-weight: 850; letter-spacing: -.03em; }
-  .splash-in h1 span { color: var(--brand-strong); }
+  .splash-in h1 span { color: var(--brand-deep); }
   .splash-bar { width: 190px; height: 5px; border-radius: 999px; background: var(--surface-2); margin: 20px auto 14px; overflow: hidden; }
-  .splash-bar i { display: block; height: 100%; width: 8%; border-radius: 999px; background: linear-gradient(90deg, var(--brand), var(--brand-strong)); transition: width .4s ease; }
+  .splash-bar i { display: block; height: 100%; width: 8%; border-radius: 999px; background: var(--brand-strong); transition: width .4s ease; }
   .splash-status { font-size: .88rem; font-weight: 650; color: var(--ink-soft); }
   .splash-tag { font-size: .78rem; color: var(--ink-faint); margin-top: 5px; }
 
@@ -438,7 +440,7 @@ const title = s => (s || '').replace(/\b\w/g, c => c.toUpperCase());
   const paint = () => {
     const dark = root.getAttribute('data-theme') === 'dark';
     btn.textContent = dark ? '☀️' : '🌙';
-    document.querySelector('meta[name=theme-color]').setAttribute('content', dark ? '#14130f' : '#FFC21A');
+    document.querySelector('meta[name=theme-color]').setAttribute('content', dark ? '#14130f' : '#FFD873');
   };
   btn.addEventListener('click', () => {
     const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';

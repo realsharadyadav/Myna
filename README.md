@@ -29,7 +29,8 @@ Then open:
   - **By dish** — type a dish ("paneer butter masala", "poha") and Myna turns it into the full ingredient shopping list, then finds who nearby stocks each one. The LLM plans the ingredients (grounded with web search); a curated glossary (`app/dishes.py`) covers ~50 common dishes so dish mode works with no API key at all.
 - **Mobile-first UI** — white & yellow theme, transparent header so the content gets the full screen, bottom tab bar, tick-off shopping list, one-tap Directions/Call per shop, light + dark mode
 - **Customer search** — multi-item agentic pipeline: the query is parsed into individual items (LLM, with rule-based fallback so it works without an API key), each item is fuzzy-matched across name/category/shop/shopkeeper/address, then results are aggregated per shop — shops that stock more of your list rank first, then nearest-first (Haversine). Handles multi-item and Hinglish queries: *"salt milk and mango"*, *"atta chawal aur namak"*
-- **Owner panel** — dashboard stats (shops/items counts), shop list with search, inline edit/delete, LLM provider + model selector (default saved in DB)
+- **Owner panel** — dashboard stats (shops/items counts), shop list with search, inline edit/delete, and an AI settings screen organised by what each model is *for* (reading photos / understanding searches / matching similar words), with one save bar instead of a save button per field
+- **Vision self-test** — model pickers mark which models can accept images, and "Test with a sample photo" sends a generated shop board with a random code on it and reports whether the model read it back. Picking a text-only model for OCR used to break every photo upload silently; now the panel says so up front
 - **CSV import** — owner can download a blank template (or 50-shop demo dataset) and upload a filled CSV to bulk-create/update shops & items; optional "wipe existing data first"
 
 ## Configuration
@@ -58,6 +59,7 @@ app/
   ai.py              Multi-provider AI (Anthropic / Groq / Gemini) — vision + text
   agent.py           Agentic search pipeline: query→items parsing, dish/concept expansion (LLM + fallback)
   dishes.py          Curated dish→ingredients glossary (zero-config dish mode)
+  vision_check.py    Generates a test shop board and checks a model really reads it
   storage.py         Image upload saving
   routers/
     shops.py         Shop CRUD, onboarding photo, geocode endpoint
@@ -97,7 +99,8 @@ run.sh               Creates venv, installs deps, starts uvicorn
 | `GET` | `/api/admin/shops/{id}/items` | Items for a shop |
 | `PATCH/DELETE` | `/api/admin/items/{id}` | Edit / remove any item |
 | `GET` | `/api/admin/llm/providers` | Configured AI providers and default model |
-| `GET` | `/api/admin/llm/models` | Fetch all available vision models from configured providers |
+| `GET` | `/api/admin/llm/models` | Fetch available chat models from configured providers, each tagged with whether it accepts images |
+| `POST` | `/api/admin/llm/vision-test` | Send a generated shop-board image to a model and report whether it read the code back (`pass` / `partial` / `no_vision` / `error`) |
 | `POST` | `/api/admin/llm/default-model` | Set the default model (persisted in DB) |
 | `GET` | `/api/admin/import/template?sample` | Download CSV template (blank, or `?sample=1` = 50 demo shops) |
 | `POST` | `/api/admin/import/csv` | Import shops/items from CSV (multipart `file`; `replace=true` wipes existing first) |

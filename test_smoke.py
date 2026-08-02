@@ -466,3 +466,22 @@ assert any(r["item_name"] == "Pooja Camphor Tablets" for r in res.json())
 print("PASS synonym glossary matches daal/dal and kapoor/camphor")
 
 print("\nALL TESTS PASSED")
+
+# 38. Vision/OCR capability: models are tagged, and the self-test reports back
+# instead of leaving a text-only model silently broken.
+from app import ai as _ai, vision_check as _vc
+assert _ai.supports_vision("openai/gpt-oss-safeguard-20b") is False
+assert _ai.supports_vision("meta-llama/llama-4-scout-17b-16e-instruct") is True
+assert _ai.supports_vision("claude-sonnet-4-20250514") is True
+assert _ai.supports_vision("gemini-2.5-flash") is True
+assert _ai.supports_vision("llama-3.3-70b-versatile") is False
+print("PASS vision capability tagging")
+
+png = _vc.make_test_image("QX-4718")
+assert png[:8] == b"\x89PNG\r\n\x1a\n" and len(png) > 2000
+codes = {_vc._new_code() for _ in range(20)}
+assert len(codes) > 15          # fresh code per run, so a pass can't be cached
+res = client.post("/api/admin/llm/vision-test", json={"model": "groq/some-model"})
+assert res.status_code == 200
+assert res.json()["status"] == "unconfigured"   # no API keys in tests
+print("PASS vision self-test endpoint")

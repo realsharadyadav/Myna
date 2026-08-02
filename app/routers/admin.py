@@ -6,7 +6,7 @@ from fastapi.responses import Response
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from .. import ai, embeddings, models, schemas
+from .. import ai, embeddings, models, schemas, vision_check
 from ..database import (
     get_db,
     get_default_embedding_model,
@@ -185,6 +185,18 @@ def llm_providers():
 def llm_models():
     """Fetch all available vision models from configured providers (real API lists)."""
     return {"models": ai.fetch_all_models()}
+
+
+@router.post("/llm/vision-test")
+def llm_vision_test(payload: dict | None = None, db: Session = Depends(get_db)):
+    """Prove whether a model can actually read a photo.
+
+    Sends a freshly generated shop-board image with a random code on it and
+    reports whether the model read the code back — the same job onboarding
+    asks of it. Without this, picking a text-only model looks fine in the
+    panel and silently breaks every photo upload."""
+    model = (payload or {}).get("model") or get_default_vision_model(db)
+    return vision_check.run(model, db_default=get_default_vision_model(db))
 
 
 @router.get("/llm/embedding-models")

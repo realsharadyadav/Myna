@@ -42,17 +42,48 @@ def _image_to_b64(image_path: str) -> tuple[str, str]:
     return b64, media_type
 
 
-def _has_image_support(model: dict) -> bool:
-    """Heuristic: skip text-only / embedding / audio-only models."""
-    mid = model.get("id", "").lower()
-    if any(x in mid for x in ("embed", "whisper", "tts", "audio", "speech")):
+# Model families that are known to accept images. Anything not matched here is
+# reported as text-only, because the failure mode of guessing wrong is silent:
+# a text-only model set as the OCR model just returns nothing for every photo.
+_VISION_FAMILIES = (
+    "claude-3", "claude-4", "claude-5", "sonnet-4", "sonnet-5", "opus-4", "opus-5",
+    "haiku-4", "haiku-5", "gemini-1.5", "gemini-2", "gemini-3", "gemma-3",
+    "llama-4", "scout", "maverick", "llava", "pixtral", "gpt-4o", "gpt-4.1",
+    "gpt-5", "vision", "vl",
+)
+
+# Families that are explicitly text-only even though they look like chat models.
+_TEXT_ONLY_MARKERS = ("gpt-oss", "guard", "moderation", "reranker", "rerank")
+
+_NON_CHAT_MARKERS = ("embed", "whisper", "tts", "audio", "speech", "imagen", "veo", "aqa")
+
+
+def _is_chat_model(model_id: str) -> bool:
+    """Exclude models that aren't text-in/text-out chat models at all."""
+    mid = model_id.lower()
+    return not any(marker in mid for marker in _NON_CHAT_MARKERS)
+
+
+def supports_vision(model_id: str, meta: dict | None = None) -> bool:
+    """Best-effort: can this model be sent an image?
+
+    Providers mostly don't advertise this (only Groq sometimes does, under
+    "capabilities"), so this falls back to matching known vision families by
+    name. It's a hint for the owner panel — `app/vision_check.py` is what
+    actually proves a model reads photos.
+    """
+    mid = (model_id or "").lower()
+    caps = (meta or {}).get("capabilities")
+    if isinstance(caps, dict) and "vision" in caps:
+        return bool(caps["vision"])
+    if any(marker in mid for marker in _TEXT_ONLY_MARKERS):
         return False
-    # Groq exposes capabilities under "capabilities"; Anthropic/Gemini don't
-    caps = model.get("capabilities")
-    if caps and isinstance(caps, dict):
-        if not caps.get("vision", True):
-            return False
-    return True
+    return any(family in mid for family in _VISION_FAMILIES)
+
+
+def _has_image_support(model: dict) -> bool:
+    """Kept for callers that only want listable chat models."""
+    return _is_chat_model(model.get("id", ""))
 
 
 def resolve_model(model_str: str) -> tuple[str, str] | None:
@@ -257,13 +288,14 @@ def _list_anthropic_models(api_key: str) -> list[dict]:
     out = []
     for m in models:
         mid = m.get("id", "")
-        if not _has_image_support(m):
+        if not _is_chat_model(mid):
             continue
         out.append({
             "provider": "anthropic",
             "model": mid,
             "label": f"anthropic/{mid}",
             "display_name": m.get("display_name", mid),
+            "vision": supports_vision(mid, m),
             "context_window": m.get("context_window"),
             "max_output_tokens": m.get("max_output_tokens"),
             "pricing": m.get("pricing"),          # not provided by API, will be None
@@ -282,14 +314,14 @@ def _list_groq_models(api_key: str) -> list[dict]:
     out = []
     for m in models:
         mid = m.get("id", "")
-        if not _has_image_support(m):
+        if not _is_chat_model(mid):
             continue
-        caps = m.get("capabilities") or {}
         out.append({
             "provider": "groq",
             "model": mid,
             "label": f"groq/{mid}",
             "display_name": mid,
+            "vision": supports_vision(mid, m),
             "context_window": m.get("context_window"),
             "max_output_tokens": m.get("max_completion_tokens"),
             "pricing": m.get("pricing"),          # not provided by API
@@ -307,7 +339,7 @@ def _list_gemini_models(api_key: str) -> list[dict]:
     out = []
     for m in models:
         mid = m.get("name", "").replace("models/", "")
-        if not _has_image_support(m):
+        if not _is_chat_model(mid):
             continue
         methods = m.get("supportedGenerationMethods", [])
         if "generateContent" not in methods:
@@ -317,6 +349,7 @@ def _list_gemini_models(api_key: str) -> list[dict]:
             "model": mid,
             "label": f"gemini/{mid}",
             "display_name": m.get("displayName", mid),
+            "vision": supports_vision(mid, m),
             "context_window": m.get("inputTokenLimit"),
             "max_output_tokens": m.get("outputTokenLimit"),
             "pricing": None,                       # Google doesn't expose this via API
@@ -374,6 +407,7 @@ def fetch_all_models() -> list[dict]:
                 "model": p["default_model"],
                 "label": f"{name}/{p['default_model']}",
                 "display_name": p["default_model"],
+                "vision": supports_vision(p["default_model"]),
                 "context_window": None,
                 "max_output_tokens": None,
                 "pricing": None,

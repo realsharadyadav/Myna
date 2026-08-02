@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#FFC21A">
+<meta name="theme-color" content="#FFD873">
 <title>Myna — Owner Panel</title>
 <link rel="icon" type="image/svg+xml" href="/myna-logo.svg">
 <script src="/config.js"></script>
@@ -19,10 +19,11 @@
     --text-faint: #9c9484;
     --input-bg: #ffffff;
     --input-border: #e6d9b8;
-    --accent: #f5a300;
-    --accent-2: #ffc21a;
-    --btn-text: #4a3400;
-    --brand: linear-gradient(160deg,#ffc21a,#f5a300);
+    --accent: #edb745;
+    --accent-2: #ffd873;
+    --accent-text: #8a6100;
+    --btn-text: #3d2e05;
+    --brand: #ffd873;
     --msg: #9c9484;
     --danger: #cf4141;
     --danger-bg: #fdecec;
@@ -40,10 +41,11 @@
     --text-faint: #8b8474;
     --input-bg: #221f18;
     --input-border: #443f2d;
-    --accent: #ffc93d;
-    --accent-2: #ffb300;
-    --btn-text: #2a1d00;
-    --brand: linear-gradient(160deg,#ffc93d,#ffb300);
+    --accent: #cfa544;
+    --accent-2: #e3ba5c;
+    --accent-text: #f0c868;
+    --btn-text: #241b02;
+    --brand: #e3ba5c;
     --msg: #8b8474;
     --danger: #ff7a7a;
     --danger-bg: #3a1d1d;
@@ -54,8 +56,8 @@
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
     background:
-      radial-gradient(1200px 600px at 15% -10%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 60%),
-      radial-gradient(1000px 500px at 110% 10%, color-mix(in srgb, var(--accent-2) 12%, transparent), transparent 55%),
+      radial-gradient(1200px 600px at 15% -10%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 60%),
+      radial-gradient(1000px 500px at 110% 10%, color-mix(in srgb, var(--accent-2) 9%, transparent), transparent 55%),
       linear-gradient(160deg, var(--bg-0), var(--bg-1));
     color: var(--text);
     min-height: 100vh;
@@ -73,9 +75,11 @@
   .brand { display: flex; align-items: center; gap: 12px; }
   .brand img { width: 38px; height: 38px; border-radius: 12px; box-shadow: var(--card-shadow); }
   .brand h1 { font-size: 1.25rem; font-weight: 850; letter-spacing: -.02em; color: var(--text); }
-  .brand h1 span { color: var(--accent); }
+  .brand h1 span { color: var(--accent-text); }
   .header-right { display: flex; align-items: center; gap: 14px; }
-  header nav { display: flex; gap: 4px; flex-wrap: wrap; }
+  header nav { display: flex; gap: 2px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  header nav::-webkit-scrollbar { display: none; }
+  header nav a { white-space: nowrap; }
   header nav a { color: var(--text-soft); text-decoration: none; font-size: .84rem; padding: 8px 12px; border-radius: 10px; transition: background .2s ease, color .2s ease; }
   header nav a:hover { background: var(--row-hover); color: var(--text); }
   .theme-toggle {
@@ -85,7 +89,7 @@
   }
   .theme-toggle:hover { transform: translateY(-2px) scale(1.05); }
   .theme-toggle:active { transform: scale(.95); }
-  main { max-width: 1020px; margin: 0 auto; padding: 20px 16px 48px; }
+  main { max-width: 1020px; margin: 0 auto; padding: 20px 16px 48px; overflow-x: hidden; }
 
   .tabs { display: flex; gap: 6px; margin-bottom: 18px; flex-wrap: wrap; }
   .tabs button {
@@ -94,7 +98,7 @@
     backdrop-filter: blur(12px); transition: all .2s ease;
   }
   .tabs button:hover { color: var(--text); transform: translateY(-1px); }
-  .tabs button.active { background: var(--brand); color: var(--btn-text); border-color: transparent; box-shadow: 0 8px 20px -8px color-mix(in srgb, var(--accent) 55%, transparent); }
+  .tabs button.active { background: var(--brand); color: var(--btn-text); border-color: transparent; box-shadow: var(--card-shadow); }
 
   .card {
     background: var(--glass);
@@ -114,7 +118,7 @@
   .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
   .stat-card {
     background: var(--brand); color: var(--btn-text); padding: 22px; border-radius: 20px; text-align: center;
-    box-shadow: 0 12px 28px -12px color-mix(in srgb, var(--accent) 60%, transparent);
+    box-shadow: var(--card-shadow);
   }
   .stat-card .num { font-size: 2.1rem; font-weight: 800; letter-spacing: -.02em; }
   .stat-card .label { font-size: .8rem; opacity: .85; margin-top: 4px; font-weight: 600; }
@@ -133,7 +137,7 @@
   }
   .toolbar button:hover { transform: translateY(-1px); }
   button.ghost {
-    background: transparent; color: var(--accent); border: 1.5px solid color-mix(in srgb, var(--accent) 45%, transparent);
+    background: transparent; color: var(--accent-text); border: 1.5px solid color-mix(in srgb, var(--accent) 55%, transparent);
     border-radius: 13px; font-size: .88rem; font-weight: 700; cursor: pointer; transition: all .15s ease;
   }
   button.ghost:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); transform: translateY(-1px); }
@@ -154,18 +158,18 @@
     background: var(--input-bg); cursor: pointer; color: var(--text); text-decoration: none; margin-right: 4px;
     font-weight: 600; transition: all .15s ease;
   }
-  .actions button:hover, .actions a:hover { border-color: var(--accent); color: var(--accent); }
+  .actions button:hover, .actions a:hover { border-color: var(--accent); color: var(--accent-text); }
   .actions button.del { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, transparent); background: var(--danger-bg); }
   .actions button.del:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
 
   .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: .72rem; font-weight: 700; }
-  .badge.on { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+  .badge.on { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent-text); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); }
   .badge.off { background: var(--danger-bg); color: var(--danger); border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent); }
   .model-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--cell-border); flex-wrap: wrap; }
   .model-row .name { font-weight: 600; min-width: 220px; }
   .model-row select { padding: 6px 10px; border: 1.5px solid var(--input-border); border-radius: 9px; font-size: .85rem; background: var(--input-bg); color: var(--text); }
   .env-hint { background: color-mix(in srgb, #f5a623 8%, var(--glass)); border: 1px solid color-mix(in srgb, #f5a623 40%, transparent); border-radius: 14px; padding: 14px; font-size: .82rem; color: var(--text-soft); margin-top: 12px; }
-  .env-hint code { background: var(--input-bg); padding: 2px 6px; border-radius: 6px; font-size: .8rem; color: var(--accent); }
+  .env-hint code { background: var(--input-bg); padding: 2px 6px; border-radius: 6px; font-size: .8rem; color: var(--accent-text); }
 
   .items-drawer { margin-top: 10px; padding: 14px; background: color-mix(in srgb, var(--input-bg) 70%, transparent); border-radius: 16px; border: 1px solid var(--cell-border); }
   .items-drawer table { font-size: .8rem; }
@@ -178,12 +182,86 @@
     .toolbar button { width: 100%; }
   }
 
+
+  /* ---------- settings screen ---------- */
+  .setting { padding: 18px; }
+  .setting-head { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 14px; }
+  .setting-ico {
+    width: 38px; height: 38px; flex: 0 0 38px; border-radius: 12px; display: grid; place-items: center;
+    background: color-mix(in srgb, var(--accent) 20%, transparent); font-size: 1.1rem;
+  }
+  .setting h3 { font-size: 1rem; color: var(--text); font-weight: 800; margin: 0 0 3px; letter-spacing: -.01em; }
+  .setting-why { font-size: .84rem; color: var(--text-soft); line-height: 1.45; margin: 0; }
+  .field-label { display: block; font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; color: var(--text-faint); margin-bottom: 6px; }
+  select.field, input.field {
+    width: 100%; min-height: 48px; padding: 12px 14px; border: 1.5px solid var(--input-border);
+    border-radius: 14px; font-size: .92rem; font-family: inherit; background: var(--input-bg); color: var(--text);
+  }
+  select.field:focus, input.field:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 20%, transparent); }
+  .setting-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; }
+  .setting-actions button { min-height: 44px; padding: 11px 16px; }
+  .inline-msg { font-size: .82rem; font-weight: 650; color: var(--text-soft); }
+
+  .switch-row { display: flex; align-items: center; gap: 12px; cursor: pointer; font-size: .92rem; font-weight: 650; min-height: 44px; }
+  .switch-row span:first-child { flex: 1; }
+  .switch-row input { position: absolute; opacity: 0; pointer-events: none; }
+  .switch {
+    width: 50px; height: 30px; flex: 0 0 50px; border-radius: 999px; background: var(--input-border);
+    position: relative; transition: background .2s ease;
+  }
+  .switch::after {
+    content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%;
+    background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: transform .2s ease;
+  }
+  .switch-row input:checked ~ .switch { background: var(--accent); }
+  .switch-row input:checked ~ .switch::after { transform: translateX(20px); }
+  .switch-row input:focus-visible ~ .switch { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+  .note { border-radius: 14px; padding: 12px 14px; font-size: .84rem; line-height: 1.45; margin-bottom: 14px; }
+  .note b { display: block; margin-bottom: 2px; }
+  .note.warn { background: color-mix(in srgb, var(--danger) 10%, transparent); color: var(--text); border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent); }
+  .note.good { background: color-mix(in srgb, #17914f 12%, transparent); color: var(--text); border: 1px solid color-mix(in srgb, #17914f 35%, transparent); }
+  .note.info { background: var(--row-hover); color: var(--text); border: 1px solid var(--cell-border); }
+  .note code { font-size: .8rem; word-break: break-all; }
+
+  details.setting > summary { cursor: pointer; font-size: .92rem; color: var(--text); list-style: none; display: flex; align-items: center; gap: 8px; min-height: 32px; }
+  details.setting > summary::-webkit-details-marker { display: none; }
+  details.setting > summary::before { content: "▸"; color: var(--text-faint); transition: transform .2s ease; }
+  details.setting[open] > summary::before { transform: rotate(90deg); }
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; margin-top: 12px; }
+  .cap { font-size: .72rem; font-weight: 800; padding: 3px 8px; border-radius: 999px; white-space: nowrap; }
+  .cap.yes { background: color-mix(in srgb, #17914f 14%, transparent); color: #17914f; }
+  .cap.no { background: var(--row-hover); color: var(--text-faint); }
+
+  .savebar[hidden] { display: none; }
+  .savebar {
+    position: sticky; bottom: 0; z-index: 20; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin: 16px 0 0; padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
+    background: color-mix(in srgb, var(--bg-0) 92%, transparent);
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--glass-border); border-radius: 18px; box-shadow: var(--card-shadow);
+  }
+  .savebar-msg { flex: 1; min-width: 140px; font-size: .85rem; font-weight: 650; color: var(--text-soft); }
+  .savebar button { min-height: 44px; padding: 11px 18px; border-radius: 13px; border: none; font-size: .88rem; font-weight: 800; font-family: inherit; cursor: pointer; background: var(--brand); color: var(--btn-text); }
+  .savebar button.ghost { background: transparent; color: var(--text-soft); border: 1.5px solid var(--input-border); }
+
+  /* tabs scroll sideways on a phone instead of wrapping into three rows */
+  .tabs { flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; padding-bottom: 2px; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs button { flex: 0 0 auto; min-height: 44px; }
+
+  @media (max-width: 560px) {
+    header { padding: 12px 16px; }
+    header nav a { padding: 8px 10px; }
+    .savebar button { flex: 1; }
+  }
+
   #splash {
     position: fixed; inset: 0; z-index: 9999;
     display: flex; align-items: center; justify-content: center;
     background:
-      radial-gradient(1200px 600px at 15% -10%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 60%),
-      radial-gradient(1000px 500px at 110% 10%, color-mix(in srgb, var(--accent-2) 12%, transparent), transparent 55%),
+      radial-gradient(1200px 600px at 15% -10%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 60%),
+      radial-gradient(1000px 500px at 110% 10%, color-mix(in srgb, var(--accent-2) 9%, transparent), transparent 55%),
       linear-gradient(160deg, var(--bg-0), var(--bg-1));
     transition: opacity .45s ease;
   }
@@ -191,7 +269,7 @@
   .splash-inner { text-align: center; padding: 0 24px; }
   .splash-inner img { width: 68px; height: 68px; border-radius: 22px; box-shadow: var(--card-shadow); }
   .splash-inner h1 { margin-top: 14px; font-size: 1.6rem; font-weight: 850; letter-spacing: -.03em; color: var(--text); }
-  .splash-inner h1 span { color: var(--accent); }
+  .splash-inner h1 span { color: var(--accent-text); }
   .splash-bar { width: 220px; height: 4px; border-radius: 999px; background: var(--input-border); margin: 22px auto 16px; overflow: hidden; }
   .splash-bar-fill { height: 100%; width: 8%; border-radius: 999px; background: var(--brand); transition: width .4s ease; }
   .splash-status { font-size: .92rem; font-weight: 600; color: var(--text-soft); }
@@ -260,62 +338,100 @@
 
   <!-- ==================== SETTINGS ==================== -->
   <div id="tab-settings" style="display:none">
-    <div class="card">
-      <h3>LLM Providers</h3>
+
+    <!-- What each model is for, in plain words, one setting per card. -->
+    <div class="card setting" id="visionCard">
+      <div class="setting-head">
+        <span class="setting-ico">📷</span>
+        <div>
+          <h3>Reading photos (OCR)</h3>
+          <p class="setting-why">Used when a shopkeeper photographs their name board or a product — the model reads the text and fills the form.</p>
+        </div>
+      </div>
+      <div id="visionWarn"></div>
+      <label class="field-label" for="visionModelSelect">Model</label>
+      <select id="visionModelSelect" class="field"></select>
+      <div class="setting-actions">
+        <button class="ghost" type="button" id="visionTestBtn" onclick="testVision()">Test with a sample photo</button>
+      </div>
+      <div id="visionTestResult"></div>
+    </div>
+
+    <div class="card setting">
+      <div class="setting-head">
+        <span class="setting-ico">🔎</span>
+        <div>
+          <h3>Understanding searches</h3>
+          <p class="setting-why">Splits what a customer types into separate items, and turns a dish name into its ingredients. Text only — no photos.</p>
+        </div>
+      </div>
+      <label class="field-label" for="searchModelSelect">Model</label>
+      <select id="searchModelSelect" class="field"></select>
+    </div>
+
+    <div class="card setting">
+      <div class="setting-head">
+        <span class="setting-ico">🧠</span>
+        <div>
+          <h3>Matching similar words</h3>
+          <p class="setting-why">Lets "milk" find items listed as "dairy". Runs locally by default — no API key needed.</p>
+        </div>
+      </div>
+      <label class="field-label" for="embeddingModelSelect">Model</label>
+      <select id="embeddingModelSelect" class="field"></select>
+      <div class="setting-actions">
+        <button class="ghost" type="button" onclick="runBackfill()">Re-index all items</button>
+        <span class="inline-msg" id="backfillMsg"></span>
+      </div>
+      <p class="setting-why" id="embedStatus"></p>
+    </div>
+
+    <div class="card setting">
+      <div class="setting-head">
+        <span class="setting-ico">🗄️</span>
+        <div>
+          <h3>Keeping uploaded photos</h3>
+          <p class="setting-why">Off means photos are used for the AI suggestion and then deleted — nothing is stored.</p>
+        </div>
+      </div>
+      <label class="switch-row">
+        <span>Store photos on the server</span>
+        <input type="checkbox" id="retainImages">
+        <span class="switch" aria-hidden="true"></span>
+      </label>
+      <span class="inline-msg" id="retainMsg"></span>
+    </div>
+
+    <div class="card setting">
+      <div class="setting-head">
+        <span class="setting-ico">🔌</span>
+        <div>
+          <h3>Connected providers</h3>
+          <p class="setting-why">Set API keys in your <code>.env</code> to add more.</p>
+        </div>
+      </div>
       <div id="llmProviders"></div>
     </div>
 
-    <div class="card">
-      <h3>Image Retention</h3>
-      <p style="font-size:.85rem; color:var(--text-soft); margin-bottom:12px">
-        When off, photos are used only for AI suggestions and are not stored permanently.
-        Temp files are deleted after processing.
-      </p>
-      <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:.9rem">
-        <input type="checkbox" id="retainImages"> Retain uploaded images
-      </label>
-      <span id="retainMsg" style="font-size:.8rem; color:var(--accent); margin-left:12px"></span>
-
-      <h4 style="margin-top:24px">Vision / OCR Model</h4>
-      <div class="toolbar" style="margin-bottom:16px">
-        <select id="visionModelSelect" style="flex:1; min-width:280px; padding:11px 14px; border:1.5px solid var(--input-border); border-radius:13px; font-size:.9rem; background:var(--input-bg); color:var(--text)"></select>
-        <button onclick="saveVisionModel()">Save</button>
-      </div>
-      <span id="visionModelMsg" style="font-size:.8rem; color:var(--accent)"></span>
-
-      <h4>Search Parsing Model</h4>
-      <div class="toolbar" style="margin-bottom:16px">
-        <select id="searchModelSelect" style="flex:1; min-width:280px; padding:11px 14px; border:1.5px solid var(--input-border); border-radius:13px; font-size:.9rem; background:var(--input-bg); color:var(--text)"></select>
-        <button onclick="saveSearchModel()">Save</button>
-      </div>
-      <span id="searchModelMsg" style="font-size:.8rem; color:var(--accent)"></span>
-
-      <h4>Embedding Model</h4>
-      <div class="toolbar" style="margin-bottom:16px">
-        <select id="embeddingModelSelect" style="flex:1; min-width:280px; padding:11px 14px; border:1.5px solid var(--input-border); border-radius:13px; font-size:.9rem; background:var(--input-bg); color:var(--text)"></select>
-        <button onclick="saveEmbeddingModel()">Save</button>
-      </div>
-      <span id="embeddingModelMsg" style="font-size:.8rem; color:var(--accent)"></span>
-
-      <h4 style="margin-top:24px">Embeddings</h4>
-      <button class="ghost" onclick="runBackfill()">Backfill embeddings</button>
-      <span id="backfillMsg" style="font-size:.8rem; color:var(--accent); margin-left:12px"></span>
-    </div>
-
-    <div class="card">
-      <h3>Available Models</h3>
-      <p style="font-size:.85rem; color:var(--text-soft); margin-bottom:12px">
-        Reference list of models offered by your configured providers — use these labels above.
-      </p>
-      <div class="toolbar">
+    <details class="card setting">
+      <summary><b>All available models</b> <span class="count" id="modelCount"></span></summary>
+      <div class="toolbar" style="margin-top:14px">
         <select id="providerFilter" onchange="renderModelTable()"></select>
         <input id="modelSearch" type="text" placeholder="Search models…" oninput="renderModelTable()">
-        <span class="count" id="modelCount"></span>
       </div>
-      <table>
-        <thead><tr><th>Model</th><th>Provider</th><th>Context</th><th>Max Output</th><th>Price</th></tr></thead>
-        <tbody id="modelTable"></tbody>
-      </table>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Model</th><th>Provider</th><th>Photos</th><th>Context</th><th>Max Output</th></tr></thead>
+          <tbody id="modelTable"></tbody>
+        </table>
+      </div>
+    </details>
+
+    <!-- One save bar for the whole screen, instead of a Save under every field. -->
+    <div class="savebar" id="saveBar" hidden>
+      <span class="savebar-msg" id="saveBarMsg">You have unsaved changes</span>
+      <button class="ghost" type="button" onclick="revertSettings()">Discard</button>
+      <button type="button" id="saveAllBtn" onclick="saveSettings()">Save changes</button>
     </div>
   </div>
 
@@ -626,6 +742,13 @@ async function deleteItemGlobal(itemId) {
 // ---------------------------------------------------------------------------
 let llmModels = [];
 let settingsData = {};
+let pendingSettings = {};
+
+const SETTING_FIELDS = {
+  visionModelSelect: 'default_vision_model',
+  searchModelSelect: 'default_search_model',
+  embeddingModelSelect: 'default_embedding_model',
+};
 
 async function loadSettings() {
   const [settingsRes, provRes, modelsRes, embModelsRes] = await Promise.all([
@@ -642,31 +765,168 @@ async function loadSettings() {
 
   document.getElementById('retainImages').checked = settingsData.retain_uploaded_images;
 
-  // Provider badges
   const provContainer = document.getElementById('llmProviders');
   const provs = provData.configured_providers || [];
   provContainer.innerHTML = provs.length
-    ? provs.map(p => `<span class="badge on" style="margin-right:6px">${esc(p)}</span>`).join('')
-    : '<div class="msg">No LLM providers configured. Set API keys in your .env file.</div>';
+    ? provs.map(p => `<span class="badge on" style="margin-right:6px">${esc(p)} · connected</span>`).join('')
+    : '<div class="note warn"><b>No AI provider configured</b>Photo reading and smart search are off. Add <code>GROQ_API_KEY</code>, <code>GEMINI_API_KEY</code> or <code>ANTHROPIC_API_KEY</code> to your .env and restart.</div>';
 
-  // Populate provider filter dropdown for the reference table
   const filterSelect = document.getElementById('providerFilter');
   const uniqueProviders = [...new Set(llmModels.map(m => m.provider))].sort();
   filterSelect.innerHTML = '<option value="">All providers</option>' +
     uniqueProviders.map(p => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
   renderModelTable();
 
-  // Populate the three purpose-specific model dropdowns
-  const allModels = llmModels.map(m => m.label);
-  const embeddingModels = (embModelsData.models || []).map(m => m.label);
-  const populate = (select, options, current) => {
-    select.innerHTML = options.map(m =>
-      `<option value="${esc(m)}" ${m === current ? 'selected' : ''}>${esc(m)}</option>`
-    ).join('');
-  };
-  populate(document.getElementById('visionModelSelect'), allModels, settingsData.default_vision_model);
-  populate(document.getElementById('searchModelSelect'), allModels, settingsData.default_search_model);
-  populate(document.getElementById('embeddingModelSelect'), embeddingModels, settingsData.default_embedding_model);
+  // The photo model picker separates models that accept images from the ones
+  // that don't — choosing a text-only model here silently breaks every upload.
+  const vision = llmModels.filter(m => m.vision);
+  const textOnly = llmModels.filter(m => !m.vision);
+  const opt = (m, current) =>
+    `<option value="${esc(m.label)}" ${m.label === current ? 'selected' : ''}>${esc(m.label)}</option>`;
+  const visionSelect = document.getElementById('visionModelSelect');
+  const cur = settingsData.default_vision_model;
+  const noModels = '<option value="">No models — connect a provider first</option>';
+  visionSelect.innerHTML = llmModels.length
+    ? (vision.length ? `<optgroup label="Can read photos">${vision.map(m => opt(m, cur)).join('')}</optgroup>` : '') +
+      (textOnly.length ? `<optgroup label="Text only — cannot read photos">${textOnly.map(m => opt(m, cur)).join('')}</optgroup>` : '')
+    : noModels;
+
+  const searchSelect = document.getElementById('searchModelSelect');
+  searchSelect.innerHTML = llmModels.length
+    ? llmModels.map(m => opt(m, settingsData.default_search_model)).join('')
+    : noModels;
+
+  const embModels = embModelsData.models || [];
+  const embSelect = document.getElementById('embeddingModelSelect');
+  embSelect.innerHTML = embModels.length
+    ? embModels.map(m => `<option value="${esc(m.label)}" ${m.label === settingsData.default_embedding_model ? 'selected' : ''}>${esc(m.label)}</option>`).join('')
+    : noModels;
+
+  // Nothing to pick and nothing to test until a provider is connected.
+  [visionSelect, searchSelect].forEach(el => { el.disabled = !llmModels.length; });
+  embSelect.disabled = !embModels.length;
+  document.getElementById('visionTestBtn').disabled = !llmModels.length;
+
+  pendingSettings = {};
+  updateSaveBar();
+  renderVisionWarning();
+  loadEmbedStatus();
+}
+
+function currentVisionModel() {
+  return document.getElementById('visionModelSelect').value;
+}
+
+function renderVisionWarning() {
+  const label = currentVisionModel();
+  const meta = llmModels.find(m => m.label === label);
+  const box = document.getElementById('visionWarn');
+  if (!llmModels.length) {
+    box.innerHTML = '<div class="note info"><b>No AI provider connected</b>Photo reading is off — shopkeepers can still type names in by hand.</div>';
+    return;
+  }
+  if (!label) { box.innerHTML = ''; return; }
+  box.innerHTML = (meta && meta.vision === false)
+    ? `<div class="note warn"><b>This model can't read photos</b>${esc(label)} is text-only, so signage and item photos will come back empty. Pick one from “Can read photos”, or run the test below to confirm.</div>`
+    : '';
+}
+
+async function loadEmbedStatus() {
+  try {
+    const res = await fetch(API + '/api/admin/embeddings/status');
+    const d = await res.json();
+    const total = d.total_items || 0, done = d.embedded_items || 0;
+    document.getElementById('embedStatus').textContent = total
+      ? `${done} of ${total} items indexed` +
+        (d.stale_items ? ` · ${d.stale_items} need re-indexing after a model change` : '')
+      : 'No items yet.';
+  } catch (e) { /* status is a nicety; the setting still works without it */ }
+}
+
+// --- unsaved-changes tracking -------------------------------------------
+Object.keys(SETTING_FIELDS).forEach(id => {
+  document.getElementById(id).addEventListener('change', function () {
+    const key = SETTING_FIELDS[id];
+    if (this.value === settingsData[key]) delete pendingSettings[key];
+    else pendingSettings[key] = this.value;
+    if (id === 'visionModelSelect') {
+      renderVisionWarning();
+      document.getElementById('visionTestResult').innerHTML = '';
+    }
+    updateSaveBar();
+  });
+});
+
+function updateSaveBar(msg) {
+  const bar = document.getElementById('saveBar');
+  const count = Object.keys(pendingSettings).length;
+  bar.hidden = count === 0;
+  document.getElementById('saveBarMsg').textContent =
+    msg || (count === 1 ? '1 unsaved change' : count + ' unsaved changes');
+}
+
+function revertSettings() {
+  Object.entries(SETTING_FIELDS).forEach(([id, key]) => {
+    document.getElementById(id).value = settingsData[key] || '';
+  });
+  pendingSettings = {};
+  updateSaveBar();
+  renderVisionWarning();
+}
+
+async function saveSettings() {
+  const btn = document.getElementById('saveAllBtn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const res = await fetch(API + '/api/admin/settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(pendingSettings),
+    });
+    if (!res.ok) throw new Error();
+    settingsData = await res.json();
+    pendingSettings = {};
+    updateSaveBar('Saved');
+    document.getElementById('saveBar').hidden = false;
+    setTimeout(() => updateSaveBar(), 1800);
+  } catch (e) {
+    updateSaveBar('Could not save — try again');
+  }
+  btn.disabled = false; btn.textContent = 'Save changes';
+}
+
+// --- does this model actually read photos? ------------------------------
+async function testVision() {
+  const btn = document.getElementById('visionTestBtn');
+  const box = document.getElementById('visionTestResult');
+  btn.disabled = true; btn.textContent = 'Testing…';
+  box.innerHTML = '<div class="note info">Sending a sample shop board to the model…</div>';
+  try {
+    const res = await fetch(API + '/api/admin/llm/vision-test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: currentVisionModel() }),
+    });
+    const d = await res.json();
+    const took = d.latency_ms ? ` · ${(d.latency_ms / 1000).toFixed(1)}s` : '';
+    const views = {
+      pass: ['good', '✅ This model reads photos',
+             `It read the test board correctly (<code>${esc(d.expected)}</code>)${took}. OCR is working.`],
+      partial: ['warn', '⚠️ Photo went through, but the text was misread',
+                `Expected <code>${esc(d.expected)}</code>, model replied <code>${esc(d.reply || '')}</code>${took}. Onboarding will often need manual correction — try a stronger vision model.`],
+      no_vision: ['warn', '❌ This model cannot accept images',
+                  `The provider rejected the image: <code>${esc(d.detail || '')}</code>. Pick a model from “Can read photos”.`],
+      error: ['warn', '❌ Test failed',
+              esc(d.detail || 'The provider call did not succeed.')],
+      unconfigured: ['warn', '❌ No API key for this provider',
+                     esc(d.detail || '')],
+    };
+    const [cls, head, body] = views[d.status] || views.error;
+    box.innerHTML = `<div class="note ${cls}"><b>${head}</b>${body}</div>`;
+  } catch (e) {
+    box.innerHTML = '<div class="note warn"><b>Test failed</b>Could not reach the server.</div>';
+  }
+  btn.disabled = false; btn.textContent = 'Test with a sample photo';
 }
 
 function renderModelTable() {
@@ -674,9 +934,7 @@ function renderModelTable() {
   const search = document.getElementById('modelSearch').value.trim().toLowerCase();
 
   let filtered = llmModels;
-  if (providerFilter) {
-    filtered = filtered.filter(m => m.provider === providerFilter);
-  }
+  if (providerFilter) filtered = filtered.filter(m => m.provider === providerFilter);
   if (search) {
     filtered = filtered.filter(m =>
       (m.display_name || m.model || '').toLowerCase().includes(search) ||
@@ -684,18 +942,16 @@ function renderModelTable() {
     );
   }
 
-  document.getElementById('modelCount').textContent = filtered.length + ' of ' + llmModels.length + ' models';
+  document.getElementById('modelCount').textContent = filtered.length + ' of ' + llmModels.length;
 
   document.getElementById('modelTable').innerHTML = filtered.map(m => {
-    const ctx = m.context_window ? (m.context_window >= 1000 ? (m.context_window/1000).toFixed(0) + 'k' : m.context_window) : '—';
-    const maxOut = m.max_output_tokens ? (m.max_output_tokens >= 1000 ? (m.max_output_tokens/1000).toFixed(0) + 'k' : m.max_output_tokens) : '—';
-    const price = m.pricing ? '$' + (m.pricing.prompt || m.pricing.input || '?') : '—';
+    const fmt = n => n ? (n >= 1000 ? (n / 1000).toFixed(0) + 'k' : n) : '—';
     return `<tr>
       <td style="font-weight:500">${esc(m.display_name || m.model)}</td>
       <td>${esc(m.provider)}</td>
-      <td>${ctx}</td>
-      <td>${maxOut}</td>
-      <td>${price}</td>
+      <td><span class="cap ${m.vision ? 'yes' : 'no'}">${m.vision ? 'yes' : 'no'}</span></td>
+      <td>${fmt(m.context_window)}</td>
+      <td>${fmt(m.max_output_tokens)}</td>
     </tr>`;
   }).join('') || '<tr><td colspan="5" class="msg">No models match.</td></tr>';
 }
@@ -709,38 +965,11 @@ async function saveSetting(key, value) {
   return res.ok;
 }
 
-async function saveVisionModel() {
-  const val = document.getElementById('visionModelSelect').value;
-  const ok = await saveSetting('default_vision_model', val);
-  const msg = document.getElementById('visionModelMsg');
-  msg.textContent = ok ? '✓ Saved' : 'Error saving';
-  msg.style.color = ok ? 'var(--accent)' : 'var(--danger)';
-  setTimeout(() => msg.textContent = '', 3000);
-}
-
-async function saveSearchModel() {
-  const val = document.getElementById('searchModelSelect').value;
-  const ok = await saveSetting('default_search_model', val);
-  const msg = document.getElementById('searchModelMsg');
-  msg.textContent = ok ? '✓ Saved' : 'Error saving';
-  msg.style.color = ok ? 'var(--accent)' : 'var(--danger)';
-  setTimeout(() => msg.textContent = '', 3000);
-}
-
-async function saveEmbeddingModel() {
-  const val = document.getElementById('embeddingModelSelect').value;
-  const ok = await saveSetting('default_embedding_model', val);
-  const msg = document.getElementById('embeddingModelMsg');
-  msg.textContent = ok ? '✓ Saved' : 'Error saving';
-  msg.style.color = ok ? 'var(--accent)' : 'var(--danger)';
-  setTimeout(() => msg.textContent = '', 3000);
-}
-
 document.getElementById('retainImages').addEventListener('change', async function () {
   const ok = await saveSetting('retain_uploaded_images', this.checked);
   const msg = document.getElementById('retainMsg');
-  msg.textContent = ok ? '✓ Saved' : 'Error saving';
-  msg.style.color = ok ? 'var(--accent)' : 'var(--danger)';
+  msg.textContent = ok ? '✓ Saved' : 'Could not save';
+  msg.style.color = ok ? 'var(--accent-text)' : 'var(--danger)';
   setTimeout(() => msg.textContent = '', 3000);
 });
 
@@ -751,8 +980,9 @@ async function runBackfill() {
   try {
     const res = await fetch(API + '/api/admin/embeddings/backfill', { method: 'POST' });
     const data = await res.json();
-    msg.textContent = `✓ Embedded ${data.embedded} items`;
-    msg.style.color = 'var(--accent)';
+    msg.textContent = `✓ Re-indexed ${data.embedded} items`;
+    msg.style.color = 'var(--accent-text)';
+    loadEmbedStatus();
   } catch (e) {
     msg.textContent = 'Error running backfill';
     msg.style.color = 'var(--danger)';
