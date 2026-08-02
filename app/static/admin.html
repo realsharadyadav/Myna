@@ -371,7 +371,7 @@ const API = window.MYNA_API_BASE || '';
     fill.style.width = progress + '%';
   }, 400);
 
-  const messages = ['Waking up services…', 'Free-tier backend can take up to a minute…', 'Almost there…'];
+  const messages = ['Waking up services…', 'Almost there…'];
   let mi = 0;
   const msgTimer = setInterval(() => {
     mi = Math.min(mi + 1, messages.length - 1);

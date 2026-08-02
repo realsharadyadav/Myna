@@ -291,7 +291,7 @@ const $ = id => document.getElementById(id);
     progress = Math.min(progress + (100 - progress) * 0.12, 92);
     fill.style.width = progress + '%';
   }, 400);
-  const messages = ['Waking up services…', 'Free-tier backend can take up to a minute…', 'Almost there…'];
+  const messages = ['Waking up services…', 'Almost there…'];
   let mi = 0;
   const msgTimer = setInterval(() => { mi = Math.min(mi + 1, messages.length - 1); status.textContent = messages[mi]; }, 7000);
   function done(msg, delay) {
