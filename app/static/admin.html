@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Myna — Owner Panel</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, system-ui, sans-serif; }
+  body { background: #f4f6f8; color: #222; min-height: 100vh; }
+  header { background: #1a1a2e; color: #fff; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+  header h1 { font-size: 1.3rem; }
+  header nav a { color: #7fbf7f; text-decoration: none; font-size: .85rem; margin-left: 16px; }
+  header nav a:hover { text-decoration: underline; }
+  main { max-width: 960px; margin: 0 auto; padding: 20px; }
+
+  .tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+  .tabs button { padding: 8px 18px; border: 1px solid #ddd; border-radius: 8px; background: #fff; cursor: pointer; font-size: .9rem; font-weight: 600; color: #555; }
+  .tabs button.active { background: #1a1a2e; color: #fff; border-color: #1a1a2e; }
+
+  .card { background: #fff; border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+
+  /* Stats */
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+  .stat-card { background: #1a1a2e; color: #fff; padding: 20px; border-radius: 12px; text-align: center; }
+  .stat-card .num { font-size: 2rem; font-weight: 700; }
+  .stat-card .label { font-size: .8rem; opacity: .8; margin-top: 4px; }
+
+  /* Shop list */
+  table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #eee; }
+  th { font-size: .75rem; text-transform: uppercase; color: #888; font-weight: 600; }
+  tr:hover td { background: #f9f9f9; }
+  .actions button, .actions a { padding: 4px 10px; font-size: .78rem; border: 1px solid #ddd; border-radius: 6px; background: #fff; cursor: pointer; color: #333; text-decoration: none; margin-right: 4px; }
+  .actions button.del { color: #c0392b; border-color: #c0392b; }
+  .actions button.del:hover { background: #c0392b; color: #fff; }
+  .actions a:hover, .actions button:hover { background: #f0f0f0; }
+
+  /* Editing inline */
+  td input { width: 100%; padding: 4px 6px; border: 1px solid #ddd; border-radius: 4px; font-size: .85rem; }
+
+  /* AI settings */
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: .75rem; font-weight: 700; }
+  .badge.on { background: #e6f4ea; color: #1e7e34; }
+  .badge.off { background: #fdecea; color: #c0392b; }
+  .model-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f0f0f0; flex-wrap: wrap; }
+  .model-row .name { font-weight: 600; min-width: 220px; }
+  .model-row select { padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: .85rem; }
+  .env-hint { background: #fff8e1; border: 1px solid #ffe082; border-radius: 8px; padding: 12px; font-size: .82rem; color: #555; margin-top: 12px; }
+  .env-hint code { background: #eee; padding: 2px 5px; border-radius: 4px; font-size: .8rem; }
+
+  /* Items sub-panel */
+  .items-drawer { margin-top: 8px; padding: 12px; background: #f9f9f9; border-radius: 8px; }
+  .items-drawer table { font-size: .82rem; }
+
+  .msg { text-align: center; color: #888; padding: 24px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🐦 Myna — Owner Panel</h1>
+  <nav>
+    <a href="/">Customer Search</a>
+    <a href="/shopkeeper">Shopkeeper</a>
+    <a href="/docs">API Docs</a>
+  </nav>
+</header>
+<main>
+  <div class="tabs">
+    <button class="active" onclick="showTab('dashboard', this)">Dashboard</button>
+    <button onclick="showTab('shops', this)">Shops</button>
+    <button onclick="showTab('ai', this)">AI Settings</button>
+  </div>
+
+  <!-- ==================== DASHBOARD ==================== -->
+  <div id="tab-dashboard">
+    <div class="stats-grid" id="statsGrid"></div>
+    <div class="card" style="margin-top:16px">
+      <h3 style="font-size:.9rem; margin-bottom:10px; color:#555">Recently registered shops</h3>
+      <table>
+        <thead><tr><th>ID</th><th>Name</th><th>Registered</th></tr></thead>
+        <tbody id="recentShops"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ==================== SHOPS ==================== -->
+  <div id="tab-shops" style="display:none">
+    <div class="card">
+      <div style="display:flex; gap:8px; margin-bottom:12px">
+        <input id="shopSearch" type="text" placeholder="Search shops…" style="flex:1; padding:8px 12px; border:1px solid #ddd; border-radius:8px; font-size:.9rem" onkeydown="if(event.key==='Enter')loadShops()">
+        <button onclick="loadShops()" style="padding:8px 16px; border:1px solid #ddd; border-radius:8px; background:#fff; cursor:pointer; font-weight:600">Search</button>
+      </div>
+      <table>
+        <thead><tr><th>ID</th><th>Name</th><th>Address</th><th>Phone</th><th>Items</th><th>Actions</th></tr></thead>
+        <tbody id="shopTable"></tbody>
+      </table>
+      <div style="margin-top:10px; font-size:.8rem; color:#888" id="shopCount"></div>
+    </div>
+  </div>
+
+  <!-- ==================== AI SETTINGS ==================== -->
+  <div id="tab-ai" style="display:none">
+    <div class="card">
+      <h3 style="font-size:.9rem; margin-bottom:10px; color:#555">LLM Vision Providers</h3>
+      <div id="llmProviders"></div>
+      <div class="env-hint">
+        To change the default model, set <code>MYNA_DEFAULT_MODEL</code> in your environment
+        (e.g. <code>anthropic/claude-sonnet-4-20250514</code>) and restart the server.
+      </div>
+    </div>
+  </div>
+</main>
+<script>
+// ---------------------------------------------------------------------------
+// Tabs
+// ---------------------------------------------------------------------------
+function showTab(name, btn) {
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  ['dashboard', 'shops', 'ai'].forEach(t => {
+    document.getElementById('tab-' + t).style.display = t === name ? '' : 'none';
+  });
+  if (name === 'dashboard') loadStats();
+  if (name === 'shops') loadShops();
+  if (name === 'ai') loadLLM();
+}
+
+// ---------------------------------------------------------------------------
+// Dashboard
+// ---------------------------------------------------------------------------
+async function loadStats() {
+  const res = await fetch('/api/admin/stats');
+  const data = await res.json();
+  document.getElementById('statsGrid').innerHTML = `
+    <div class="stat-card"><div class="num">${data.total_shops}</div><div class="label">Shops</div></div>
+    <div class="stat-card"><div class="num">${data.total_items}</div><div class="label">Items</div></div>
+  `;
+  document.getElementById('recentShops').innerHTML = data.recent_shops.map(s =>
+    `<tr><td>${s.shop_id}</td><td>${esc(s.name)}</td><td>${new Date(s.created_at).toLocaleString()}</td></tr>`
+  ).join('') || '<tr><td colspan="3" class="msg">No shops yet.</td></tr>';
+}
+
+// ---------------------------------------------------------------------------
+// Shops
+// ---------------------------------------------------------------------------
+async function loadShops() {
+  const q = document.getElementById('shopSearch').value.trim();
+  const res = await fetch('/api/admin/shops?q=' + encodeURIComponent(q));
+  const shops = await res.json();
+  document.getElementById('shopCount').textContent = shops.length + ' shop(s)';
+  const tbody = document.getElementById('shopTable');
+  tbody.innerHTML = '';
+  for (const s of shops) {
+    const itemsRes = await fetch(`/api/admin/shops/${s.shop_id}/items`);
+    const items = await itemsRes.json();
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${s.shop_id}</td>
+      <td><input value="${esc(s.name)}" onchange="patchShop(${s.shop_id}, 'name', this.value)"></td>
+      <td><input value="${esc(s.address)}" onchange="patchShop(${s.shop_id}, 'address', this.value)"></td>
+      <td><input value="${esc(s.phone)}" onchange="patchShop(${s.shop_id}, 'phone', this.value)"></td>
+      <td style="text-align:center">${items.length}</td>
+      <td class="actions">
+        <button onclick="toggleItems(this, ${s.shop_id})">Items</button>
+        <button class="del" onclick="deleteShop(${s.shop_id})">Delete</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+    const drawer = document.createElement('tr');
+    drawer.style.display = 'none';
+    drawer.innerHTML = `<td colspan="6"><div class="items-drawer" id="items-${s.shop_id}"></div></td>`;
+    tbody.appendChild(drawer);
+  }
+  if (!shops.length) tbody.innerHTML = '<tr><td colspan="6" class="msg">No shops found.</td></tr>';
+}
+
+async function patchShop(id, field, value) {
+  await fetch(`/api/admin/shops/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ [field]: value }),
+  });
+}
+
+async function deleteShop(id) {
+  if (!confirm('Delete shop #' + id + ' and all its items?')) return;
+  await fetch(`/api/admin/shops/${id}`, { method: 'DELETE' });
+  loadShops();
+}
+
+async function toggleItems(btn, shopId) {
+  const drawer = btn.closest('tr').nextElementSibling;
+  if (drawer.style.display === 'none') {
+    drawer.style.display = '';
+    const res = await fetch(`/api/admin/shops/${shopId}/items`);
+    const items = await res.json();
+    const box = document.getElementById('items-' + shopId);
+    box.innerHTML = `<table>
+      <thead><tr><th>ID</th><th>Name</th><th>Category</th><th>Actions</th></tr></thead>
+      <tbody>${items.map(i => `
+        <tr>
+          <td>${i.item_id}</td>
+          <td><input value="${esc(i.name)}" onchange="patchItem(${i.item_id}, 'name', this.value)"></td>
+          <td><input value="${esc(i.category)}" onchange="patchItem(${i.item_id}, 'category', this.value)"></td>
+          <td class="actions"><button class="del" onclick="deleteItem(${i.item_id}, ${shopId})">Del</button></td>
+        </tr>`).join('') || '<tr><td colspan="4" style="text-align:center;color:#888">No items</td></tr>'}
+      </tbody></table>`;
+  } else {
+    drawer.style.display = 'none';
+  }
+}
+
+async function patchItem(itemId, field, value) {
+  await fetch(`/api/admin/items/${itemId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ [field]: value }),
+  });
+}
+
+async function deleteItem(itemId, shopId) {
+  if (!confirm('Delete item #' + itemId + '?')) return;
+  await fetch(`/api/admin/items/${itemId}`, { method: 'DELETE' });
+  // Refresh the items drawer
+  const btn = document.querySelector(`button[onclick="toggleItems(this, ${shopId})"]`);
+  if (btn) {
+    const drawer = btn.closest('tr').nextElementSibling;
+    drawer.style.display = 'none';
+    toggleItems(btn, shopId);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// AI Settings
+// ---------------------------------------------------------------------------
+async function loadLLM() {
+  const res = await fetch('/api/admin/llm/providers');
+  const data = await res.json();
+  const container = document.getElementById('llmProviders');
+  if (!data.providers.length) {
+    container.innerHTML = '<div class="msg">No LLM providers configured. Set API keys in your environment.</div>';
+    return;
+  }
+  container.innerHTML = data.providers.map(p => {
+    const isDefault = p.label === data.default_model;
+    return `<div class="model-row">
+      <span class="name">${esc(p.label)}</span>
+      <span class="badge ${isDefault ? 'on' : 'off'}">${isDefault ? 'DEFAULT' : 'available'}</span>
+    </div>`;
+  }).join('');
+}
+
+// ---------------------------------------------------------------------------
+function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+// Initial load
+loadStats();
+</script>
+</body>
+</html>

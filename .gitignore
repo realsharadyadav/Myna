@@ -216,3 +216,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Myna local runtime artifacts
+*.db
+uploads/*
+!uploads/.gitkeep
+.DS_Store

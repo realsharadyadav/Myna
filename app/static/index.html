@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Myna — Find it nearby</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, system-ui, sans-serif; }
+  body { background: #f4f6f8; color: #222; min-height: 100vh; }
+  header { background: #0f7b6c; color: #fff; padding: 16px; text-align: center; }
+  header h1 { font-size: 1.4rem; }
+  header p { font-size: .85rem; opacity: .9; margin-top: 2px; }
+  main { max-width: 640px; margin: 0 auto; padding: 16px; }
+  .card { background: #fff; border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .controls label { display: block; font-size: .8rem; font-weight: 600; margin: 10px 0 4px; color: #555; }
+  .controls input[type=text] { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; }
+  .range-row { display: flex; align-items: center; gap: 12px; }
+  .range-row input[type=range] { flex: 1; }
+  .range-row span { font-weight: 700; color: #0f7b6c; min-width: 56px; text-align: right; }
+  button { width: 100%; padding: 13px; border: none; border-radius: 8px; background: #0f7b6c; color: #fff; font-size: 1rem; font-weight: 600; cursor: pointer; margin-top: 14px; }
+  button:disabled { background: #9dc7c1; }
+  .result { display: flex; gap: 12px; align-items: center; }
+  .result img { width: 72px; height: 72px; object-fit: cover; border-radius: 8px; background: #eee; flex-shrink: 0; }
+  .result .info { flex: 1; min-width: 0; }
+  .result .item { font-weight: 700; }
+  .result .cat { font-size: .75rem; color: #888; }
+  .result .shop { font-size: .9rem; margin-top: 4px; }
+  .result .addr { font-size: .78rem; color: #777; margin-top: 2px; }
+  .dist { background: #e6f4f1; color: #0f7b6c; font-weight: 700; font-size: .8rem; padding: 6px 10px; border-radius: 999px; white-space: nowrap; }
+  .msg { text-align: center; color: #888; padding: 24px 0; }
+  .link { text-align: center; margin: 18px 0; font-size: .85rem; }
+  .link a { color: #0f7b6c; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🐦 Myna</h1>
+  <p>"Yahan available hai" — find products in shops near you</p>
+</header>
+<main>
+  <div class="card controls">
+    <label for="q">What are you looking for?</label>
+    <input type="text" id="q" placeholder="e.g. Parle-G, sugar, charger…" onkeydown="if(event.key==='Enter')doSearch()">
+    <label for="range">Search range</label>
+    <div class="range-row">
+      <input type="range" id="range" min="1" max="25" value="5" step="1" oninput="document.getElementById('rangeVal').textContent=this.value+' km'">
+      <span id="rangeVal">5 km</span>
+    </div>
+    <button id="searchBtn" onclick="doSearch()">Search nearby</button>
+  </div>
+  <div id="results"></div>
+  <div class="link">Shopkeeper? <a href="/shopkeeper">List your shop →</a></div>
+</main>
+<script>
+let userLoc = null;
+
+navigator.geolocation.getCurrentPosition(
+  p => { userLoc = { lat: p.coords.latitude, long: p.coords.longitude }; },
+  () => { document.getElementById('results').innerHTML = '<div class="msg">⚠️ Location access denied. Search will use default location (Mumbai).</div>'; }
+);
+
+async function doSearch() {
+  const q = document.getElementById('q').value.trim();
+  if (!q) return;
+  const range = document.getElementById('range').value;
+  const loc = userLoc || { lat: 19.076, long: 72.8777 }; // fallback: Mumbai
+  const btn = document.getElementById('searchBtn');
+  btn.disabled = true; btn.textContent = 'Searching…';
+  const box = document.getElementById('results');
+  try {
+    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&lat=${loc.lat}&long=${loc.long}&range_km=${range}`);
+    const data = await res.json();
+    if (!data.length) {
+      box.innerHTML = '<div class="msg">No shops found with “' + esc(q) + '” within ' + range + ' km.</div>';
+    } else {
+      box.innerHTML = data.map(r => `
+        <div class="card result">
+          ${r.item_photo_url ? `<img src="${r.item_photo_url}" alt="">` : '<img alt="" src="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22/>">'}
+          <div class="info">
+            <div class="item">${esc(r.item_name)}</div>
+            ${r.item_category ? `<div class="cat">${esc(r.item_category)}</div>` : ''}
+            <div class="shop">🏪 ${esc(r.shop_name)}</div>
+            <div class="addr">${esc(r.address)}${r.phone ? ' · 📞 ' + esc(r.phone) : ''}</div>
+          </div>
+          <div class="dist">${r.distance_km} km</div>
+        </div>`).join('');
+    }
+  } catch (e) {
+    box.innerHTML = '<div class="msg">Search failed. Please try again.</div>';
+  }
+  btn.disabled = false; btn.textContent = 'Search nearby';
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+</script>
+</body>
+</html>
