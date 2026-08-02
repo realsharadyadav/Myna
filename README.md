@@ -88,16 +88,20 @@ run.sh               Creates venv, installs deps, starts uvicorn
 | `POST` | `/api/admin/llm/default-model` | Set the default model (persisted in DB) |
 | `GET` | `/admin` | Owner panel UI (dashboard, shops, AI settings) |
 
-## Deploy to Render
+## Deploy to Render (free plan)
 
 One-click deploy using the included `render.yaml` blueprint:
 
 1. Push this repo to GitHub, then in Render: **New → Blueprint** → select the repo.
-2. Render creates the web service, a free PostgreSQL DB, and a 1 GB uploads disk automatically.
+2. Render creates the web service and a **free PostgreSQL DB** automatically.
 3. After deploy, go to the service's **Environment** tab and add your API keys (`ANTHROPIC_API_KEY` / `GROQ_API_KEY` / `GEMINI_API_KEY`) — they're marked `sync: false` in the blueprint.
 4. Open `https://<your-service>.onrender.com/admin` to pick the default model.
 
-SQLite (`myna.db`) is only for local dev — production uses Postgres via `DATABASE_URL` (auto-injected by Render), and uploads go to the persistent disk (`UPLOAD_DIR=/var/data/uploads`).
+> **Free-tier notes:**
+> - Uploads go to the app's local `uploads/` folder, which **resets on every redeploy** (no persistent disk on free plan). Fine for a pilot; attach a disk or switch to Cloudinary/Supabase when you need permanence.
+> - The free Postgres DB expires after **90 days** — upgrade to a paid tier to keep it.
+> - Service **sleeps after ~15 min idle**; first request takes ~30 s to wake up.
+> - The blueprint injects `DATABASE_URL` automatically, which points to Postgres.
 
 ## Deferred (per plan)
 

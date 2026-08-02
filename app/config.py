@@ -12,10 +12,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 #   1. MYNA_DATABASE_URL — explicit override (e.g. set in .env or Render env vars)
 #   2. DATABASE_URL      — auto-injected by Render/Heroku when a database is linked
 #   3. SQLite file       — zero-config local dev fallback
-DATABASE_URL = os.getenv(
-    "MYNA_DATABASE_URL",
-    os.getenv("DATABASE_URL", f"sqlite:///{BASE_DIR}/myna.db"),
-)
+DATABASE_URL = os.getenv("MYNA_DATABASE_URL") or os.getenv("DATABASE_URL") or f"sqlite:///{BASE_DIR}/myna.db"
 # Render/Heroku hand out "postgres://" — SQLAlchemy needs "postgresql+psycopg://".
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg://", 1)
