@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from .. import agent, embeddings, models, schemas
+from .. import agent, embeddings, models, schemas, synonyms
 from ..database import get_db, get_default_search_model
 from ..geo import haversine_km
 
@@ -10,20 +10,23 @@ router = APIRouter(prefix="/api/search", tags=["search"])
 
 
 def _rows_for_term(db: Session, term: str, item_pool, shop_by_id):
-    """Hybrid match one term (agent stage 2): substring ILIKE ∪ semantic
-    cosine on stored embeddings. `item_pool`/`shop_by_id` come from a single
-    pre-fetched catalogue query so per-term work stays in-memory."""
+    """Hybrid match one term (agent stage 2): substring ILIKE ∪ synonym
+    glossary ∪ semantic cosine on stored embeddings. `item_pool`/`shop_by_id`
+    come from a single pre-fetched catalogue query so per-term work stays
+    in-memory."""
     pattern = f"%{term}%"
+    aliases = synonyms.expand(term.lower())
     like_ids = {
         it.item_id
         for it in item_pool
-        if it.name and term.lower() in it.name.lower()
-        or it.category and term.lower() in it.category.lower()
+        if it.name and any(alias in it.name.lower() for alias in aliases)
+        or it.category and any(alias in it.category.lower() for alias in aliases)
     }
 
     found: dict[int, models.Item] = {}
 
-    # 1) Substring item/category matches
+    # 1) Substring item/category matches, including known synonyms/aliases
+    # (e.g. "daal" -> also try "dal"/"dhal"; "kapoor" -> also try "camphor").
     if like_ids:
         for item in item_pool:
             if item.item_id in like_ids:
@@ -45,7 +48,8 @@ def _rows_for_term(db: Session, term: str, item_pool, shop_by_id):
     for item, _shop in sql_shop_rows:
         found.setdefault(item.item_id, item)
 
-    # 3) Semantic matches on item name/category (fixes daal/dal, kapoor/camphor).
+    # 3) Semantic matches on item name/category — broader coverage beyond the
+    # curated glossary above (e.g. "milk" ~ "dairy").
     if embeddings.enabled():
         for item_id, _shop_id in embeddings.similar_items(db, term):
             if item_id not in found:

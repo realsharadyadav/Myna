@@ -1,6 +1,17 @@
-# Render blueprint — deploys Myna as a web service with PostgreSQL.
+# Render blueprint — Myna as an API backend + static frontend, with PostgreSQL.
 # Free-plan friendly: no persistent disk needed (SQLite is fine for a free tier).
 # Docs: https://render.com/docs/blueprint-spec
+#
+# Two services, same pattern as Locus:
+#   - myna       : the FastAPI backend (API only, in practice — see below)
+#   - myna-app   : a static site serving app/static (index/shopkeeper/admin),
+#                  so the browser hits an always-on static host directly
+#                  instead of Render's cold-start splash screen on the free
+#                  backend service.
+#
+# The backend still serves these same pages itself too (app/main.py) — handy
+# for local dev with a single `uvicorn` process — but production traffic
+# should go through myna-app once its onrender.com URL is known.
 services:
   - type: web
     name: myna
@@ -14,6 +25,10 @@ services:
         fromDatabase:
           name: myna-db
           property: connectionString
+      # Left open ("*") by default since there's no auth — tighten to the
+      # myna-app URL below once Render assigns it, if you want to lock it down.
+      - key: MYNA_ALLOWED_ORIGINS
+        value: "*"
       # ---- Set these in the Render dashboard (Environment tab) after deploy ----
       - key: ANTHROPIC_API_KEY
         sync: false
@@ -21,6 +36,27 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
+
+  - type: web
+    name: myna-app
+    runtime: static
+    # No JS bundler here — app/static is plain HTML/JS. This build step just
+    # bakes the backend's URL into config.js, the same job Vite's env
+    # replacement does for Locus's frontend.
+    buildCommand: printf 'window.MYNA_API_BASE = "%s";' "$MYNA_BACKEND_URL" > app/static/config.js
+    staticPublishPath: ./app/static
+    envVars:
+      # Myna's existing/current backend URL — update this if the "myna"
+      # service above ever gets a different onrender.com URL.
+      - key: MYNA_BACKEND_URL
+        value: https://myna-wzcq.onrender.com
+    routes:
+      - type: rewrite
+        source: /admin
+        destination: /admin.html
+      - type: rewrite
+        source: /shopkeeper
+        destination: /shopkeeper.html
 
 databases:
   - name: myna-db

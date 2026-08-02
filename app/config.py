@@ -30,3 +30,10 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 # Reverse geocoding (OpenStreetMap Nominatim - free, rate-limited)
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/reverse"
 NOMINATIM_USER_AGENT = "myna-hyperlocal-finder/1.0"
+
+# CORS: the frontend (app/static, published as its own Render static site —
+# see render.yaml) now calls this API cross-origin. "*" (default) keeps
+# everything open — there's no auth/cookies here, so a permissive policy
+# carries no extra risk. Tighten via MYNA_ALLOWED_ORIGINS once the static
+# site's onrender.com URL is known.
+ALLOWED_ORIGINS = [o.strip() for o in os.getenv("MYNA_ALLOWED_ORIGINS", "*").split(",") if o.strip()] or ["*"]

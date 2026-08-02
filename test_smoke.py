@@ -230,11 +230,14 @@ assert res.status_code == 200
 assert res.json() == {"models": []}
 print("PASS admin LLM models (unconfigured)")
 
-# 24. Admin embedding models endpoint (no keys -> empty list)
+# 24. Admin embedding models endpoint — local backend is always listed (no
+# API key needed); Gemini only appears once GEMINI_API_KEY is configured.
 res = client.get("/api/admin/llm/embedding-models")
 assert res.status_code == 200
-assert res.json() == {"models": []}
-print("PASS admin embedding models (unconfigured)")
+models = res.json()["models"]
+assert any(m["provider"] == "local" for m in models)
+assert not any(m["provider"] == "gemini" for m in models)
+print("PASS admin embedding models (local always available)")
 
 # 25. Admin CSV template (blank)
 res = client.get("/api/admin/import/template")
@@ -401,5 +404,26 @@ assert data["default_vision_model"] == "gemini:gemini-2.5-flash"
 assert data["default_search_model"] == "gemini:gemini-2.5-flash"
 assert data["default_embedding_model"] == "gemini:gemini-embedding-001"
 print("PASS update all model settings")
+
+# 42. Synonym glossary catches spelling/transliteration variants that neither
+# substring nor the local embedding model reliably catch on their own
+# (benchmarked: bge-small scores daal/dal and kapoor/camphor below the
+# semantic threshold, while unrelated pairs like salt/sugar score above it).
+res = client.post(
+    f"/api/shops/{shop_id}/items",
+    data={"name": "Toor Dal 1kg", "category": "Grocery"},
+)
+assert res.status_code == 200
+res = client.post(
+    f"/api/shops/{shop_id}/items",
+    data={"name": "Pooja Camphor Tablets", "category": "Pooja Items"},
+)
+assert res.status_code == 200
+
+res = client.get("/api/search", params={"q": "daal", "lat": 19.076, "long": 72.878})
+assert any(r["item_name"] == "Toor Dal 1kg" for r in res.json())
+res = client.get("/api/search", params={"q": "kapoor", "lat": 19.076, "long": 72.878})
+assert any(r["item_name"] == "Pooja Camphor Tablets" for r in res.json())
+print("PASS synonym glossary matches daal/dal and kapoor/camphor")
 
 print("\nALL TESTS PASSED")

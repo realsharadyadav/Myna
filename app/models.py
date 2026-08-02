@@ -39,8 +39,9 @@ class Item(Base):
     name = Column(String, nullable=False, index=True)
     category = Column(String, default="")
     photo_url = Column(String, default="")
-    # Semantic-search vector (Gemini text-embedding-004), JSON list of floats.
-    # Empty string = not embedded yet (no GEMINI_API_KEY, or not backfilled).
+    # Semantic-search vector (local BAAI/bge-small-en-v1.5 by default, or
+    # Gemini text-embedding-004 if selected), JSON list of floats.
+    # Empty string = not embedded yet (not backfilled).
     embedding = Column(String, default="")
     embedding_model = Column(String, default="")
     created_at = Column(DateTime, default=datetime.utcnow)

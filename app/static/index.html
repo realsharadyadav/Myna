@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Myna — Find it nearby</title>
-<link rel="icon" type="image/svg+xml" href="/static/myna-logo.svg">
+<link rel="icon" type="image/svg+xml" href="/myna-logo.svg">
+<script src="/config.js"></script>
 <style>
   :root {
     --bg-0: #f4f7fb;
@@ -155,7 +156,7 @@
   <header>
     <div class="header-inner">
       <div class="brand">
-        <img src="/static/myna-logo.svg" alt="Myna AI">
+        <img src="/myna-logo.svg" alt="Myna AI">
         <h1>Myna</h1>
       </div>
       <button class="theme-toggle" id="themeBtn" title="Toggle theme" aria-label="Toggle dark/light mode"></button>
@@ -171,6 +172,7 @@
     <div class="link">Shopkeeper? <a href="/shopkeeper">List your shop →</a></div>
   </main>
 <script>
+const API = window.MYNA_API_BASE || '';
 (function () {
   const root = document.documentElement;
   const saved = localStorage.getItem('myna_theme');
@@ -212,7 +214,7 @@ async function doSearch() {
   btn.disabled = true; btn.textContent = 'Searching…';
   box.innerHTML = '<div class="msg"><span class="loader"></span>&nbsp; Understanding your list…</div>';
   try {
-    const res = await fetch(`/api/search/shops?q=${encodeURIComponent(q)}&lat=${loc.lat}&long=${loc.long}`);
+    const res = await fetch(`${API}/api/search/shops?q=${encodeURIComponent(q)}&lat=${loc.lat}&long=${loc.long}`);
     const data = await res.json();
     const chips = (data.items || []).map(i => `<span class="chip">${esc(i)}</span>`).join('<span class="crumb">·</span>');
     const agentTag = data.method === 'llm' ? '🤖 AI parsed' : '⚡ smart parse';
@@ -236,7 +238,7 @@ async function doSearch() {
           <div class="shop-items">
             ${s.items.map(r => `
               <div class="sitem">
-                <img src="${r.item_photo_url || PLACEHOLDER_IMG}" alt="">
+                <img src="${r.item_photo_url ? API + r.item_photo_url : PLACEHOLDER_IMG}" alt="">
                 <div class="iinfo">
                   <div class="iname">${esc(r.item_name)}${r.matched_term ? `<span class="badge">${esc(r.matched_term)}</span>` : ''}</div>
                   ${r.item_category ? `<div class="icat">${esc(r.item_category)}</div>` : ''}

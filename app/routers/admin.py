@@ -253,8 +253,6 @@ def embeddings_status(db: Session = Depends(get_db)):
 @router.post("/embeddings/backfill")
 def embeddings_backfill(db: Session = Depends(get_db)):
     """Embed all items missing a vector or using a stale embedding model."""
-    if not embeddings.enabled():
-        raise HTTPException(400, "GEMINI_API_KEY not configured")
     done = embeddings.backfill(db)
     return {"embedded": done}
 

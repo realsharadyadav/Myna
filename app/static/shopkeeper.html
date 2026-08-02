@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Myna — Shopkeeper</title>
-<link rel="icon" type="image/svg+xml" href="/static/myna-logo.svg">
+<link rel="icon" type="image/svg+xml" href="/myna-logo.svg">
+<script src="/config.js"></script>
 <style>
   :root {
     --bg-0: #f4f7fb;
@@ -142,7 +143,7 @@
   <header>
     <div class="header-inner">
       <div class="brand">
-        <img src="/static/myna-logo.svg" alt="Myna AI">
+        <img src="/myna-logo.svg" alt="Myna AI">
         <h1>Myna — Shopkeeper</h1>
       </div>
       <button class="theme-toggle" id="themeBtn" title="Toggle theme" aria-label="Toggle dark/light mode"></button>
@@ -201,6 +202,7 @@
   <div class="link">Looking for something? <a href="/">Search shops →</a></div>
 </main>
 <script>
+const API = window.MYNA_API_BASE || '';
 (function () {
   const root = document.documentElement;
   const saved = localStorage.getItem('myna_theme');
@@ -226,7 +228,7 @@ if (shopId) loadShop(shopId);
 
 async function loadShop(id) {
   try {
-    const res = await fetch(`/api/shops/${id}`);
+    const res = await fetch(`${API}/api/shops/${id}`);
     if (!res.ok) throw 0;
     const shop = await res.json();
     shopId = shop.shop_id;
@@ -245,7 +247,7 @@ async function readSignage() {
   hint.textContent = 'Reading name…';
   const fd = new FormData(); fd.append('photo', f);
   try {
-    const res = await fetch('/api/shops/onboard/photo', { method: 'POST', body: fd });
+    const res = await fetch(API + '/api/shops/onboard/photo', { method: 'POST', body: fd });
     const data = await res.json();
     if (data.suggestion) {
       document.getElementById('shopName').value = data.suggestion;
@@ -264,7 +266,7 @@ function captureGps() {
     window._gps = { lat: p.coords.latitude, long: p.coords.longitude };
     hint.textContent = `✓ ${p.coords.latitude.toFixed(5)}, ${p.coords.longitude.toFixed(5)} — fetching address…`;
     try {
-      const res = await fetch(`/api/shops/geocode/reverse?lat=${_gps.lat}&long=${_gps.long}`);
+      const res = await fetch(`${API}/api/shops/geocode/reverse?lat=${_gps.lat}&long=${_gps.long}`);
       const data = await res.json();
       if (data.address) document.getElementById('shopAddr').value = data.address;
     } catch {}
@@ -291,12 +293,12 @@ async function saveShop() {
     phone: document.getElementById('shopPhone').value.trim(),
   };
   try {
-    const res = await fetch('/api/shops', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const res = await fetch(API + '/api/shops', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
     const shop = await res.json();
     const signFile = document.getElementById('signPhoto').files[0];
     if (signFile) {
       const fd = new FormData(); fd.append('photo', signFile);
-      await fetch(`/api/shops/${shop.shop_id}/photo`, { method: 'POST', body: fd });
+      await fetch(`${API}/api/shops/${shop.shop_id}/photo`, { method: 'POST', body: fd });
     }
     localStorage.setItem('myna_shop_id', shop.shop_id);
     loadShop(shop.shop_id);
@@ -310,7 +312,7 @@ async function suggestItem() {
   hint.textContent = 'Identifying item…';
   const fd = new FormData(); fd.append('photo', f);
   try {
-    const res = await fetch(`/api/shops/${shopId}/items/suggest`, { method: 'POST', body: fd });
+    const res = await fetch(`${API}/api/shops/${shopId}/items/suggest`, { method: 'POST', body: fd });
     const data = await res.json();
     pendingItemPhotoUrl = data.photo_url || '';
     if (data.name) document.getElementById('itemName').value = data.name;
@@ -330,7 +332,7 @@ async function addItem() {
   const f = document.getElementById('itemPhoto').files[0];
   if (f) fd.append('photo', f);
   try {
-    await fetch(`/api/shops/${shopId}/items`, { method: 'POST', body: fd });
+    await fetch(`${API}/api/shops/${shopId}/items`, { method: 'POST', body: fd });
     document.getElementById('itemName').value = '';
     document.getElementById('itemCat').value = '';
     document.getElementById('itemPhoto').value = '';
@@ -341,13 +343,13 @@ async function addItem() {
 }
 
 async function loadItems() {
-  const res = await fetch(`/api/shops/${shopId}/items`);
+  const res = await fetch(`${API}/api/shops/${shopId}/items`);
   const items = await res.json();
   const list = document.getElementById('itemList');
   if (!items.length) { list.innerHTML = '<div class="msg">No items yet. Add your first one above.</div>'; return; }
   list.innerHTML = items.map(i => `
     <div class="item-row">
-      ${i.photo_url ? `<img src="${i.photo_url}" alt="">` : ''}
+      ${i.photo_url ? `<img src="${API}${i.photo_url}" alt="">` : ''}
       <div class="info">
         <div class="name" id="n${i.item_id}">${esc(i.name)}</div>
         <div class="cat">${esc(i.category)}</div>
@@ -362,7 +364,7 @@ async function editItem(id) {
   const newName = prompt('Item name:', el.textContent);
   if (newName === null || !newName.trim()) return;
   const newCat = prompt('Category:', '');
-  await fetch(`/api/shops/${shopId}/items/${id}`, {
+  await fetch(`${API}/api/shops/${shopId}/items/${id}`, {
     method: 'PATCH', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({ name: newName.trim(), category: newCat || '' })
   });
@@ -371,7 +373,7 @@ async function editItem(id) {
 
 async function deleteItem(id) {
   if (!confirm('Delete this item?')) return;
-  await fetch(`/api/shops/${shopId}/items/${id}`, { method: 'DELETE' });
+  await fetch(`${API}/api/shops/${shopId}/items/${id}`, { method: 'DELETE' });
   loadItems();
 }
 

@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Myna — Owner Panel</title>
-<link rel="icon" type="image/svg+xml" href="/static/myna-logo.svg">
+<link rel="icon" type="image/svg+xml" href="/myna-logo.svg">
+<script src="/config.js"></script>
 <style>
   :root {
     --bg-0: #f4f7fb;
@@ -179,7 +180,7 @@
 <body>
   <header>
     <div class="brand">
-      <img src="/static/myna-logo.svg" alt="Myna AI">
+      <img src="/myna-logo.svg" alt="Myna AI">
       <h1>Myna — Owner Panel</h1>
     </div>
     <div class="header-right">
@@ -327,6 +328,7 @@
   </div>
 </main>
 <script>
+const API = window.MYNA_API_BASE || '';
 (function () {
   const root = document.documentElement;
   const saved = localStorage.getItem('myna_theme');
@@ -375,7 +377,7 @@ async function doImport() {
   form.append('replace', document.getElementById('importReplace').checked ? 'true' : 'false');
   result.innerHTML = '<p class="msg" style="padding:8px 0">Importing…</p>';
   try {
-    const res = await fetch('/api/admin/import/csv', { method: 'POST', body: form });
+    const res = await fetch(API + '/api/admin/import/csv', { method: 'POST', body: form });
     const data = await res.json();
     if (!res.ok) {
       result.innerHTML = `<p class="msg" style="padding:8px 0; color:#e74c3c">Error: ${esc(data.detail || 'failed')}</p>`;
@@ -395,14 +397,14 @@ async function doImport() {
 }
 
 async function downloadTemplate(sample) {
-  window.location.href = '/api/admin/import/template' + (sample ? '?sample=1' : '');
+  window.location.href = API + '/api/admin/import/template' + (sample ? '?sample=1' : '');
 }
 
 // ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------
 async function loadStats() {
-  const res = await fetch('/api/admin/stats');
+  const res = await fetch(API + '/api/admin/stats');
   const data = await res.json();
   document.getElementById('statsGrid').innerHTML = `
     <div class="stat-card"><div class="num">${data.total_shops}</div><div class="label">Shops</div></div>
@@ -418,13 +420,13 @@ async function loadStats() {
 // ---------------------------------------------------------------------------
 async function loadShops() {
   const q = document.getElementById('shopSearch').value.trim();
-  const res = await fetch('/api/admin/shops?q=' + encodeURIComponent(q));
+  const res = await fetch(API + '/api/admin/shops?q=' + encodeURIComponent(q));
   const shops = await res.json();
   document.getElementById('shopCount').textContent = shops.length + ' shop(s)';
   const tbody = document.getElementById('shopTable');
   tbody.innerHTML = '';
   for (const s of shops) {
-    const itemsRes = await fetch(`/api/admin/shops/${s.shop_id}/items`);
+    const itemsRes = await fetch(`${API}/api/admin/shops/${s.shop_id}/items`);
     const items = await itemsRes.json();
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -449,7 +451,7 @@ async function loadShops() {
 }
 
 async function patchShop(id, field, value) {
-  await fetch(`/api/admin/shops/${id}`, {
+  await fetch(`${API}/api/admin/shops/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ [field]: value }),
@@ -458,7 +460,7 @@ async function patchShop(id, field, value) {
 
 async function deleteShop(id) {
   if (!confirm('Delete shop #' + id + ' and all its items?')) return;
-  await fetch(`/api/admin/shops/${id}`, { method: 'DELETE' });
+  await fetch(`${API}/api/admin/shops/${id}`, { method: 'DELETE' });
   loadShops();
 }
 
@@ -466,7 +468,7 @@ async function toggleItems(btn, shopId) {
   const drawer = btn.closest('tr').nextElementSibling;
   if (drawer.style.display === 'none') {
     drawer.style.display = '';
-    const res = await fetch(`/api/admin/shops/${shopId}/items`);
+    const res = await fetch(`${API}/api/admin/shops/${shopId}/items`);
     const items = await res.json();
     const box = document.getElementById('items-' + shopId);
     box.innerHTML = `<table>
@@ -485,7 +487,7 @@ async function toggleItems(btn, shopId) {
 }
 
 async function patchItem(itemId, field, value) {
-  await fetch(`/api/admin/items/${itemId}`, {
+  await fetch(`${API}/api/admin/items/${itemId}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ [field]: value }),
@@ -494,7 +496,7 @@ async function patchItem(itemId, field, value) {
 
 async function deleteItem(itemId, shopId) {
   if (!confirm('Delete item #' + itemId + '?')) return;
-  await fetch(`/api/admin/items/${itemId}`, { method: 'DELETE' });
+  await fetch(`${API}/api/admin/items/${itemId}`, { method: 'DELETE' });
   // Refresh the items drawer
   const btn = document.querySelector(`button[onclick="toggleItems(this, ${shopId})"]`);
   if (btn) {
@@ -510,7 +512,7 @@ async function deleteItem(itemId, shopId) {
 let shopNames = {};
 
 async function loadShopNames() {
-  const res = await fetch('/api/admin/shops');
+  const res = await fetch(API + '/api/admin/shops');
   const shops = await res.json();
   shopNames = {};
   shops.forEach(s => { shopNames[s.shop_id] = s.name; });
@@ -518,7 +520,7 @@ async function loadShopNames() {
 
 async function loadAllItems() {
   const q = document.getElementById('itemSearch').value.trim();
-  const res = await fetch('/api/admin/items?q=' + encodeURIComponent(q));
+  const res = await fetch(API + '/api/admin/items?q=' + encodeURIComponent(q));
   const items = await res.json();
   document.getElementById('itemCount').textContent = items.length + ' item(s)';
   const tbody = document.getElementById('itemTable');
@@ -536,7 +538,7 @@ async function loadAllItems() {
 
 async function deleteItemGlobal(itemId) {
   if (!confirm('Delete item #' + itemId + '?')) return;
-  await fetch(`/api/admin/items/${itemId}`, { method: 'DELETE' });
+  await fetch(`${API}/api/admin/items/${itemId}`, { method: 'DELETE' });
   loadAllItems();
 }
 
@@ -548,10 +550,10 @@ let settingsData = {};
 
 async function loadSettings() {
   const [settingsRes, provRes, modelsRes, embModelsRes] = await Promise.all([
-    fetch('/api/admin/settings'),
-    fetch('/api/admin/llm/providers'),
-    fetch('/api/admin/llm/models'),
-    fetch('/api/admin/llm/embedding-models'),
+    fetch(API + '/api/admin/settings'),
+    fetch(API + '/api/admin/llm/providers'),
+    fetch(API + '/api/admin/llm/models'),
+    fetch(API + '/api/admin/llm/embedding-models'),
   ]);
   settingsData = await settingsRes.json();
   const provData = await provRes.json();
@@ -620,7 +622,7 @@ function renderModelTable() {
 }
 
 async function saveSetting(key, value) {
-  const res = await fetch('/api/admin/settings', {
+  const res = await fetch(API + '/api/admin/settings', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ [key]: value }),
@@ -668,7 +670,7 @@ async function runBackfill() {
   msg.textContent = 'Running backfill…';
   msg.style.color = 'var(--text-soft)';
   try {
-    const res = await fetch('/api/admin/embeddings/backfill', { method: 'POST' });
+    const res = await fetch(API + '/api/admin/embeddings/backfill', { method: 'POST' });
     const data = await res.json();
     msg.textContent = `✓ Embedded ${data.embedded} items`;
     msg.style.color = 'var(--accent)';

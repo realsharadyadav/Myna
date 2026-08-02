@@ -1,17 +1,16 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
-from .config import BASE_DIR
+from .config import ALLOWED_ORIGINS, BASE_DIR
 from .database import (
     Base,
     SessionLocal,
     engine,
-    get_default_embedding_model,
     get_default_search_model,
     get_default_vision_model,
-    set_default_embedding_model,
     set_default_search_model,
     set_default_vision_model,
 )
@@ -37,7 +36,12 @@ with engine.connect() as conn:
 def _seed_default_models() -> None:
     """Persist per-feature default models if unset, so a fresh DB (or one
     wiped by re-seeding) works out of the box instead of silently falling
-    back. Only fills empty settings — owner choices in the admin panel win."""
+    back. Only fills empty settings — owner choices in the admin panel win.
+
+    Embedding models aren't seeded here: they're a separate model family from
+    vision/text chat models (embeddings.DEFAULT_MODEL already covers the
+    zero-config case), so seeding it with a chat-model default would be
+    meaningless."""
     effective = ai.get_effective_default("")
     if not effective:
         return
@@ -47,8 +51,6 @@ def _seed_default_models() -> None:
             set_default_vision_model(db, effective)
         if not get_default_search_model(db):
             set_default_search_model(db, effective)
-        if not get_default_embedding_model(db):
-            set_default_embedding_model(db, effective)
     finally:
         db.close()
 
@@ -56,6 +58,15 @@ def _seed_default_models() -> None:
 _seed_default_models()
 
 app = FastAPI(title="Myna — Hyperlocal Shop & Product Finder")
+
+# The frontend can now be deployed as its own static site (render.yaml) that
+# calls this API cross-origin, so CORS has to be open for it.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(shops.router)
 app.include_router(items.router)
@@ -79,3 +90,11 @@ def shopkeeper():
 @app.get("/admin", include_in_schema=False)
 def admin():
     return FileResponse(BASE_DIR / "app" / "static" / "admin.html")
+
+
+# Catch-all for root-relative assets (myna-logo.svg, config.js) referenced by
+# the pages above. Registered last so the explicit routes above still win —
+# this only serves whatever those routes don't handle. Also matches what the
+# split-off static frontend does, since it publishes this same directory as
+# its site root.
+app.mount("/", StaticFiles(directory=BASE_DIR / "app" / "static"), name="assets")
