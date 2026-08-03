@@ -581,6 +581,134 @@ for marker in ('id="catChips"', 'id="catalogGroups"', 'id="foundItems"',
                'id="selectBar"', 'data-mode="catalog"', 'items/bulk'):
     assert marker in page, marker
 print("PASS shopkeeper page has the category checkbox picker")
+# 46. Mobile vendors (thela/cart): a vendor with no fixed place is found by
+# their stops — place + weekly/daily timing — not by an address.
+from datetime import datetime, timedelta
+
+from app import schedule as _sched
+
+# 46a. Schedule maths, against a frozen clock (a Wednesday, 11:00).
+_wed = datetime(2026, 8, 5, 11, 0, tzinfo=_sched.tz())
+assert _wed.weekday() == 2
+live = _sched.status(2, "10:00", "12:00", _wed)          # Wednesday 10-12, now 11:00
+assert live["status"] == "here_now" and live["rank"] == _sched.AVAILABLE_NOW
+assert "12 PM" in live["status_text"]
+soon = _sched.status(2, "11:30", "13:00", _wed)
+assert soon["status"] == "today" and soon["rank"] == _sched.LATER_TODAY
+assert "30 min" in soon["status_text"]
+later = _sched.status(2, "17:00", "19:00", _wed)
+assert later["rank"] == _sched.LATER_TODAY and later["status_text"].startswith("Today")
+weekly = _sched.status(4, "10:00", "12:00", _wed)        # every Friday
+assert weekly["rank"] == _sched.ANOTHER_DAY and weekly["status_text"].startswith("Fri")
+tomorrow = _sched.status(3, "10:00", "12:00", _wed)
+assert tomorrow["status_text"].startswith("Tomorrow")
+daily_done = _sched.status(_sched.EVERY_DAY, "07:00", "09:00", _wed)   # already over today
+assert daily_done["status_text"].startswith("Tomorrow")
+assert _sched.describe(1, "10:00", "12:00") == "Every Tuesday · 10 AM – 12 PM"
+assert _sched.describe(-1, "09:30", "13:45") == "Every day · 9:30 AM – 1:45 PM"
+assert _sched.parse_hhmm("25:00") is None and _sched.parse_hhmm("") is None
+print("PASS schedule status/format for rounds")
+
+# 46b. Registering a cart and adding rounds.
+res = client.post("/api/shops", json={
+    "name": "Ramu Sabzi Thela",
+    "shopkeeper": "Ramu",
+    "lat": 19.0700, "long": 72.8700,
+    "address": "Andheri West",
+    "shop_type": "mobile",
+})
+assert res.status_code == 200, res.text
+cart_id = res.json()["shop_id"]
+assert res.json()["shop_type"] == "mobile"
+
+_now = _sched.now_local()
+_from, _till = f"{max(0, _now.hour - 1):02d}:00", f"{min(23, _now.hour + 1):02d}:30"
+res = client.post(f"/api/shops/{cart_id}/stops", json={
+    "label": "Gali no. 4, mandir ke paas",
+    "lat": 19.0850, "long": 72.8777,          # ~1 km from the customer below
+    "day_of_week": -1, "start_time": _from, "end_time": _till,
+})
+assert res.status_code == 200, res.text
+live_stop = res.json()
+assert live_stop["status"] == "here_now" and live_stop["rank"] == 0
+assert live_stop["when"].startswith("Every day")
+
+_other_day = (_now.weekday() + 3) % 7
+res = client.post(f"/api/shops/{cart_id}/stops", json={
+    "label": "Sector 12 market",
+    "lat": 19.0761, "long": 72.8778,          # closer, but only once a week
+    "day_of_week": _other_day, "start_time": "10:00", "end_time": "12:00",
+})
+assert res.status_code == 200, res.text
+weekly_stop = res.json()
+assert weekly_stop["rank"] == _sched.ANOTHER_DAY
+
+# Bad schedules are rejected rather than stored as nonsense.
+assert client.post(f"/api/shops/{cart_id}/stops", json={
+    "lat": 19.07, "long": 72.87, "day_of_week": 9}).status_code == 422
+assert client.post(f"/api/shops/{cart_id}/stops", json={
+    "lat": 19.07, "long": 72.87, "start_time": "12:00", "end_time": "11:00"}).status_code == 422
+assert client.post(f"/api/shops/{cart_id}/stops", json={
+    "lat": 19.07, "long": 72.87, "start_time": "25:70"}).status_code == 422
+assert client.post("/api/shops/999999/stops", json={"lat": 1, "long": 1}).status_code == 404
+
+stops = client.get(f"/api/shops/{cart_id}/stops").json()
+assert [s["stop_id"] for s in stops] == [live_stop["stop_id"], weekly_stop["stop_id"]]  # soonest first
+print("PASS cart registration + rounds CRUD")
+
+# 46c. Search points customers at the round they can actually reach, and the
+# card carries the timing.
+client.post(f"/api/shops/{cart_id}/items", data={"name": "Fresh Bhindi 1kg", "category": "Vegetables"})
+res = client.get("/api/search/one-tap", params={"q": "bhindi", "lat": 19.0760, "long": 72.8777})
+assert res.status_code == 200, res.text
+data = res.json()
+cart = next(s for s in data["shops"] if s["shop_id"] == cart_id)
+assert cart["shop_type"] == "mobile"
+assert cart["stop"]["stop_id"] == live_stop["stop_id"]      # the one he's at right now
+assert cart["shop_lat"] == 19.0850 and cart["shop_long"] == 72.8777   # directions -> the stop
+assert 0.9 < cart["distance_km"] < 1.3                      # distance measured to the stop
+assert cart["stop"]["status"] == "here_now"
+assert len(cart["stops"]) == 2 and cart["stops"][1]["distance_km"] < cart["distance_km"]
+listed = next(i for i in data["shopping_list"] if i["item"] == "bhindi")
+assert listed["shop_type"] == "mobile" and "Here now" in listed["availability"]
+print("PASS search resolves a cart to its current round")
+
+# 46d. A cart with no rounds yet still behaves like a shop at its base location.
+res = client.post("/api/shops", json={
+    "name": "Naya Thela", "lat": 19.0762, "long": 72.8779, "shop_type": "mobile"})
+bare_id = res.json()["shop_id"]
+client.post(f"/api/shops/{bare_id}/items", data={"name": "Bhindi Masala Mix", "category": "Spices"})
+res = client.get("/api/search/shops", params={"q": "bhindi", "lat": 19.0760, "long": 72.8777})
+bare = next(s for s in res.json()["shops"] if s["shop_id"] == bare_id)
+assert bare["stop"] is None and bare["stops"] == [] and bare["distance_km"] < 0.5
+
+# 46e. Adding a round to a shop registered as fixed flips it to mobile — that's
+# what "I move around" means, no separate toggle needed.
+res = client.post("/api/shops", json={"name": "Chai Wala", "lat": 19.076, "long": 72.8777})
+chai_id = res.json()["shop_id"]
+assert res.json()["shop_type"] == "fixed"
+client.post(f"/api/shops/{chai_id}/stops", json={
+    "label": "Station gate", "lat": 19.0765, "long": 72.8779,
+    "day_of_week": 0, "start_time": "07:00", "end_time": "10:00"})
+assert client.get(f"/api/shops/{chai_id}").json()["shop_type"] == "mobile"
+
+# Rounds can be edited and removed.
+sid = client.get(f"/api/shops/{chai_id}/stops").json()[0]["stop_id"]
+res = client.patch(f"/api/shops/{chai_id}/stops/{sid}", json={"start_time": "08:00", "end_time": "11:00"})
+assert res.json()["when"] == "Every Monday · 8 AM – 11 AM"
+assert client.patch(f"/api/shops/{chai_id}/stops/{sid}", json={"end_time": "07:00"}).status_code == 422
+assert client.delete(f"/api/shops/{chai_id}/stops/{sid}").json()["deleted"] is True
+assert client.get(f"/api/shops/{chai_id}/stops").json() == []
+assert client.delete(f"/api/shops/{chai_id}/stops/{sid}").status_code == 404
+print("PASS shop type switching + round edit/delete")
+
+# 46f. Both pages carry the vendor UI.
+page = client.get("/shopkeeper").text
+assert 'data-type="mobile"' in page and 'id="stopDay"' in page and 'id="stopStart"' in page
+assert 'id="addStopBtn"' in page
+home = client.get("/").text
+assert 'cart-tag' in home and "shop_type === 'mobile'" in home
+print("PASS shopkeeper + customer pages carry the thela UI")
 
 
 print("\nALL TESTS PASSED")

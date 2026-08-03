@@ -33,6 +33,11 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 # without it, same graceful-degradation pattern as everything else here.
 EXA_API_KEY = os.getenv("EXA_API_KEY", "")
 
+# Local timezone for mobile-vendor rounds (app/schedule.py). Cart timings are
+# typed and read locally ("har mangal 10 se 12"), so they're stored as local
+# clock times and compared against this zone.
+TIMEZONE = os.getenv("MYNA_TIMEZONE", "Asia/Kolkata")
+
 # Reverse geocoding (OpenStreetMap Nominatim - free, rate-limited)
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/reverse"
 NOMINATIM_USER_AGENT = "myna-hyperlocal-finder/1.0"

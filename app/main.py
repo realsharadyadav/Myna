@@ -19,18 +19,29 @@ from .routers import admin, items, search, shops
 
 Base.metadata.create_all(bind=engine)
 
-# Lightweight migration for DBs created before semantic search existed:
-# ensure items.embedding column is present (SQLite + Postgres compatible).
+# Lightweight migrations for DBs created before a column existed
+# (SQLite + Postgres compatible).
+def _columns(conn, table: str) -> list[str]:
+    if engine.url.get_backend_name() == "sqlite":
+        return [r[1] for r in conn.execute(text(f"PRAGMA table_info({table})"))]
+    return [r[0] for r in conn.execute(text(
+        "SELECT column_name FROM information_schema.columns WHERE table_name=:t"
+    ), {"t": table})]
+
+
 with engine.connect() as conn:
-    cols = [r[1] for r in conn.execute(text("PRAGMA table_info(items)"))] \
-        if engine.url.get_backend_name() == "sqlite" else \
-        [r[0] for r in conn.execute(text(
-            "SELECT column_name FROM information_schema.columns WHERE table_name='items'"))]
+    # items.embedding* — added when semantic search landed.
+    cols = _columns(conn, "items")
     if "embedding" not in cols:
         conn.execute(text("ALTER TABLE items ADD COLUMN embedding VARCHAR DEFAULT ''"))
         conn.commit()
     if "embedding_model" not in cols:
         conn.execute(text("ALTER TABLE items ADD COLUMN embedding_model VARCHAR DEFAULT ''"))
+        conn.commit()
+    # shops.shop_type — added for mobile vendors (thela/cart) with stops.
+    if "shop_type" not in _columns(conn, "shops"):
+        conn.execute(text("ALTER TABLE shops ADD COLUMN shop_type VARCHAR DEFAULT 'fixed'"))
+        conn.execute(text("UPDATE shops SET shop_type='fixed' WHERE shop_type IS NULL"))
         conn.commit()
 
 def _seed_default_models() -> None:

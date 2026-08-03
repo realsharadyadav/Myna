@@ -237,6 +237,27 @@
   .shop-name { font-weight: 800; font-size: 1.02rem; letter-spacing: -.01em; }
   .shop-sub { font-size: .8rem; color: var(--ink-soft); margin-top: 2px; }
   .shop-addr { font-size: .78rem; color: var(--ink-faint); margin-top: 3px; line-height: 1.4; }
+
+  /* ---------- thela / cart vendors: they're found by timing, not address ---------- */
+  .cart-tag {
+    font-size: .64rem; font-weight: 850; letter-spacing: .04em; padding: 2px 7px; border-radius: 999px;
+    background: var(--brand-soft); color: var(--brand-ink); margin-left: 6px; vertical-align: 2px; white-space: nowrap;
+  }
+  [data-theme="dark"] .cart-tag { color: var(--brand-deep); }
+  .when-row {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 7px;
+    font-size: .78rem; color: var(--ink-soft);
+  }
+  .live {
+    font-size: .7rem; font-weight: 850; padding: 3px 9px; border-radius: 999px;
+    background: var(--surface-2); color: var(--ink-soft);
+  }
+  .live.now { background: var(--ok-soft); color: var(--ok); }
+  .rounds {
+    margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line-strong);
+    font-size: .76rem; color: var(--ink-faint); line-height: 1.5;
+  }
+  .rounds b { color: var(--ink-soft); font-weight: 750; }
   .cover {
     flex: 0 0 auto; text-align: center; background: var(--surface-2); border: 1px solid var(--line);
     border-radius: 14px; padding: 7px 10px; min-width: 62px;
@@ -420,6 +441,8 @@
   .act.primary { background: var(--gel-brand); border-color: var(--gel-brand-edge); box-shadow: var(--gel-brand-lift); color: var(--brand-ink); }
   .act-label { flex: 1; min-width: 0; font-size: .78rem; color: var(--ink-faint); align-self: center; }
 
+  .cart-tag .ic { width: 12px; height: 12px; margin-right: 4px; vertical-align: -2px; }
+  .rounds .ic { width: 13px; height: 13px; vertical-align: -2px; margin-right: 3px; color: var(--brand-deep); }
   .shop-addr .ic, .li-sub .ic { width: 13px; height: 13px; vertical-align: -2px; margin-right: 3px; color: var(--brand-deep); }
   .state .ic { width: 40px; height: 40px; stroke-width: 1.6; color: var(--brand-strong); }
 
@@ -433,6 +456,7 @@
     <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M16.6 16.6 21 21"/></symbol>
     <symbol id="i-dish" viewBox="0 0 24 24"><path d="M3.4 11.4h17.2a8.6 8.6 0 0 1-17.2 0Z"/><path d="M2.4 20.6h19.2"/><path d="M9 8c0-1.3 1.2-1.4 1.2-2.6S9 3.4 9 3.4"/><path d="M14 8c0-1.3 1.2-1.4 1.2-2.6S14 3.4 14 3.4"/></symbol>
     <symbol id="i-store" viewBox="0 0 24 24"><path d="M3.2 9.4 4.9 4.2h14.2l1.7 5.2"/><path d="M5.2 9.4V20h13.6V9.4"/><path d="M9.8 20v-5.2h4.4V20"/></symbol>
+    <symbol id="i-cart" viewBox="0 0 24 24"><circle cx="9.5" cy="20" r="1.4"/><circle cx="17.5" cy="20" r="1.4"/><path d="M2.5 3.5h2.6l2.5 11.3h10.3l2.1-7.7H6.3"/></symbol>
     <symbol id="i-nav" viewBox="0 0 24 24"><path d="M20.8 3.2 3.4 10.6l7.2 2.8 2.8 7.2Z"/></symbol>
     <symbol id="i-phone" viewBox="0 0 24 24"><path d="M21 16.9v2.6a2 2 0 0 1-2.2 2 19.6 19.6 0 0 1-8.5-3A19.3 19.3 0 0 1 4.4 12 19.6 19.6 0 0 1 1.5 3.4a2 2 0 0 1 2-2.2h2.6a2 2 0 0 1 2 1.7c.13.95.36 1.87.7 2.75a2 2 0 0 1-.45 2.1L7.2 8.9a15.8 15.8 0 0 0 5.9 5.9l1.15-1.15a2 2 0 0 1 2.1-.45c.88.33 1.8.57 2.75.7a2 2 0 0 1 1.7 2Z"/></symbol>
     <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21.4s7-6.6 7-11.4a7 7 0 1 0-14 0c0 4.8 7 11.4 7 11.4Z"/><circle cx="12" cy="10" r="2.5"/></symbol>
@@ -511,6 +535,7 @@
       <div class="how-card"><span><svg class="ic ic-lg" aria-hidden="true"><use href="#i-map"/></svg></span><b>Nearby, not online</b><p>Real kirana shops around you, nearest first.</p></div>
       <div class="how-card"><span><svg class="ic ic-lg" aria-hidden="true"><use href="#i-dish"/></svg></span><b>Cook anything</b><p>Name a dish, get every ingredient and who stocks it.</p></div>
       <div class="how-card"><span><svg class="ic ic-lg" aria-hidden="true"><use href="#i-check"/></svg></span><b>One trip, not four</b><p>Shops that cover most of your list rank first.</p></div>
+      <div class="how-card"><span><svg class="ic ic-lg" aria-hidden="true"><use href="#i-cart"/></svg></span><b>Thele bhi milte hain</b><p>Carts without a fixed address show their spot and timing — "here now till 12".</p></div>
     </section>
   </main>
 
@@ -734,7 +759,8 @@ function renderResults(q, data) {
           <div class="li-body">
             <div class="li-name">${esc(title(i.item))}</div>
             <div class="li-sub ${i.in_stock ? '' : 'none'}">${i.in_stock
-              ? esc(i.product) + ' · ' + esc(i.shop_name)
+              ? esc(i.product) + ' · ' + (i.shop_type === 'mobile' ? '<svg class="ic" aria-hidden="true"><use href="#i-cart"/></svg>' : '') + esc(i.shop_name)
+                + (i.availability ? ' · ' + esc(i.availability) : '')
               : 'Not stocked nearby'}</div>
           </div>
           ${i.in_stock
@@ -760,14 +786,22 @@ function renderResults(q, data) {
     const missing = terms.filter(t => !covered.has(t));
     const pct = s.coverage_total ? Math.round(100 * s.coverage_count / s.coverage_total) : 100;
     const full = s.coverage_count >= s.coverage_total;
+    // A thela has no address to send you to — shop_lat/long already point at
+    // the round we're showing, so directions land on the right corner.
+    const cart = s.shop_type === 'mobile' && s.stop;
+    const otherRounds = cart ? (s.stops || []).filter(r => r.stop_id !== s.stop.stop_id) : [];
     const maps = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(s.shop_lat + ',' + s.shop_long)}`;
     return `<div class="card" style="animation-delay:${Math.min(idx, 6) * 40}ms">
       <div class="shop-top">
         <div class="avatar" aria-hidden="true">${esc((s.shop_name || '?').trim().charAt(0).toUpperCase())}</div>
         <div class="shop-id">
-          <div class="shop-name">${esc(s.shop_name)}</div>
+          <div class="shop-name">${esc(s.shop_name)}${cart ? '<span class="cart-tag"><svg class="ic" aria-hidden="true"><use href="#i-cart"/></svg>THELA</span>' : ''}</div>
           ${s.shopkeeper ? `<div class="shop-sub">${esc(s.shopkeeper)}</div>` : ''}
           <div class="shop-addr"><svg class="ic" aria-hidden="true"><use href="#i-pin"/></svg>${esc(s.address)} · ${s.distance_km} km</div>
+          ${cart ? `<div class="when-row">
+            <span class="live ${s.stop.status === 'here_now' ? 'now' : ''}">${esc(s.stop.status_text)}</span>
+            <span>${esc(s.stop.when)}</span>
+          </div>` : ''}
         </div>
         <div class="cover ${full ? 'full' : ''}">
           <b>${s.coverage_count}/${s.coverage_total}</b><small>items</small>
@@ -788,6 +822,10 @@ function renderResults(q, data) {
       </div>
       ${missing.length ? `<div class="missing">Not here: ${missing.slice(0, 4).map(m => esc(title(m))).join(', ')}${
           missing.length > 4 ? ` +${missing.length - 4} more` : ''}</div>` : ''}
+      ${otherRounds.length ? `<div class="rounds"><svg class="ic" aria-hidden="true"><use href="#i-cart"/></svg> Also stands at: ${otherRounds.slice(0, 3).map(r =>
+          `<b>${esc(r.label || r.address || 'another spot')}</b> — ${esc(r.when)}${
+            r.distance_km != null ? ` · ${r.distance_km} km` : ''}`).join('<br>')}${
+          otherRounds.length > 3 ? `<br>+${otherRounds.length - 3} more rounds` : ''}</div>` : ''}
       <div class="actions">
         <span class="act-label">${s.distance_km} km away</span>
         <a class="act primary gel" href="${esc(maps)}" target="_blank" rel="noopener" title="Directions" aria-label="Directions to ${esc(s.shop_name)}"><svg class="ic" aria-hidden="true"><use href="#i-nav"/></svg></a>
