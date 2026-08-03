@@ -30,6 +30,17 @@ class Shop(Base):
     # stops (see ShopStop). Mobile shops are found through their stops, not
     # through lat/long, which for them is just wherever they registered.
     shop_type = Column(String, default="fixed")
+    # What kind of food vendor this is — see app/food.py (thela, chaat, chai,
+    # dhaba …). Drives the card's icon and the "kya chahiye" filters.
+    food_kind = Column(String, default="other")
+    # Anyone can add any thela, so a listing carries who put it there (an
+    # anonymous device id, not an account) and how the street has voted on it
+    # since. `seen_yes`/`seen_no` are the freshness signal that replaces asking
+    # a vendor to keep their own listing updated — they never will.
+    added_by = Column(String, default="")
+    seen_yes = Column(Integer, default=0)
+    seen_no = Column(Integer, default=0)
+    last_seen_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     items = relationship("Item", back_populates="shop", cascade="all, delete-orphan")
@@ -71,6 +82,9 @@ class Item(Base):
     shop_id = Column(Integer, ForeignKey("shops.shop_id"), nullable=False, index=True)
     name = Column(String, nullable=False, index=True)
     category = Column(String, default="")
+    # Rupees. 0 = the board didn't show a price (never guessed by the AI), so
+    # the card shows nothing rather than a made-up number.
+    price = Column(Float, default=0.0)
     photo_url = Column(String, default="")
     # Semantic-search vector (local BAAI/bge-small-en-v1.5 by default, or
     # Gemini text-embedding-004 if selected), JSON list of floats.

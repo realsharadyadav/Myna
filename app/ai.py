@@ -653,3 +653,138 @@ def suggest_item(image_path: str, db_default: str = "", model: str = "") -> tupl
     if not items:
         return "", ""
     return items[0]["name"], items[0]["category"]
+
+
+# ---------------------------------------------------------------------------
+# One-photo add: read a whole food vendor off a single picture
+# ---------------------------------------------------------------------------
+# The reason the add flow can be one photo at all is that a food thela's board
+# *is* its inventory — "CHOWMEIN 40 / MOMOS 50 / SPRING ROLL 60" is the shop
+# name, the menu and the price list in one frame. So this asks for all of it in
+# a single call instead of making someone photograph a board and then type a
+# menu.
+
+def _board_prompt() -> str:
+    from . import food
+    kinds = ", ".join(food.KIND_ORDER)
+    categories = ", ".join(food.CATEGORY_NAMES)
+    return (
+        "This is a photo of an Indian street-food vendor — a thela/cart, chaat "
+        "corner, chai tapri, dhaba or small eatery. Read everything you can.\n\n"
+        "Reply with ONLY a JSON object, no other text, in this shape:\n"
+        '{"name": "Sharma Chinese Corner",\n'
+        ' "kind": "chinese",\n'
+        ' "items": [{"name": "Chowmein", "price": 40, "category": "Chinese"},\n'
+        '           {"name": "Veg Momos", "price": 50, "category": "Chinese"}]}\n\n'
+        "Rules:\n"
+        "- name: the vendor's name from the board. If there is no name written, "
+        "build a short descriptive one from what they sell, e.g. \"Momos thela\".\n"
+        f"- kind: exactly one of: {kinds}.\n"
+        "- items: EVERY dish/drink you can see on the menu board, on the tawa, in "
+        "the trays, or written anywhere. Do not stop at the first one.\n"
+        "- price: the number in rupees if it is written next to the dish, "
+        "otherwise 0. Never invent a price.\n"
+        f"- category: pick from this list: {categories}.\n"
+        "- Use the common Hinglish dish name people say out loud (\"Chole "
+        "Bhature\", \"Golgappe\", \"Chowmein\"), not a translated English one.\n"
+        "- Guess when the board is blurry or partly hidden; a good guess is more "
+        "useful than leaving a dish out.\n"
+        "- If this is not a food vendor at all, reply "
+        '{"name": "", "kind": "other", "items": []}.'
+    )
+
+
+def _parse_board(text: str) -> dict:
+    """Pull {name, kind, items[]} out of a vision model's reply.
+
+    Falls back hard: if the object won't parse, the item-list parser still gets
+    a shot at the same text, because a menu read with no shop name is worth far
+    more than nothing at all.
+    """
+    from . import food
+
+    result = {"name": "", "kind": food.DEFAULT_KIND, "items": []}
+    if not text:
+        return result
+
+    fenced = re.search(r"```(?:json)?\s*(.+?)```", text, re.S)
+    candidate = fenced.group(1) if fenced else text
+    obj = re.search(r"\{.*\}", candidate, re.S)
+    data = None
+    if obj:
+        try:
+            data = json.loads(obj.group(0))
+        except json.JSONDecodeError:
+            data = None
+
+    raw_items: list = []
+    if isinstance(data, dict):
+        result["name"] = str(data.get("name") or "").strip()
+        result["kind"] = food.normalise_kind(data.get("kind"))
+        raw_items = data.get("items") or []
+    if not isinstance(raw_items, list) or not raw_items:
+        # Object didn't parse (or carried no menu) — try the array parser, which
+        # tolerates fenced JSON, bare arrays and "name | category" lines.
+        raw_items = _parse_items(text)
+
+    seen: set[str] = set()
+    for entry in raw_items:
+        if isinstance(entry, dict):
+            name = str(entry.get("name") or entry.get("item") or "").strip()
+            price = _parse_price(entry.get("price"))
+            category = str(entry.get("category") or "").strip()
+        elif isinstance(entry, str):
+            name, price, category = entry.strip(), 0.0, ""
+        else:
+            continue
+        if not name or name.lower() in seen:
+            continue
+        seen.add(name.lower())
+        result["items"].append({
+            "name": name,
+            "price": price,
+            "category": food.normalise_category(category, name),
+        })
+
+    if not result["kind"] or result["kind"] == food.DEFAULT_KIND:
+        # No usable kind from the model: infer it from the menu instead, which
+        # is a better signal than the board's wording anyway.
+        joined = " ".join(i["name"] for i in result["items"]).lower()
+        if joined:
+            result["kind"] = food.normalise_kind(joined)
+
+    result["items"] = result["items"][:40]
+    return result
+
+
+def _parse_price(value) -> float:
+    """"₹40", "40/-", "Rs 40", 40 → 40.0. Anything unreadable → 0.0."""
+    if isinstance(value, (int, float)):
+        return float(value) if value > 0 else 0.0
+    match = re.search(r"\d+(?:\.\d+)?", str(value or ""))
+    if not match:
+        return 0.0
+    try:
+        price = float(match.group(0))
+    except ValueError:
+        return 0.0
+    return price if price > 0 else 0.0
+
+
+def read_food_board(image_path: str, db_default: str = "", model: str = "") -> tuple[dict, str]:
+    """One photo → {name, kind, items:[{name, price, category}]}.
+
+    Returns (board, error). On a partial read — a menu with no legible shop
+    name, say — this still returns what it got and no error: the add flow can
+    fill a name in itself, and throwing away a read menu to demand a retake is
+    exactly the friction this flow exists to remove.
+    """
+    text, error = _call_vision_detailed(
+        image_path, _board_prompt(), db_default, model=model, max_tokens=1500
+    )
+    if error:
+        return _parse_board(""), error
+    board = _parse_board(text)
+    if not board["name"] and not board["items"]:
+        return board, "Photo se kuch samajh nahi aaya. Thoda paas se, roshni mein try karo."
+    return board, ""

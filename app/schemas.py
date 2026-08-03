@@ -33,6 +33,7 @@ class ShopOut(BaseModel):
     phone: str
     photo_url: str
     shop_type: str = "fixed"
+    food_kind: str = "other"
     created_at: datetime
 
     class Config:
@@ -89,6 +90,7 @@ class StopOut(BaseModel):
 class ItemCreate(BaseModel):
     name: str
     category: Optional[str] = ""
+    price: Optional[float] = 0.0
 
 
 class BulkItemsCreate(BaseModel):
@@ -105,6 +107,7 @@ class BulkItemsResult(BaseModel):
 class ItemUpdate(BaseModel):
     name: Optional[str] = None
     category: Optional[str] = None
+    price: Optional[float] = None
 
 
 class ItemOut(BaseModel):
@@ -112,6 +115,7 @@ class ItemOut(BaseModel):
     shop_id: int
     name: str
     category: str
+    price: float = 0.0
     photo_url: str
     embedding_model: str
     created_at: datetime
@@ -202,3 +206,67 @@ class AISuggestion(BaseModel):
     suggestion: str
     # Why the read failed, in words a shopkeeper can act on. Empty on success.
     error: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Food app: one-photo add, "paas me kya hai" browse, freshness votes
+# ---------------------------------------------------------------------------
+
+class MenuItemOut(BaseModel):
+    item_id: int
+    name: str
+    category: str
+    price: float = 0.0
+
+
+class FoodVendorOut(BaseModel):
+    """One card on the home screen — everything it needs, nothing more."""
+    shop_id: int
+    name: str
+    food_kind: str
+    kind_label: str
+    kind_emoji: str
+    address: str
+    phone: str
+    photo_url: str
+    lat: float
+    long: float
+    distance_km: float
+    # Where a moving thela is *right now* — the stop it's standing at, if any,
+    # otherwise the next one it's due at.
+    shop_type: str = "fixed"
+    stop: Optional[StopOut] = None
+    stops: list[StopOut] = []
+    open_text: str = ""      # "Abhi yahan hai · 12 baje tak"
+    is_open_now: bool = False
+    menu: list[MenuItemOut] = []
+    matched: list[str] = []  # which searched dishes this vendor has
+    # Crowdsourced freshness, in words: "Aaj dekha gaya", "3 din pehle".
+    seen_text: str = ""
+    seen_yes: int = 0
+    seen_no: int = 0
+    trust: str = "new"       # 'fresh' | 'ok' | 'stale' | 'new' | 'doubtful'
+
+
+class NearResponse(BaseModel):
+    query: str = ""
+    count: int
+    vendors: list[FoodVendorOut]
+
+
+class QuickAddResponse(BaseModel):
+    """What the one-photo add flow returns: the vendor it just created."""
+    created: bool
+    vendor: Optional[FoodVendorOut] = None
+    # What the AI read, so the confirm screen can show "yeh sahi hai?" without
+    # a second round-trip.
+    read_name: str = ""
+    read_kind: str = ""
+    item_count: int = 0
+    error: str = ""
+
+
+class SeenReport(BaseModel):
+    """A passer-by answering "abhi bhi yahan hai?"."""
+    yes: bool
+    device_id: Optional[str] = ""

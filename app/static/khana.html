@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#FFC400">
+<title>Myna — Paas me kya mil raha hai</title>
+<style>
+  /* One screen at a time, thumb-reachable controls, and text big enough to
+     read standing on a footpath. Everything is sized in rem off a 16px root so
+     it scales with the phone's own font setting. */
+  :root {
+    --bg: #ffffff;
+    --card: #ffffff;
+    --ink: #1a1a1a;
+    --muted: #6b6b6b;
+    --line: #ececec;
+    --brand: #FFC400;
+    --brand-ink: #1a1a1a;
+    --ok: #1a8f4a;
+    --warn: #c96a00;
+    --bad: #c62828;
+    --shadow: 0 1px 3px rgba(0,0,0,.08), 0 8px 24px rgba(0,0,0,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121212; --card: #1e1e1e; --ink: #f2f2f2; --muted: #a0a0a0;
+      --line: #2e2e2e; --shadow: 0 1px 3px rgba(0,0,0,.4);
+    }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding-bottom: 6rem;
+  }
+  .wrap { max-width: 34rem; margin: 0 auto; padding: 0 1rem; }
+
+  header { padding: 1rem 0 .5rem; }
+  h1 { font-size: 1.35rem; margin: 0 0 .15rem; letter-spacing: -.02em; }
+  .sub { color: var(--muted); font-size: .9rem; margin: 0; }
+
+  .searchbar { display: flex; gap: .5rem; margin: .85rem 0 .6rem; }
+  .searchbar input {
+    flex: 1; padding: .85rem 1rem; font-size: 1rem; color: var(--ink);
+    background: var(--card); border: 1.5px solid var(--line); border-radius: 999px;
+  }
+  .searchbar input:focus { outline: none; border-color: var(--brand); }
+
+  .chips { display: flex; gap: .45rem; overflow-x: auto; padding: .25rem 0 .6rem;
+           scrollbar-width: none; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip {
+    flex: 0 0 auto; padding: .45rem .85rem; border-radius: 999px; font-size: .88rem;
+    background: var(--card); border: 1.5px solid var(--line); color: var(--ink);
+    cursor: pointer;
+  }
+  .chip[aria-pressed="true"] { background: var(--brand); border-color: var(--brand);
+                               color: var(--brand-ink); font-weight: 600; }
+
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 1rem;
+    padding: .9rem 1rem; margin-bottom: .75rem; box-shadow: var(--shadow);
+  }
+  .card.doubtful { opacity: .6; }
+  .card-top { display: flex; gap: .7rem; align-items: flex-start; }
+  .emoji { font-size: 1.7rem; line-height: 1; }
+  .name { font-weight: 650; font-size: 1.05rem; margin: 0; }
+  .meta { color: var(--muted); font-size: .85rem; margin: .1rem 0 0; }
+  .dist { margin-left: auto; font-size: .85rem; color: var(--muted); white-space: nowrap; }
+
+  .open { display: inline-block; font-size: .8rem; font-weight: 650; padding: .2rem .55rem;
+          border-radius: 999px; margin-top: .5rem; }
+  .open.now  { background: rgba(26,143,74,.14); color: var(--ok); }
+  .open.soon { background: rgba(201,106,0,.14); color: var(--warn); }
+
+  .menu { display: flex; flex-wrap: wrap; gap: .35rem; margin: .6rem 0 0; }
+  .dish { font-size: .82rem; padding: .28rem .6rem; border-radius: .55rem;
+          background: rgba(127,127,127,.1); }
+  .dish.hit { background: var(--brand); color: var(--brand-ink); font-weight: 600; }
+  .dish .rs { color: var(--muted); }
+  .dish.hit .rs { color: var(--brand-ink); opacity: .75; }
+
+  .row { display: flex; gap: .5rem; align-items: center; margin-top: .75rem;
+         flex-wrap: wrap; }
+  .seen { font-size: .78rem; color: var(--muted); margin-top: .55rem; }
+  .btn {
+    padding: .6rem .9rem; border-radius: .7rem; border: 1.5px solid var(--line);
+    background: var(--card); color: var(--ink); font-size: .9rem; font-weight: 600;
+    cursor: pointer; text-decoration: none; display: inline-block;
+  }
+  .btn.brand { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
+  .btn.wide { width: 100%; text-align: center; padding: .95rem; font-size: 1.05rem; }
+  .btn:disabled { opacity: .5; }
+  .btn.tiny { padding: .4rem .7rem; font-size: .82rem; font-weight: 500; }
+
+  .fab {
+    position: fixed; left: 50%; transform: translateX(-50%); bottom: 1.25rem;
+    z-index: 20; padding: .95rem 1.6rem; border-radius: 999px; border: none;
+    background: var(--brand); color: var(--brand-ink); font-size: 1.05rem;
+    font-weight: 700; box-shadow: 0 6px 20px rgba(0,0,0,.22); cursor: pointer;
+  }
+
+  .sheet {
+    position: fixed; inset: 0; z-index: 30; background: var(--bg);
+    overflow-y: auto; padding-bottom: 3rem;
+  }
+  .sheet[hidden] { display: none; }
+  .sheet-head { display: flex; align-items: center; gap: .6rem; padding: 1rem 0; }
+  .sheet-head h2 { font-size: 1.15rem; margin: 0; }
+  .x { margin-left: auto; background: none; border: none; font-size: 1.5rem;
+      color: var(--muted); cursor: pointer; line-height: 1; }
+
+  .drop {
+    border: 2px dashed var(--line); border-radius: 1rem; padding: 2.5rem 1rem;
+    text-align: center; color: var(--muted); cursor: pointer; background: var(--card);
+  }
+  .drop b { display: block; color: var(--ink); font-size: 1.05rem; margin-bottom: .3rem; }
+  .preview { width: 100%; border-radius: 1rem; margin-bottom: .8rem; display: block; }
+
+  .note { font-size: .85rem; color: var(--muted); margin: .7rem 0 0; }
+  .err { color: var(--bad); font-size: .9rem; margin: .7rem 0 0; }
+  .empty { text-align: center; color: var(--muted); padding: 3rem 1rem; }
+  .spinner { display: inline-block; width: 1rem; height: 1rem; border: 2px solid var(--line);
+             border-top-color: var(--brand); border-radius: 50%; animation: spin .7s linear infinite;
+             vertical-align: -2px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  details.more { margin-top: .6rem; }
+  details.more summary { font-size: .85rem; color: var(--muted); cursor: pointer; }
+  .field { margin-top: .7rem; }
+  .field label { display: block; font-size: .85rem; color: var(--muted); margin-bottom: .25rem; }
+  .field input, .field select {
+    width: 100%; padding: .7rem .8rem; font-size: 1rem; color: var(--ink);
+    background: var(--card); border: 1.5px solid var(--line); border-radius: .7rem;
+  }
+  .two { display: flex; gap: .5rem; }
+  .two > * { flex: 1; min-width: 0; }
+  /* Day names are longer than a time field, and a squeezed <select> collapses
+     to a bare caret on a narrow phone. */
+  .two #mday { flex: 1.6; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1>Kya khaana hai? 🍜</h1>
+    <p class="sub" id="locline">Location le rahe hain…</p>
+  </header>
+
+  <div class="searchbar">
+    <input id="q" type="search" placeholder="Momos, chai, chowmein…" autocomplete="off" enterkeyhint="search">
+  </div>
+
+  <div class="chips" id="chips"></div>
+
+  <div class="chips">
+    <button class="chip" id="openNow" aria-pressed="false">Abhi khula 🔥</button>
+    <button class="chip" id="radius" data-km="3">3 km ke andar</button>
+  </div>
+
+  <div id="list"></div>
+</div>
+
+<button class="fab" id="fab">+ Thela add karo</button>
+
+<!-- ── Add sheet: photo → GPS → ho gaya ───────────────────────────────── -->
+<section class="sheet" id="addSheet" hidden>
+  <div class="wrap">
+    <div class="sheet-head">
+      <h2>Ek photo, bas 📸</h2>
+      <button class="x" id="closeAdd" aria-label="Band karo">&times;</button>
+    </div>
+
+    <div id="addStep1">
+      <p class="sub">Thele ka board ya menu dikhe aisi photo lo. Naam, menu aur rate
+        khud padh lenge.</p>
+      <input type="file" id="file" accept="image/*" capture="environment" hidden>
+      <div class="drop" id="drop">
+        <b>📷 Photo kheencho</b>
+        Ya gallery se choose karo
+      </div>
+      <p class="note" id="gps">📍 Location le rahe hain…</p>
+
+      <details class="more">
+        <summary>Zaroorat ho to ye bhi bharo (optional)</summary>
+        <div class="field">
+          <label for="mname">Naam (photo se na padhe to)</label>
+          <input id="mname" type="text" placeholder="Sharma Chinese Corner">
+        </div>
+        <div class="field">
+          <label for="mkind">Kis type ka hai</label>
+          <select id="mkind"><option value="">Photo se pata kar lo</option></select>
+        </div>
+        <div class="field">
+          <label>Thela kab aata hai</label>
+          <div class="two">
+            <select id="mday">
+              <option value="-1">Roz</option>
+              <option value="0">Somvar</option><option value="1">Mangalvar</option>
+              <option value="2">Budhvar</option><option value="3">Guruvar</option>
+              <option value="4">Shukravar</option><option value="5">Shanivar</option>
+              <option value="6">Ravivar</option>
+            </select>
+            <input id="mstart" type="time" aria-label="Kab se">
+            <input id="mend" type="time" aria-label="Kab tak">
+          </div>
+        </div>
+      </details>
+
+      <p class="note">📵 Vendor ka phone number mat daalo — unki marzi ke bina number
+        public nahi karte. Wo khud apni dukaan claim karke daal sakte hain.</p>
+      <p class="err" id="addErr" hidden></p>
+    </div>
+
+    <div id="addStep2" hidden>
+      <img class="preview" id="previewImg" alt="">
+      <button class="btn brand wide" id="submitAdd">Add kar do ✓</button>
+      <button class="btn wide" id="retake" style="margin-top:.5rem">Dobara photo lo</button>
+      <p class="err" id="addErr2" hidden></p>
+    </div>
+
+    <div id="addStep3" hidden>
+      <p style="font-size:1.1rem;font-weight:650">Ho gaya! 🎉</p>
+      <div id="addResult"></div>
+      <button class="btn brand wide" id="doneAdd" style="margin-top:1rem">Theek hai</button>
+    </div>
+  </div>
+</section>
+
+<script>
+const API = "";
+const $ = (id) => document.getElementById(id);
+
+// Anonymous, per-device. Enough to attribute a listing and rate-limit votes;
+// deliberately not an account, because a login screen before the first add is
+// how a crowdsourced map ends up empty.
+const deviceId = (() => {
+  let id = localStorage.getItem("myna_device");
+  if (!id) {
+    id = "d" + Math.random().toString(36).slice(2) + Date.now().toString(36);
+    localStorage.setItem("myna_device", id);
+  }
+  return id;
+})();
+
+let pos = null;          // {lat, long}
+let query = "";
+let openOnly = false;
+let radiusKm = 3;
+let activeChip = "";
+let file = null;
+
+// ── Location ────────────────────────────────────────────────────────────────
+function getLocation() {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) return resolve(null);
+    navigator.geolocation.getCurrentPosition(
+      (p) => resolve({ lat: p.coords.latitude, long: p.coords.longitude }),
+      () => resolve(null),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
+  });
+}
+
+async function ensureLocation() {
+  if (pos) return pos;
+  pos = await getLocation();
+  const text = pos ? "📍 Aapke aas-paas" : "📍 Location nahi mili — GPS on karo";
+  $("locline").textContent = text;
+  $("gps").textContent = pos ? "📍 Location mil gayi" : "📍 Location nahi mili — GPS on karo";
+  return pos;
+}
+
+// ── Home: list vendors ──────────────────────────────────────────────────────
+function dishHtml(dish, matched) {
+  const hit = matched.some((m) => dish.name.toLowerCase().includes(m));
+  const price = dish.price > 0 ? ` <span class="rs">₹${Math.round(dish.price)}</span>` : "";
+  return `<span class="dish${hit ? " hit" : ""}">${esc(dish.name)}${price}</span>`;
+}
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function cardHtml(v) {
+  const maps = `https://www.google.com/maps/dir/?api=1&destination=${v.lat},${v.long}`;
+  const openClass = v.is_open_now ? "now" : "soon";
+  const open = v.open_text
+    ? `<div><span class="open ${openClass}">${esc(v.open_text)}</span></div>` : "";
+  // Menus run long on a dhaba board; six dishes is enough to recognise the
+  // place, and the matched ones are pulled to the front so a search always
+  // shows why this card is here.
+  const menu = [...v.menu].sort((a, b) => {
+    const hit = (d) => v.matched.some((m) => d.name.toLowerCase().includes(m)) ? 0 : 1;
+    return hit(a) - hit(b);
+  });
+  const shown = menu.slice(0, 6).map((d) => dishHtml(d, v.matched)).join("");
+  const extra = menu.length > 6 ? `<span class="dish">+${menu.length - 6} aur</span>` : "";
+  return `
+  <article class="card ${v.trust === "doubtful" ? "doubtful" : ""}" data-id="${v.shop_id}">
+    <div class="card-top">
+      <div class="emoji">${v.kind_emoji}</div>
+      <div style="min-width:0">
+        <p class="name">${esc(v.name)}</p>
+        <p class="meta">${esc(v.kind_label)}${v.address ? " · " + esc(v.address.split(",").slice(0, 2).join(",")) : ""}</p>
+      </div>
+      <div class="dist">${v.distance_km} km</div>
+    </div>
+    ${open}
+    ${menu.length ? `<div class="menu">${shown}${extra}</div>` : ""}
+    <p class="seen">${esc(v.seen_text)}${v.seen_no > 0 ? ` · ${v.seen_no} ne kaha nahi mila` : ""}</p>
+    <div class="row">
+      <a class="btn brand tiny" href="${maps}" target="_blank" rel="noopener">Raasta 🧭</a>
+      <button class="btn tiny seen-yes">Abhi hai ✓</button>
+      <button class="btn tiny seen-no">Nahi mila ✕</button>
+    </div>
+  </article>`;
+}
+
+async function load() {
+  const p = await ensureLocation();
+  if (!p) {
+    $("list").innerHTML = `<div class="empty">Location on karke page refresh karo —
+      paas ka khaana dikhane ke liye zaroori hai.</div>`;
+    return;
+  }
+  $("list").innerHTML = `<div class="empty"><span class="spinner"></span> Dhoondh rahe hain…</div>`;
+  const params = new URLSearchParams({
+    lat: p.lat, long: p.long, q: query, radius_km: radiusKm,
+    open_now: openOnly ? "true" : "false",
+  });
+  try {
+    const res = await fetch(`${API}/api/food/near?${params}`);
+    const data = await res.json();
+    if (!data.vendors.length) {
+      $("list").innerHTML = `<div class="empty">
+        ${query ? `"${esc(query)}" paas me nahi mila.` : "Yahan abhi kuch list nahi hai."}<br>
+        Koi thela dikhe to neeche wale button se add kar do 👇</div>`;
+      return;
+    }
+    $("list").innerHTML = data.vendors.map(cardHtml).join("");
+  } catch {
+    $("list").innerHTML = `<div class="empty">Load nahi hua. Net check karke dobara try karo.</div>`;
+  }
+}
+
+// ── Freshness votes ─────────────────────────────────────────────────────────
+$("list").addEventListener("click", async (e) => {
+  const yes = e.target.closest(".seen-yes");
+  const no = e.target.closest(".seen-no");
+  if (!yes && !no) return;
+  const card = e.target.closest(".card");
+  const id = card.dataset.id;
+  card.querySelectorAll(".seen-yes,.seen-no").forEach((b) => (b.disabled = true));
+  try {
+    const res = await fetch(`${API}/api/food/${id}/seen`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ yes: !!yes, device_id: deviceId }),
+    });
+    const v = await res.json();
+    card.querySelector(".seen").textContent =
+      (yes ? "Shukriya! " : "Bata diya. ") + v.seen_text;
+  } catch {
+    card.querySelector(".seen").textContent = "Vote nahi gaya, net check karo.";
+  }
+});
+
+// ── Search + filters ────────────────────────────────────────────────────────
+let timer;
+$("q").addEventListener("input", (e) => {
+  query = e.target.value.trim();
+  clearTimeout(timer);
+  timer = setTimeout(load, 350);
+});
+
+$("openNow").addEventListener("click", (e) => {
+  openOnly = !openOnly;
+  e.target.setAttribute("aria-pressed", String(openOnly));
+  load();
+});
+
+$("radius").addEventListener("click", (e) => {
+  radiusKm = { 1: 3, 3: 10, 10: 1 }[radiusKm] ?? 3;
+  e.target.textContent = `${radiusKm} km ke andar`;
+  load();
+});
+
+async function loadChips() {
+  try {
+    const data = await (await fetch(`${API}/api/food/kinds`)).json();
+    $("chips").innerHTML = data.popular
+      .map((p) => `<button class="chip" data-q="${esc(p)}" aria-pressed="false">${esc(p)}</button>`)
+      .join("");
+    $("mkind").innerHTML = `<option value="">Photo se pata kar lo</option>` +
+      data.kinds.map((k) => `<option value="${k.kind}">${k.emoji} ${esc(k.label)}</option>`).join("");
+  } catch { /* chips are a nicety — the search box works without them */ }
+}
+
+$("chips").addEventListener("click", (e) => {
+  const chip = e.target.closest(".chip");
+  if (!chip) return;
+  const value = chip.dataset.q;
+  activeChip = activeChip === value ? "" : value;
+  [...$("chips").children].forEach((c) =>
+    c.setAttribute("aria-pressed", String(c.dataset.q === activeChip)));
+  query = activeChip;
+  $("q").value = activeChip;
+  load();
+});
+
+// ── Add flow ────────────────────────────────────────────────────────────────
+function showStep(n) {
+  $("addStep1").hidden = n !== 1;
+  $("addStep2").hidden = n !== 2;
+  $("addStep3").hidden = n !== 3;
+}
+
+$("fab").addEventListener("click", async () => {
+  $("addSheet").hidden = false;
+  showStep(1);
+  await ensureLocation();
+});
+
+$("closeAdd").addEventListener("click", () => { $("addSheet").hidden = true; });
+$("doneAdd").addEventListener("click", () => { $("addSheet").hidden = true; load(); });
+$("drop").addEventListener("click", () => $("file").click());
+$("retake").addEventListener("click", () => { file = null; showStep(1); $("file").click(); });
+
+$("file").addEventListener("change", (e) => {
+  file = e.target.files[0];
+  if (!file) return;
+  $("previewImg").src = URL.createObjectURL(file);
+  $("addErr2").hidden = true;
+  showStep(2);
+});
+
+$("submitAdd").addEventListener("click", async () => {
+  const p = await ensureLocation();
+  if (!p) {
+    $("addErr2").textContent = "Location chahiye — GPS on karke dobara try karo.";
+    $("addErr2").hidden = false;
+    return;
+  }
+  const btn = $("submitAdd");
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner"></span> Photo padh rahe hain…`;
+
+  const form = new FormData();
+  form.append("photo", file);
+  form.append("lat", p.lat);
+  form.append("long", p.long);
+  form.append("device_id", deviceId);
+  form.append("name", $("mname").value.trim());
+  form.append("kind", $("mkind").value);
+  form.append("day_of_week", $("mday").value);
+  form.append("start_time", $("mstart").value);
+  form.append("end_time", $("mend").value);
+
+  try {
+    const res = await fetch(`${API}/api/food/add`, { method: "POST", body: form });
+    const data = await res.json();
+    if (!data.created) {
+      $("addErr2").textContent = data.error || "Add nahi hua, dobara try karo.";
+      $("addErr2").hidden = false;
+      return;
+    }
+    const v = data.vendor;
+    $("addResult").innerHTML = cardHtml(v) +
+      (data.item_count
+        ? `<p class="note">${data.item_count} cheezein menu se padh li. Galat ho to
+             card pe tap karke theek kar sakte ho.</p>`
+        : `<p class="note">Menu nahi padha ja saka — dukaan list ho gayi hai, dishes
+             baad me add kar sakte ho.</p>`);
+    showStep(3);
+  } catch {
+    $("addErr2").textContent = "Net issue lag raha hai. Dobara try karo.";
+    $("addErr2").hidden = false;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Add kar do ✓";
+  }
+});
+
+loadChips();
+load();
+</script>
+</body>
+</html>

@@ -15,7 +15,7 @@ from .database import (
     set_default_vision_model,
 )
 from . import ai
-from .routers import admin, items, search, shops
+from .routers import admin, food, items, search, shops
 
 Base.metadata.create_all(bind=engine)
 
@@ -38,11 +38,34 @@ with engine.connect() as conn:
     if "embedding_model" not in cols:
         conn.execute(text("ALTER TABLE items ADD COLUMN embedding_model VARCHAR DEFAULT ''"))
         conn.commit()
+    if "price" not in cols:
+        conn.execute(text("ALTER TABLE items ADD COLUMN price FLOAT DEFAULT 0"))
+        conn.execute(text("UPDATE items SET price=0 WHERE price IS NULL"))
+        conn.commit()
     # shops.shop_type — added for mobile vendors (thela/cart) with stops.
-    if "shop_type" not in _columns(conn, "shops"):
+    shop_cols = _columns(conn, "shops")
+    if "shop_type" not in shop_cols:
         conn.execute(text("ALTER TABLE shops ADD COLUMN shop_type VARCHAR DEFAULT 'fixed'"))
         conn.execute(text("UPDATE shops SET shop_type='fixed' WHERE shop_type IS NULL"))
         conn.commit()
+    # Food pivot + crowdsourced listings: vendor kind, who added it, and the
+    # "abhi bhi yahan hai?" vote counts.
+    for column, ddl, backfill in (
+        ("food_kind", "ALTER TABLE shops ADD COLUMN food_kind VARCHAR DEFAULT 'other'",
+         "UPDATE shops SET food_kind='other' WHERE food_kind IS NULL"),
+        ("added_by", "ALTER TABLE shops ADD COLUMN added_by VARCHAR DEFAULT ''",
+         "UPDATE shops SET added_by='' WHERE added_by IS NULL"),
+        ("seen_yes", "ALTER TABLE shops ADD COLUMN seen_yes INTEGER DEFAULT 0",
+         "UPDATE shops SET seen_yes=0 WHERE seen_yes IS NULL"),
+        ("seen_no", "ALTER TABLE shops ADD COLUMN seen_no INTEGER DEFAULT 0",
+         "UPDATE shops SET seen_no=0 WHERE seen_no IS NULL"),
+        ("last_seen_at", "ALTER TABLE shops ADD COLUMN last_seen_at TIMESTAMP", ""),
+    ):
+        if column not in shop_cols:
+            conn.execute(text(ddl))
+            if backfill:
+                conn.execute(text(backfill))
+            conn.commit()
 
 def _seed_default_models() -> None:
     """Persist per-feature default models if unset, so a fresh DB (or one
@@ -79,6 +102,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(food.router)
 app.include_router(shops.router)
 app.include_router(items.router)
 app.include_router(items.catalog_router)
@@ -91,6 +115,14 @@ app.mount("/static", StaticFiles(directory=BASE_DIR / "app" / "static"), name="s
 
 @app.get("/", include_in_schema=False)
 def home():
+    """The food app — two screens, no login. See app/static/khana.html."""
+    return FileResponse(BASE_DIR / "app" / "static" / "khana.html")
+
+
+@app.get("/classic", include_in_schema=False)
+def classic():
+    """The original general-purpose product search, kept for the admin panel's
+    demo data and for anyone still pointed at it."""
     return FileResponse(BASE_DIR / "app" / "static" / "index.html")
 
 

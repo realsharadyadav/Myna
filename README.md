@@ -1,8 +1,18 @@
-# 🐦 Myna — Hyperlocal Shop & Product Finder
+# 🐦 Myna — Paas me kya khaane ko mil raha hai
 
-*"Yahan available hai" — Myna batayegi kahan.*
+*Thela, tapri, chaat corner, dhaba — jo kisi delivery app pe nahi hai.*
 
-Phase 1 webapp MVP: shopkeepers list what's in stock with their phone camera; customers find nearby shops that have the product they need, within a range they set.
+Myna answers one question: **what street food can I get near me, right now?** Zomato and Swiggy list restaurants. Nobody lists the momos cart outside the market gate, the chai tapri by the station, or the golgappe wala who parks in Gali 4 every evening — which is most of what India actually eats.
+
+Three decisions hold the app together, and each one exists to kill a specific reason hyperlocal directories die:
+
+| Decision | The failure it avoids |
+|---|---|
+| **Anyone can add anyone.** No vendor account, no login, no claim step first. | Directories that wait for shopkeepers to onboard themselves launch empty and stay empty. |
+| **One photo is the whole add flow.** A food board *is* the menu and the price list, so a single frame gives the name, the kind and every dish. | Typing a menu is a form, and forms are where casual contributors quit. |
+| **The street keeps data fresh, not the vendor.** Passers-by tap "Abhi hai ✓" / "Nahi mila ✕". | Vendors never update their own listings. Stale stock is what makes users stop trusting the app. |
+
+Vendor phone numbers are deliberately never captured by the add flow — you can list a cart you walked past, but you can't publish that person's number without them.
 
 ## Quick start
 
@@ -11,15 +21,54 @@ Phase 1 webapp MVP: shopkeepers list what's in stock with their phone camera; cu
 ```
 
 Then open:
-- **Customer search:** http://localhost:8000
-- **Shopkeeper onboarding:** http://localhost:8000/shopkeeper
+- **The food app:** http://localhost:8000
 - **Owner panel:** http://localhost:8000/admin
 - **API docs:** http://localhost:8000/docs
+
+The original general-purpose product search (kirana, multi-item lists, dish→ingredients) is still served at **/classic** and **/shopkeeper** — see [General product search](#general-product-search-classic) below.
+
+## The food app
+
+### Home — "Kya khaana hai?"
+
+GPS, a search box, and cards. Each card is a vendor: kind icon, distance, what's on the menu with prices, when it's there, how recently someone confirmed it, and one tap to Directions.
+
+- **Search a dish** — "momos", "chai", "chole bhature". Matches the menu, the vendor's name and its kind together, so a cart called *Momo Point* that never listed an item still turns up.
+- **Ranking is "what can I eat right now"** — open beats closed, a doubtful listing sinks, and only then does distance decide. Sorting purely by distance would put a Sunday-only cart above one standing at the corner.
+- **Filters** — "Abhi khula 🔥" and a radius that cycles 3 → 10 → 1 km. A thela is a walk, not a drive.
+- Hinglish in Roman script throughout — it's how the food is named out loud, it needs no font support on a cheap phone, and it's what people type.
+
+### Add — one photo
+
+Photo → GPS → listed. `ai.read_food_board` gets `{name, kind, items:[{name, price, category}]}` out of a single frame, because *"CHOWMEIN 40 / MOMOS 50"* is the shop name, the menu and the price list all at once. Prices are only ever read, never guessed — no number on the board means no price on the card.
+
+Everything else is optional and behind a disclosure: a typed name if the board was unreadable, the vendor kind, and timings for a cart that moves (`day + start + end`, which creates a round via the existing stops model). A partial read still lists the vendor — throwing away a read menu to demand a retake is exactly the friction this flow removes.
+
+### Freshness — the loop that keeps it alive
+
+Every card carries "Aaj dekha gaya" / "3 din pehle dekha gaya" and two buttons. A "haan" bumps `seen_yes` and `last_seen_at`; a "nahi" bumps `seen_no` only — a cart being missing says nothing about when it was last there. More "nahi" than "haan" (and at least 2) marks the listing `doubtful`, which fades the card and sinks it in search.
+
+### Food API
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/food/near?lat&long&q&kind&radius_km&open_now&limit` | The home screen. No `q` = everything nearby |
+| `POST` | `/api/food/add` | One-photo add (multipart: `photo`, `lat`, `long`, optional `name`/`kind`/`address`/`device_id`/`day_of_week`/`start_time`/`end_time`) |
+| `GET` | `/api/food/{shop_id}?lat&long` | One vendor card |
+| `POST` | `/api/food/{shop_id}/seen` | `{"yes": true}` — the freshness vote |
+| `POST` | `/api/food/{shop_id}/items` | Add one dish by hand, when the board wasn't readable |
+| `GET` | `/api/food/kinds` | Vendor kinds, popular-dish chips, food categories |
+
+Vendor kinds and food categories live in `app/food.py` — thela, chaat, chinese, chai, dhaba, sweets, juice, bakery, tiffin, restaurant.
+
+## General product search (`/classic`)
+
+The original kirana-oriented app is unchanged and still mounted. Everything below this line describes it.
 
 > 📱 For phone testing (camera + GPS require a secure context): serve over HTTPS or use a tunnel
 > like `cloudflared tunnel --url http://localhost:8000` / `ngrok http 8000`, then open the tunnel URL on the phone.
 
-## Features (Phase 1 scope)
+### Features (original Phase 1 scope)
 
 - **Thela / cart vendors (no fixed place)** — a vendor who moves around registers as a *thela* and adds **rounds** instead of one address: each round is a spot plus its timing ("Gali no. 4, har mangalwar 10 se 12", or every day 6–9 AM). Customers see the round they can actually reach — "Here now · till 12 PM" — with directions to that corner, plus the vendor's other rounds and when they come next. Search puts what you can buy right now first: fixed shops and carts standing at a stop, then today's rounds, then later in the week
 - **Shop onboarding** — signage photo → AI reads shop name (Claude Vision), GPS auto-capture, address auto-filled via OpenStreetMap reverse geocoding, manual override everywhere
@@ -53,6 +102,9 @@ Then open:
 ```
 app/
   main.py            FastAPI app, static/upload mounts
+  food.py            Food vocabulary: vendor kinds, categories, Hinglish labels
+  routers/food.py    One-photo add, "paas me kya hai", freshness votes
+  static/khana.html  The food app UI (served at /)
   config.py          Env-driven settings
   database.py        SQLAlchemy engine/session
   models.py          shops + items tables
@@ -142,6 +194,15 @@ One-click deploy using the included `render.yaml` blueprint:
 Payments/monetization (Phase 3), full-auto shelf scanning, native mobile app (Phase 4).
 
 ## Known MVP limitations
+
+**Food app**
+
+- No claim flow yet — a vendor can't take over their own listing, which is what should unlock the phone-number field.
+- `device_id` is an anonymous localStorage string, so it stops accidental double-voting but not deliberate abuse. Real rate limiting needs a server-side signal.
+- Anyone can add anyone, and nothing moderates a bad or joke listing beyond the "nahi mila" votes. The owner panel can delete, but there's no report button.
+- A "nahi mila" can't say *why* — moved, closed today, shut down. All three sink a listing identically.
+
+**General search**
 
 - Shopkeeper "auth" is just a `localStorage` shop_id — fine for single-device pilot onboarding, needs real auth before wider rollout.
 - Vendor rounds are a weekly pattern (day + time window) — no one-off "aaj nahi aa raha" override, and no live GPS tracking; the card shows the schedule the vendor typed.
