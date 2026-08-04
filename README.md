@@ -38,11 +38,20 @@ GPS, a search box, and cards. Each card is a vendor: kind icon, distance, what's
 - **Filters** — "Abhi khula 🔥" and a radius that cycles 3 → 10 → 1 km. A thela is a walk, not a drive.
 - Hinglish in Roman script throughout — it's how the food is named out loud, it needs no font support on a cheap phone, and it's what people type.
 
-### Add — one photo
+### Add — photos
 
-Photo → GPS → listed. `ai.read_food_board` gets `{name, kind, items:[{name, price, category}]}` out of a single frame, because *"CHOWMEIN 40 / MOMOS 50"* is the shop name, the menu and the price list all at once. Prices are only ever read, never guessed — no number on the board means no price on the card.
+Photos → GPS → listed. `ai.read_food_board` gets `{name, kind, items:[{name, price, category}]}` out of a single frame, because *"CHOWMEIN 40 / MOMOS 50"* is the shop name, the menu and the price list all at once. Prices are only ever read, never guessed — no number on the board means no price on the card.
 
-Everything else is optional and behind a disclosure: a typed name if the board was unreadable, the vendor kind, and timings for a cart that moves (`day + start + end`, which creates a round via the existing stops model). A partial read still lists the vendor — throwing away a read menu to demand a retake is exactly the friction this flow removes.
+**One photo is enough, more is better.** Two shots of one thela carry different halves of the truth: a wide one gets the signboard name, a close one gets the rates, a shot of the tawa gets dishes nobody ever wrote down. `ai.read_food_boards` reads each and merges them (`merge_boards`):
+
+- **name** — first non-empty. Predictable beats clever: the screen says shoot the board first, and a "longest wins" rule would happily pick an invented *"Momos thela"* over a real *"Raju"*.
+- **kind** — most common real kind across the photos; ties go to the earliest.
+- **items** — the union, deduped by name. A duplicate dish keeps whichever copy carries a price, so the close-up's ₹40 survives the wide shot's priceless entry.
+- One unreadable shot among several isn't a failure — it's the reason someone took more than one. An error comes back only when *nothing* was read from *any* photo.
+
+Capped at **5 photos** (`MAX_PHOTOS`): every extra one is another vision call, and five is well past the point where a thela has anything new to show. Only the first photo is kept when image retention is on — it's the one shown on the card; the rest were read for their text and have done their job.
+
+Everything else is optional and behind a disclosure on the review screen: a typed name if the board was unreadable, the vendor kind, and timings for a cart that moves (`day + start + end`, which creates a round via the existing stops model). Those fields sit on the review screen and not the camera screen deliberately — you only find out the board was unreadable *after* submitting, and the error tells you to type a name, so the name field has to be reachable from where the error appears. A partial read still lists the vendor — throwing away a read menu to demand a retake is exactly the friction this flow removes.
 
 ### Freshness — the loop that keeps it alive
 
@@ -77,7 +86,7 @@ Hiding is reversible and **never deletes**. Flagged listings go to the **Reports
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` | `/api/food/near?lat&long&q&kind&radius_km&open_now&limit` | The home screen. No `q` = everything nearby |
-| `POST` | `/api/food/add` | One-photo add (multipart: `photo`, `lat`, `long`, optional `name`/`kind`/`address`/`device_id`/`day_of_week`/`start_time`/`end_time`) |
+| `POST` | `/api/food/add` | Photo add (multipart: repeated `photos` — or a single `photo` — plus `lat`, `long`, optional `name`/`kind`/`address`/`device_id`/`day_of_week`/`start_time`/`end_time`) |
 | `GET` | `/api/food/{shop_id}?lat&long` | One vendor card |
 | `POST` | `/api/food/{shop_id}/seen` | `{"yes": false, "reason": "closed_today"}` — the freshness vote |
 | `POST` | `/api/food/{shop_id}/report` | `{"reason": "fake", "device_id": "…"}` — flag a bad listing |

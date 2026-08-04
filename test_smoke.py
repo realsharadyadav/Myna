@@ -724,6 +724,17 @@ assert _food.suggest_category("Veg Chowmein") == "Chinese"
 assert _food.suggest_category("Gulab Jamun") == "Sweets"
 assert _food.suggest_category("Chilli Potato") == "Chinese"
 assert _food.normalise_category("nonsense", "Masala Chai") == "Chai & drinks"
+# Every chip the home screen offers must be a dish the vocabulary actually
+# knows, not one that silently lands on the default category. "Golgappe" used
+# to miss because only "golgappa" was listed — the app's own top chip.
+_unknown = [
+    chip for chip in _food.POPULAR
+    if not any(hint in chip.lower()
+               for hints in _food.CATEGORIES.values() for hint in hints)
+]
+assert not _unknown, f"popular chips no category knows: {_unknown}"
+assert _food.suggest_category("Golgappe") == "Chaat & street"
+assert _food.normalise_kind("golgappe") == "chaat"
 print("PASS food vocabulary")
 
 # 47b. Board parsing — the object shape, a fenced reply, and the array fallback.
@@ -766,6 +777,54 @@ assert vendor["trust"] == "fresh"
 assert vendor["phone"] == ""            # add flow never captures a vendor's number
 food_id = vendor["shop_id"]
 print(f"PASS one-photo add id={food_id}")
+
+# 47c-2. Several photos of one vendor merge into one listing: the first photo's
+# name wins, dishes union, and a price found in a close-up fills in for the
+# same dish photographed without one.
+wide = {"name": "Raju Chinese Corner", "kind": "chinese",
+        "items": [{"name": "Chowmein", "price": 0.0, "category": "Chinese"},
+                  {"name": "Momos", "price": 0.0, "category": "Chinese"}]}
+close = {"name": "", "kind": "other",
+         "items": [{"name": "chowmein", "price": 40.0, "category": "Chinese"},
+                   {"name": "Spring Roll", "price": 60.0, "category": "Chinese"}]}
+tawa = {"name": "Momos wala", "kind": "chaat", "items": []}
+merged = _ai.merge_boards([wide, close, tawa])
+assert merged["name"] == "Raju Chinese Corner"       # first non-empty wins
+assert merged["kind"] == "chinese"                   # majority of real kinds
+names = [i["name"] for i in merged["items"]]
+assert names == ["Chowmein", "Momos", "Spring Roll"], names   # union, first spelling
+prices = {i["name"]: i["price"] for i in merged["items"]}
+assert prices["Chowmein"] == 40.0                    # close-up filled the price in
+assert prices["Spring Roll"] == 60.0
+# A photo that read as nothing at all doesn't wipe what the others found.
+assert _ai.merge_boards([wide, {"name": "", "kind": "other", "items": []}])["items"]
+# No real kind anywhere: infer it from the merged menu rather than give up.
+assert _ai.merge_boards([{"name": "X", "kind": "other",
+                          "items": [{"name": "Golgappe", "price": 0, "category": ""}]}
+                         ])["kind"] == "chaat"
+print("PASS multi-photo merge")
+
+# 47c-3. The endpoint takes repeated `photos`, still takes a single `photo`,
+# and refuses a request with neither.
+def _img():
+    return io.BytesIO(b"\xff\xd8\xff\xe0" + b"\x00" * 60)
+
+res = client.post("/api/food/add", data={
+    "lat": 19.0759, "long": 72.8776, "name": "Teen Photo Wala", "kind": "chinese",
+}, files=[("photos", ("a.jpg", _img(), "image/jpeg")),
+          ("photos", ("b.jpg", _img(), "image/jpeg")),
+          ("photos", ("c.jpg", _img(), "image/jpeg"))])
+assert res.status_code == 200, res.text
+assert res.json()["created"] is True and res.json()["photo_count"] == 3
+multi_id = res.json()["vendor"]["shop_id"]
+# Over the cap, only MAX_PHOTOS are read — this bounds both cost and wait.
+res = client.post("/api/food/add", data={
+    "lat": 19.0759, "long": 72.8776, "name": "Bahut Photo Wala",
+}, files=[("photos", (f"{i}.jpg", _img(), "image/jpeg")) for i in range(9)])
+assert res.json()["photo_count"] == 5, res.json()["photo_count"]
+assert client.post("/api/food/add", data={
+    "lat": 19.0759, "long": 72.8776, "name": "No Photo"}).status_code == 422
+print("PASS multi-photo add endpoint (repeated field, cap, single-photo alias)")
 
 # 47d. Nothing readable and nothing typed → no listing, and a Hinglish reason.
 res = client.post("/api/food/add", data={"lat": 19.0760, "long": 72.8777}, files={

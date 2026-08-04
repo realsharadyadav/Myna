@@ -270,6 +270,7 @@ class QuickAddResponse(BaseModel):
     read_name: str = ""
     read_kind: str = ""
     item_count: int = 0
+    photo_count: int = 0
     error: str = ""
 
 

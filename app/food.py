@@ -29,8 +29,11 @@ KINDS: dict[str, dict] = {
         "label": "Chaat corner",
         "emoji": "🥘",
         "mobile": False,
-        "hints": ["chaat", "golgappa", "panipuri", "pani puri", "papdi", "tikki",
-                  "bhelpuri", "bhel", "dahi puri", "sev puri", "raj kachori"],
+        # Hinglish plurals are how people actually write these — "golgappe" is
+        # far commoner than "golgappa", and it's the spelling on our own chips.
+        "hints": ["chaat", "golgappa", "golgappe", "gol gappe", "panipuri",
+                  "pani puri", "papdi", "tikki", "bhelpuri", "bhel", "dahi puri",
+                  "sev puri", "raj kachori", "samosa", "samose", "pakora", "pakode"],
     },
     "chinese": {
         "label": "Chinese thela",
@@ -141,9 +144,11 @@ def kind_list() -> list[dict]:
 
 CATEGORIES: dict[str, list[str]] = {
     "Chaat & street": [
-        "golgappa", "pani puri", "panipuri", "puchka", "bhel", "bhelpuri", "papdi",
+        "golgappa", "golgappe", "gol gappe", "pani puri", "panipuri", "puchka",
+        "phuchka", "bhel", "bhelpuri", "papdi",
         "tikki", "aloo tikki", "dahi puri", "sev puri", "raj kachori", "chaat",
-        "kachori", "samosa", "vada pav", "vada", "dabeli", "pav bhaji", "chole bhature",
+        "kachori", "samosa", "samose", "pakora", "pakode", "bhajiya",
+        "vada pav", "vada", "dabeli", "pav bhaji", "chole bhature",
         "chole", "bhature", "kulcha", "litti", "chokha", "dahi vada",
     ],
     "Chinese": [

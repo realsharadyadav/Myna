@@ -139,6 +139,18 @@
   }
   .drop b { display: block; color: var(--ink); font-size: 1.05rem; margin-bottom: .3rem; }
   .preview { width: 100%; border-radius: 1rem; margin-bottom: .8rem; display: block; }
+  /* Thumbnails of everything about to be sent. The first one is labelled,
+     because which photo is the board decides where the name comes from. */
+  .shots { display: grid; grid-template-columns: repeat(3, 1fr); gap: .5rem; margin-bottom: .6rem; }
+  .shot { position: relative; aspect-ratio: 1; border-radius: .7rem; overflow: hidden;
+          background: var(--card); border: 1px solid var(--line); }
+  .shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .shot .tag { position: absolute; left: 0; bottom: 0; right: 0; padding: .2rem .35rem;
+               background: rgba(0,0,0,.6); color: #fff; font-size: .65rem; font-weight: 600;
+               text-align: center; }
+  .shot .rm { position: absolute; top: .25rem; right: .25rem; width: 1.4rem; height: 1.4rem;
+              border-radius: 50%; border: none; background: rgba(0,0,0,.6); color: #fff;
+              font-size: .85rem; line-height: 1.4rem; padding: 0; cursor: pointer; }
 
   .note { font-size: .85rem; color: var(--muted); margin: .7rem 0 0; }
   .err { color: var(--bad); font-size: .9rem; margin: .7rem 0 0; }
@@ -191,21 +203,34 @@
 <section class="sheet" id="addSheet" hidden>
   <div class="wrap">
     <div class="sheet-head">
-      <h2>Ek photo, bas 📸</h2>
+      <h2>Photo se add karo 📸</h2>
       <button class="x" id="closeAdd" aria-label="Band karo">&times;</button>
     </div>
 
     <div id="addStep1">
-      <p class="sub">Thele ka board ya menu dikhe aisi photo lo. Naam, menu aur rate
-        khud padh lenge.</p>
-      <input type="file" id="file" accept="image/*" capture="environment" hidden>
+      <p class="sub"><b>Pehli photo board ki lo</b> — naam wahin se aata hai. Uske baad
+        jitni chaaho: menu ka rate list, tawa, jo bhi ban raha hai. Sabko mila ke
+        ek listing banayenge.</p>
+      <input type="file" id="file" accept="image/*" capture="environment" multiple hidden>
       <div class="drop" id="drop">
         <b>📷 Photo kheencho</b>
         Ya gallery se choose karo
       </div>
       <p class="note" id="gps">📍 Location le rahe hain…</p>
+      <p class="note">📵 Vendor ka phone number mat daalo — unki marzi ke bina number
+        public nahi karte. Wo khud apni dukaan claim karke daal sakte hain.</p>
+      <p class="err" id="addErr" hidden></p>
+    </div>
 
-      <details class="more">
+    <div id="addStep2" hidden>
+      <div class="shots" id="shots"></div>
+      <p class="note" id="shotHint"></p>
+      <button class="btn wide" id="morePhotos" style="margin-bottom:.5rem">+ Ek aur photo</button>
+
+      <!-- These live here, not on the photo screen: you only find out the board
+           was unreadable after submitting from here, and the error tells you to
+           type a name — so the name field has to be reachable from here too. -->
+      <details class="more" id="moreFields">
         <summary>Zaroorat ho to ye bhi bharo (optional)</summary>
         <div class="field">
           <label for="mname">Naam (photo se na padhe to)</label>
@@ -231,15 +256,7 @@
         </div>
       </details>
 
-      <p class="note">📵 Vendor ka phone number mat daalo — unki marzi ke bina number
-        public nahi karte. Wo khud apni dukaan claim karke daal sakte hain.</p>
-      <p class="err" id="addErr" hidden></p>
-    </div>
-
-    <div id="addStep2" hidden>
-      <img class="preview" id="previewImg" alt="">
-      <button class="btn brand wide" id="submitAdd">Add kar do ✓</button>
-      <button class="btn wide" id="retake" style="margin-top:.5rem">Dobara photo lo</button>
+      <button class="btn brand wide" id="submitAdd" style="margin-top:.7rem">Add kar do ✓</button>
       <p class="err" id="addErr2" hidden></p>
     </div>
 
@@ -272,7 +289,7 @@ let query = "";
 let openOnly = false;
 let radiusKm = 3;
 let activeChip = "";
-let file = null;
+let files = [];
 
 // ── Location ────────────────────────────────────────────────────────────────
 function getLocation() {
@@ -502,6 +519,7 @@ function showStep(n) {
 
 $("fab").addEventListener("click", async () => {
   $("addSheet").hidden = false;
+  files = [];
   showStep(1);
   await ensureLocation();
 });
@@ -509,13 +527,40 @@ $("fab").addEventListener("click", async () => {
 $("closeAdd").addEventListener("click", () => { $("addSheet").hidden = true; });
 $("doneAdd").addEventListener("click", () => { $("addSheet").hidden = true; load(); });
 $("drop").addEventListener("click", () => $("file").click());
-$("retake").addEventListener("click", () => { file = null; showStep(1); $("file").click(); });
+$("morePhotos").addEventListener("click", () => $("file").click());
+
+// Every extra photo is another vision call, so this matches the server's cap.
+const MAX_PHOTOS = 5;
+
+function renderShots() {
+  $("shots").innerHTML = files.map((f, i) => `
+    <div class="shot">
+      <img src="${URL.createObjectURL(f)}" alt="">
+      <button class="rm" data-i="${i}" aria-label="Hatao">&times;</button>
+      <span class="tag">${i === 0 ? "Board" : `Photo ${i + 1}`}</span>
+    </div>`).join("");
+  $("morePhotos").hidden = files.length >= MAX_PHOTOS;
+  $("shotHint").textContent = files.length === 1
+    ? "Menu ka rate list ya tawa ki ek aur photo lo to zyada info mil jayegi."
+    : `${files.length} photos — sabko mila ke ek listing banegi.`;
+}
+
+$("shots").addEventListener("click", (e) => {
+  const rm = e.target.closest(".rm");
+  if (!rm) return;
+  files.splice(Number(rm.dataset.i), 1);
+  if (!files.length) { showStep(1); return; }
+  renderShots();
+});
 
 $("file").addEventListener("change", (e) => {
-  file = e.target.files[0];
-  if (!file) return;
-  $("previewImg").src = URL.createObjectURL(file);
+  files = [...files, ...e.target.files].slice(0, MAX_PHOTOS);
+  // Clear the input, otherwise picking the same file twice fires no change
+  // event and the "+ ek aur photo" button silently does nothing.
+  e.target.value = "";
+  if (!files.length) return;
   $("addErr2").hidden = true;
+  renderShots();
   showStep(2);
 });
 
@@ -528,10 +573,11 @@ $("submitAdd").addEventListener("click", async () => {
   }
   const btn = $("submitAdd");
   btn.disabled = true;
-  btn.innerHTML = `<span class="spinner"></span> Photo padh rahe hain…`;
+  btn.innerHTML = `<span class="spinner"></span> ${files.length > 1
+    ? `${files.length} photos padh rahe hain…` : "Photo padh rahe hain…"}`;
 
   const form = new FormData();
-  form.append("photo", file);
+  files.forEach((f) => form.append("photos", f));
   form.append("lat", p.lat);
   form.append("long", p.long);
   form.append("device_id", deviceId);
@@ -547,13 +593,17 @@ $("submitAdd").addEventListener("click", async () => {
     if (!data.created) {
       $("addErr2").textContent = data.error || "Add nahi hua, dobara try karo.";
       $("addErr2").hidden = false;
+      // The error asks for a typed name, so open the field it's asking for
+      // instead of leaving someone hunting for it.
+      $("moreFields").open = true;
+      $("mname").focus();
       return;
     }
     const v = data.vendor;
     $("addResult").innerHTML = cardHtml(v) +
       (data.item_count
-        ? `<p class="note">${data.item_count} cheezein menu se padh li. Galat ho to
-             card pe tap karke theek kar sakte ho.</p>`
+        ? `<p class="note">${data.photo_count} photo se ${data.item_count} cheezein
+             padh li. Galat ho to card pe tap karke theek kar sakte ho.</p>`
         : `<p class="note">Menu nahi padha ja saka — dukaan list ho gayi hai, dishes
              baad me add kar sakte ho.</p>`);
     showStep(3);
