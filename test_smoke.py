@@ -447,6 +447,14 @@ assert client.get("/api/food/near", params={
     "lat": 19.0760, "long": 72.8777, "q": "momos"}).json()["corrections"] == {}
 page = client.get("/").text
 assert 'id="fixnote"' in page and "CORRECTIONS" in page
+# A phone in dark mode used to ignore an explicit "light" choice: a media
+# query can't be overridden by an attribute set later, so the override has to
+# exist as its own rule. Both directions, and the same storage key as the
+# owner panel so one choice covers both screens.
+assert ':root[data-theme="dark"]' in page
+assert ':root:not([data-theme="light"])' in page
+assert 'myna_theme' in page and 'id="themeBtn"' in page
+assert 'myna_theme' in client.get("/admin").text
 print("PASS two dishes -> two vendors, each matched on its own word")
 
 # 4f-3. Synonyms end to end: a word that shares no letters with the menu.

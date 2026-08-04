@@ -23,11 +23,18 @@
     --bad: #c62828;
     --shadow: 0 1px 3px rgba(0,0,0,.08), 0 8px 24px rgba(0,0,0,.06);
   }
+  /* The OS preference is the default, but an explicit choice has to beat it in
+     *both* directions — a phone in dark mode was ignoring "light" entirely,
+     because a media query can't be overridden by an attribute set later. */
   @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme="light"]) {
       --bg: #121212; --card: #1e1e1e; --ink: #f2f2f2; --muted: #a0a0a0;
       --line: #2e2e2e; --shadow: 0 1px 3px rgba(0,0,0,.4);
     }
+  }
+  :root[data-theme="dark"] {
+    --bg: #121212; --card: #1e1e1e; --ink: #f2f2f2; --muted: #a0a0a0;
+    --line: #2e2e2e; --shadow: 0 1px 3px rgba(0,0,0,.4);
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   body {
@@ -40,8 +47,11 @@
   header { padding: 1rem 0 .5rem; position: relative; }
   /* Small and out of the way — customers never need it, but during a pilot
      you're switching between the two constantly. */
-  .ownerlink { position: absolute; top: 1rem; right: 0; font-size: .78rem;
-               color: var(--muted); text-decoration: none; }
+  .headlinks { position: absolute; top: .9rem; right: 0; display: flex; gap: .6rem;
+               align-items: center; }
+  .ownerlink { font-size: .78rem; color: var(--muted); text-decoration: none; }
+  .themebtn { background: none; border: none; padding: 0; cursor: pointer;
+              font-size: 1rem; line-height: 1; }
   h1 { font-size: 1.35rem; margin: 0 0 .15rem; letter-spacing: -.02em; }
   .sub { color: var(--muted); font-size: .9rem; margin: 0; }
 
@@ -191,7 +201,10 @@
   <header>
     <h1>Kya khaana hai? 🍜</h1>
     <p class="sub" id="locline">Location le rahe hain…</p>
-    <a class="ownerlink" href="/admin">⚙️ Owner panel</a>
+    <div class="headlinks">
+      <button class="themebtn" id="themeBtn" aria-label="Theme badlo" title="Theme badlo"></button>
+      <a class="ownerlink" href="/admin">⚙️ Owner panel</a>
+    </div>
   </header>
 
   <div class="searchbar">
@@ -209,7 +222,7 @@
   <div id="list"></div>
 </div>
 
-<button class="fab" id="fab">+ Nayi jagah add karo</button>
+<button class="fab" id="fab">+ Jagah add karo</button>
 
 <!-- ── Add sheet: photo → GPS → ho gaya ───────────────────────────────── -->
 <section class="sheet" id="addSheet" hidden>
@@ -286,6 +299,24 @@
 // backend's URL — without it every fetch would hit the static host, which
 // has no API, and the whole app would fail with a network error.
 const API = window.MYNA_API_BASE || "";
+
+// Theme choice is shared with the owner panel through the same storage key, so
+// picking light in one place doesn't leave the other stuck on the phone's
+// setting. Applied before first paint to avoid a flash of the wrong theme.
+(() => {
+  const root = document.documentElement;
+  const apply = (t) => {
+    root.setAttribute("data-theme", t);
+    document.getElementById("themeBtn").textContent = t === "dark" ? "☀️" : "🌙";
+  };
+  const saved = localStorage.getItem("myna_theme");
+  apply(saved || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));
+  document.getElementById("themeBtn").addEventListener("click", () => {
+    const next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    localStorage.setItem("myna_theme", next);
+    apply(next);
+  });
+})();
 const $ = (id) => document.getElementById(id);
 
 // Anonymous, per-device. Enough to attribute a listing and rate-limit votes;
@@ -500,6 +531,11 @@ let timer;
 $("q").addEventListener("input", (e) => {
   query = e.target.value.trim();
   clearTimeout(timer);
+  // Clear immediately rather than only when the debounced fetch starts:
+  // otherwise the previous results sit there for a third of a second looking
+  // exactly like an answer to what was just typed.
+  $("list").innerHTML = `<div class="empty"><span class="spinner"></span> Dhoondh rahe hain…</div>`;
+  $("fixnote").hidden = true;
   timer = setTimeout(load, 350);
 });
 

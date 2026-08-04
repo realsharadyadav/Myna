@@ -35,6 +35,7 @@ GPS, a search box, and cards. Each card is a jagah: kind icon, distance, what's 
 - **Several dishes at once** — "momos aur chawmin" returns two jagah, each shown for its own word: the momos cart for "momos", the chowmein cart for "chawmin". Matches are reported per *typed* word, so a card can say why it's there.
 - **Ranking is "what can I eat right now"** — open beats closed, a doubtful listing sinks, and only then does distance decide. Sorting purely by distance would put a Sunday-only cart above one standing at the corner.
 - **Filters** — "Abhi khula 🔥" and a radius that cycles 3 → 10 → 1 km. A thela is a walk, not a drive.
+- **Theme** — follows the phone, with a toggle that overrides it, shared with the owner panel through one `myna_theme` key. The override needs its own CSS rule rather than only a media query: an attribute set later can't beat `@media (prefers-color-scheme: dark)`, so a phone in dark mode ignored an explicit "light" entirely.
 - Hinglish in Roman script throughout — it's how the food is named out loud, it needs no font support on a cheap phone, and it's what people type.
 
 ### Add — photos
