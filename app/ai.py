@@ -771,6 +771,75 @@ def _parse_price(value) -> float:
     return price if price > 0 else 0.0
 
 
+def merge_boards(boards: list[dict]) -> dict:
+    """Fold several photos of the same vendor into one listing.
+
+    Two photos of one thela carry different halves of the truth: a wide shot
+    gets the signboard name, a close one gets the rates, and a shot of the tawa
+    gets dishes that were never written down anywhere. Merging is what makes
+    taking a second photo worth the extra tap.
+
+    - name: the first non-empty one. Predictable beats clever here — the UI
+      tells people to shoot the board first, and a "longest wins" rule would
+      happily pick an invented "Momos thela" over a real "Raju".
+    - kind: the most common real kind across photos; ties go to the earliest.
+    - items: the union. A duplicate dish keeps whichever copy carries a price,
+      so the close-up's ₹40 survives the wide shot's priceless entry.
+    """
+    from . import food
+
+    merged = {"name": "", "kind": food.DEFAULT_KIND, "items": []}
+    by_name: dict[str, dict] = {}
+    kind_votes: dict[str, int] = {}
+
+    for board in boards:
+        if not merged["name"] and board.get("name"):
+            merged["name"] = board["name"]
+        kind = board.get("kind") or food.DEFAULT_KIND
+        if kind != food.DEFAULT_KIND:
+            kind_votes[kind] = kind_votes.get(kind, 0) + 1
+        for item in board.get("items") or []:
+            key = item["name"].strip().lower()
+            if not key:
+                continue
+            existing = by_name.get(key)
+            if existing is None:
+                by_name[key] = dict(item)
+            elif not existing.get("price") and item.get("price"):
+                existing["price"] = item["price"]
+
+    if kind_votes:
+        merged["kind"] = max(kind_votes, key=lambda k: kind_votes[k])
+    merged["items"] = list(by_name.values())[:60]
+    if merged["kind"] == food.DEFAULT_KIND and merged["items"]:
+        merged["kind"] = food.normalise_kind(" ".join(i["name"] for i in merged["items"]))
+    return merged
+
+
+def read_food_boards(
+    image_paths: list[str], db_default: str = "", model: str = ""
+) -> tuple[dict, str]:
+    """read_food_board over several photos of one vendor, merged.
+
+    An error is only returned when *nothing* was read from *any* photo. One
+    unreadable shot among several is not a failure — it's the reason someone
+    took more than one.
+    """
+    boards, errors = [], []
+    for path in image_paths:
+        board, error = read_food_board(path, db_default, model=model)
+        boards.append(board)
+        if error:
+            errors.append(error)
+
+    merged = merge_boards(boards)
+    if merged["name"] or merged["items"]:
+        return merged, ""
+    return merged, errors[0] if errors else (
+        "Photo se kuch samajh nahi aaya. Thoda paas se, roshni mein try karo."
+    )
+
+
 def read_food_board(image_path: str, db_default: str = "", model: str = "") -> tuple[dict, str]:
     """One photo → {name, kind, items:[{name, price, category}]}.
 

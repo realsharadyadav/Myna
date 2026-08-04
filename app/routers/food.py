@@ -240,12 +240,20 @@ def list_kinds():
 
 
 # ---------------------------------------------------------------------------
-# One-photo add
+# Photo add
 # ---------------------------------------------------------------------------
+# Every extra photo is another vision call, so the count is capped: five is
+# well past the point where a thela has anything new to show, and it bounds
+# both the bill and how long someone stands on a footpath waiting.
+MAX_PHOTOS = 5
+
 
 @router.post("/add", response_model=schemas.QuickAddResponse)
 def quick_add(
-    photo: UploadFile = File(...),
+    # Repeated `photos` is the real field; `photo` stays as a single-file alias
+    # so anything built against the one-photo version keeps working.
+    photos: list[UploadFile] = File(default=[]),
+    photo: UploadFile | None = File(default=None),
     lat: float = Form(...),
     long: float = Form(...),
     address: str = Form(""),
@@ -260,21 +268,38 @@ def quick_add(
     end_time: str = Form(""),
     db: Session = Depends(get_db),
 ):
-    """Photo + GPS → a listed vendor with its whole menu. That's the flow.
+    """Photos + GPS → a listed vendor with its whole menu. That's the flow.
 
-    `name` and `kind` are accepted as overrides for the retry case (the photo
+    One photo is enough, but more is better and they're merged: a wide shot
+    carries the signboard name, a close one carries the rates, a shot of the
+    tawa carries dishes nobody wrote down. The first photo is treated as the
+    board — its name wins — which is what the add screen asks for.
+
+    `name` and `kind` are accepted as overrides for the retry case (the board
     was unreadable, so the user typed a name); normally both come out of the
-    photo.
+    photos.
     """
+    uploads = [f for f in ([*photos, photo] if photo else list(photos)) if f is not None]
+    if not uploads:
+        raise HTTPException(422, "Kam se kam ek photo chahiye")
+    uploads = uploads[:MAX_PHOTOS]
+
     retain = get_retain_uploaded_images(db)
-    local_path, public_url = save_upload(photo, retain=retain)
+    saved = [save_upload(f, retain=retain) for f in uploads]
+    local_paths = [path for path, _ in saved]
+    # The first photo is the one shown on the card, so it's the one kept.
+    public_url = saved[0][1]
     vision_model = get_default_vision_model(db)
     try:
-        board, error = ai.read_food_board(local_path, model=vision_model)
+        board, error = ai.read_food_boards(local_paths, model=vision_model)
     finally:
-        if not retain:
+        # Only the card's photo is worth keeping even when retention is on —
+        # the rest were read for their text and have done their job.
+        for index, path in enumerate(local_paths):
+            if retain and index == 0:
+                continue
             try:
-                Path(local_path).unlink(missing_ok=True)
+                Path(path).unlink(missing_ok=True)
             except OSError:
                 pass
 
@@ -282,7 +307,8 @@ def quick_add(
     if not final_name and not board["items"]:
         # Nothing readable and nothing typed — there is no listing to make.
         return {"created": False, "vendor": None, "read_name": "", "read_kind": "",
-                "item_count": 0, "error": error or "Naam nahi mila. Naam type karke dobara try karo."}
+                "item_count": 0, "photo_count": len(uploads),
+                "error": error or "Naam nahi mila. Naam type karke dobara try karo."}
 
     final_kind = food.normalise_kind(kind or board["kind"])
     if not final_name:
@@ -348,6 +374,7 @@ def quick_add(
         "read_name": board["name"],
         "read_kind": board["kind"],
         "item_count": len(items),
+        "photo_count": len(uploads),
         # A partial read is still a success — the caller shows this as a nudge
         # ("menu nahi padha, khud add karo"), not as a failure.
         "error": error if not items else "",
