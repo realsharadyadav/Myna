@@ -94,6 +94,23 @@ Hiding is reversible and **never deletes**. Flagged listings go to the **Reports
 | `GET` | `/api/food/kinds` | Vendor kinds, popular-dish chips, categories, and both reason lists |
 | `GET` | `/api/admin/reports?hidden_only` | Owner review queue for flagged listings |
 | `POST` | `/api/admin/shops/{id}/visibility` | Hide or restore a listing (restoring clears its reports) |
+| `POST` | `/api/admin/data/clear` | Wipe all shops, items, rounds and reports (AI settings kept) |
+
+## Pages
+
+The owner panel's dashboard links to all of these; the food app carries a small **Owner panel** link in its header.
+
+| Path | What it is |
+|---|---|
+| `/` | The food app — the customer-facing product |
+| `/admin` | Owner panel: dashboard, reports queue, shops, items, AI settings, CSV import, clear-all |
+| `/docs` | Interactive API docs |
+| `/classic` | The old general product search (kirana, dish→ingredients) |
+| `/shopkeeper` | The old self-onboarding page — register a shop, add stock, manage rounds |
+
+**Clearing data** is on the dashboard under a red *Clear all data* card (two confirms). It deletes shops, items, rounds and reports; AI model choices and the retention flag survive, because someone clearing test data wants an empty map, not to redo the setup that made the map work. Note that this also fixed the CSV import's `replace=true` path, which used to delete only shops and items — rounds and reports for those shops were left behind as orphans, since a bulk `DELETE` doesn't run SQLAlchemy's cascade and SQLite doesn't enforce foreign keys by default.
+
+**Multiple shops per device.** `/shopkeeper` used to pin itself to one `localStorage` shop id: register once and the onboarding form hid forever, so every later visit reopened the same shop with no way to add a second. It now keeps a list, shows a **Working on** picker plus **+ Register another shop**, and drops a shop from the list if it 404s (deleted in the owner panel, or wiped by a clear). Names are read from the API, not from storage, so renaming a shop elsewhere doesn't leave a stale label here.
 
 Vendor kinds and food categories live in `app/food.py` — thela, chaat, chinese, chai, dhaba, sweets, juice, bakery, tiffin, restaurant.
 
@@ -240,7 +257,7 @@ Payments/monetization (Phase 3), full-auto shelf scanning, native mobile app (Ph
 
 **General search**
 
-- Shopkeeper "auth" is just a `localStorage` shop_id — fine for single-device pilot onboarding, needs real auth before wider rollout.
+- Shopkeeper "auth" is still just `localStorage` — the page now holds several shops instead of one, but anyone on that device can edit them, and clearing storage loses the list. Needs real auth before wider rollout.
 - Vendor rounds are a weekly pattern (day + time window) — no one-off "aaj nahi aa raha" override, and no live GPS tracking; the card shows the schedule the vendor typed.
 - Item matching is substring-based (`ILIKE %q%`); upgrade to trigram/tsvector search when catalogue grows.
 - SQLite for local dev; set `DATABASE_URL` to Postgres for deployment (Haversine runs in Python, so no PostGIS needed).

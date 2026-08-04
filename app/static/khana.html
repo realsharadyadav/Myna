@@ -36,7 +36,11 @@
   }
   .wrap { max-width: 34rem; margin: 0 auto; padding: 0 1rem; }
 
-  header { padding: 1rem 0 .5rem; }
+  header { padding: 1rem 0 .5rem; position: relative; }
+  /* Small and out of the way — customers never need it, but during a pilot
+     you're switching between the two constantly. */
+  .ownerlink { position: absolute; top: 1rem; right: 0; font-size: .78rem;
+               color: var(--muted); text-decoration: none; }
   h1 { font-size: 1.35rem; margin: 0 0 .15rem; letter-spacing: -.02em; }
   .sub { color: var(--muted); font-size: .9rem; margin: 0; }
 
@@ -181,6 +185,7 @@
   <header>
     <h1>Kya khaana hai? 🍜</h1>
     <p class="sub" id="locline">Location le rahe hain…</p>
+    <a class="ownerlink" href="/admin">⚙️ Owner panel</a>
   </header>
 
   <div class="searchbar">

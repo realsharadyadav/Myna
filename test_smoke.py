@@ -968,6 +968,50 @@ assert "/api/admin/reports" in panel and "visibility" in panel
 assert "Restore &amp; clear reports" in panel and "reportPill" in panel
 print("PASS owner review queue: inspect, restore, clear")
 
+# 47k-2. Clear all data. The old CSV `replace` wipe deleted only shops and
+# items, leaving rounds and reports behind as orphans nothing could reach.
+res = client.post("/api/food/add", data={
+    "lat": 19.0770, "long": 72.8790, "name": "Wipe Test Thela", "kind": "thela",
+    "day_of_week": -1, "start_time": "09:00", "end_time": "21:00",
+}, files={"photo": ("w.jpg", io.BytesIO(b"\xff\xd8\xff\xe0" + b"\x00" * 50), "image/jpeg")})
+wipe_id = res.json()["vendor"]["shop_id"]
+client.post(f"/api/food/{wipe_id}/items", json={"name": "Chai", "price": 10})
+client.post(f"/api/food/{wipe_id}/report", json={"reason": "fake", "device_id": "dev-w"})
+assert client.get(f"/api/food/{wipe_id}").json()["stops"]
+
+from app import models as _models
+from app.database import SessionLocal as _Session
+cleared = client.post("/api/admin/data/clear").json()
+assert cleared["cleared"] is True
+assert cleared["shops"] >= 1 and cleared["items"] >= 1
+assert cleared["stops"] >= 1 and cleared["reports"] >= 1
+_db = _Session()
+try:
+    for _model in (_models.Shop, _models.Item, _models.ShopStop, _models.ShopReport):
+        assert _db.query(_model).count() == 0, _model.__name__
+finally:
+    _db.close()
+stats = client.get("/api/admin/stats").json()
+assert stats["total_shops"] == 0 and stats["total_items"] == 0
+assert client.get("/api/food/near", params={"lat": 19.076, "long": 72.878}).json()["count"] == 0
+# Settings survive a clear — wiping test data shouldn't undo the AI setup.
+client.patch("/api/admin/settings", json={"retain_uploaded_images": True})
+client.post("/api/admin/data/clear")
+assert client.get("/api/admin/settings").json()["retain_uploaded_images"] is True
+client.patch("/api/admin/settings", json={"retain_uploaded_images": False})
+print("PASS clear all data (children too, settings kept)")
+
+# 47k-3. Navigation + the shopkeeper page can hold more than one shop.
+panel = client.get("/admin").text
+assert 'class="pagelinks"' in panel and 'clearAllData()' in panel
+for path in ('href="/"', 'href="/admin"', 'href="/docs"', 'href="/classic"', 'href="/shopkeeper"'):
+    assert path in panel, path
+keeper = client.get("/shopkeeper").text
+assert 'id="shopSwitcher"' in keeper and 'id="newShopBtn"' in keeper
+assert "myna_shop_ids" in keeper and "function renderSwitcher" in keeper
+assert 'class="ownerlink"' in client.get("/").text
+print("PASS page navigation + multi-shop switcher")
+
 # 47l. Reference data + the food UI itself.
 kinds = client.get("/api/food/kinds").json()
 assert {"kind", "label", "emoji", "mobile"} <= set(kinds["kinds"][0])

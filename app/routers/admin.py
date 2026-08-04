@@ -348,9 +348,7 @@ def import_csv(
         )
 
     if replace:
-        db.query(models.Item).delete()
-        db.query(models.Shop).delete()
-        db.commit()
+        _wipe_everything(db)
 
     seen: set[str] = set()
     shops_by_name: dict[str, models.Shop] = {}
@@ -490,3 +488,38 @@ def set_visibility(shop_id: int, payload: dict, db: Session = Depends(get_db)):
     db.refresh(shop)
     return {"shop_id": shop.shop_id, "hidden": bool(shop.hidden),
             "report_count": shop.report_count or 0}
+
+
+# ---------------------------------------------------------------------------
+# Clear all data
+# ---------------------------------------------------------------------------
+
+def _wipe_everything(db: Session) -> dict:
+    """Delete every shop and everything hanging off one.
+
+    Children go first and explicitly. `db.query(Shop).delete()` is a bulk
+    DELETE that never loads the rows, so SQLAlchemy's cascade rules don't run
+    — and SQLite doesn't enforce foreign keys by default, so stops and reports
+    for deleted shops were being left behind as orphans that nothing could
+    reach or clean up. Deleting them here is what makes "clear" actually clear.
+    """
+    counts = {
+        "reports": db.query(models.ShopReport).delete(),
+        "stops": db.query(models.ShopStop).delete(),
+        "items": db.query(models.Item).delete(),
+        "shops": db.query(models.Shop).delete(),
+    }
+    db.commit()
+    embeddings.invalidate_cache()
+    return counts
+
+
+@router.post("/data/clear", response_model=dict)
+def clear_all_data(db: Session = Depends(get_db)):
+    """Wipe all shops, items, rounds and reports. Settings are kept.
+
+    AI model choices and the retention flag live in app_settings and survive
+    on purpose: someone clearing test data wants an empty map, not to redo the
+    setup that made the map work.
+    """
+    return {"cleared": True, **_wipe_everything(db)}

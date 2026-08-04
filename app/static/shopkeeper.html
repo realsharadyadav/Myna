@@ -79,6 +79,9 @@
     border-bottom-color: var(--line);
   }
   .topbar-inner { max-width: 680px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .switch-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+  .switch-row > div { flex: 1; min-width: 190px; }
+  .switch-row button { width: auto; white-space: nowrap; }
   .brand { display: flex; align-items: center; gap: 9px; min-width: 0; }
   .brand img { width: 34px; height: 34px; border-radius: 11px; box-shadow: var(--shadow-sm); }
   .brand .name { font-size: 1.05rem; font-weight: 850; letter-spacing: -.02em; white-space: nowrap; }
@@ -451,6 +454,20 @@
     <p>Two minutes. Dukaan ho ya thela — a photo, where you stand, and what you stock.</p>
   </div>
 
+  <!-- Registering one shop used to pin this page to it forever: the onboarding
+       card hid and every visit reopened the same shop, with no way to add a
+       second. This bar is that way out — switch between the shops added on
+       this device, or start a new one. -->
+  <div id="shopSwitcher" class="card hidden">
+    <div class="switch-row">
+      <div>
+        <label for="shopPicker">Working on</label>
+        <select id="shopPicker"></select>
+      </div>
+      <button class="ghost" id="newShopBtn" type="button">+ Register another shop</button>
+    </div>
+  </div>
+
   <!-- STEP 1: Onboarding -->
   <div id="onboardCard" class="card">
     <div class="step"><span class="num">1</span><h2>Register your shop</h2></div>
@@ -767,7 +784,69 @@ $('typeSeg').addEventListener('click', e => {
     : 'Stand at your shop and tap — this is how customers find you.';
 });
 
-if (shopId) loadShop(shopId);
+/* Every shop registered from this device, not just the last one. The old
+   single `myna_shop_id` is migrated in so nobody loses the shop they already
+   had, and it's still written on save for anything else that reads it. */
+function myShopIds() {
+  try {
+    const list = JSON.parse(localStorage.getItem('myna_shop_ids') || '[]');
+    if (Array.isArray(list) && list.length) return list;
+  } catch { /* corrupt entry — fall through to the legacy single id */ }
+  const legacy = localStorage.getItem('myna_shop_id');
+  return legacy ? [Number(legacy)] : [];
+}
+
+function rememberShop(id) {
+  const list = myShopIds().filter(x => Number(x) !== Number(id));
+  list.unshift(Number(id));
+  localStorage.setItem('myna_shop_ids', JSON.stringify(list));
+  localStorage.setItem('myna_shop_id', String(id));
+}
+
+function forgetShop(id) {
+  const list = myShopIds().filter(x => Number(x) !== Number(id));
+  localStorage.setItem('myna_shop_ids', JSON.stringify(list));
+  if (list.length) localStorage.setItem('myna_shop_id', String(list[0]));
+  else localStorage.removeItem('myna_shop_id');
+}
+
+/* Names come from the API rather than from storage, so a shop renamed
+   elsewhere doesn't show its old name here forever. */
+async function renderSwitcher() {
+  const ids = myShopIds();
+  const box = $('shopSwitcher');
+  if (!ids.length) { box.classList.add('hidden'); return; }
+  const shops = await Promise.all(ids.map(async id => {
+    try {
+      const res = await fetch(`${API}/api/shops/${id}`);
+      return res.ok ? await res.json() : null;
+    } catch { return null; }
+  }));
+  // A shop deleted from the owner panel shouldn't sit in this list forever.
+  shops.forEach((shop, i) => { if (!shop) forgetShop(ids[i]); });
+  const live = shops.filter(Boolean);
+  if (!live.length) { box.classList.add('hidden'); return; }
+  box.classList.remove('hidden');
+  $('shopPicker').innerHTML = live.map(s =>
+    `<option value="${s.shop_id}"${Number(s.shop_id) === Number(shopId) ? ' selected' : ''}>${esc(s.name)}</option>`
+  ).join('');
+}
+
+$('shopPicker').addEventListener('change', e => loadShop(e.target.value));
+
+/* Start a fresh registration without wiping the shops already added — the
+   switcher stays, so you can come back to any of them. */
+$('newShopBtn').addEventListener('click', () => {
+  shopId = null;
+  shopType = 'fixed';
+  $('onboardCard').classList.remove('hidden');
+  $('itemsCard').classList.add('hidden');
+  $('listCard').classList.add('hidden');
+  $('roundsCard').classList.add('hidden');
+  $('onboardCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
+if (shopId) loadShop(shopId); else renderSwitcher();
 
 async function loadShop(id) {
   try {
@@ -783,9 +862,19 @@ async function loadShop(id) {
     $('listCard').classList.remove('hidden');
     $('roundsCard').classList.remove('hidden');
     applyShopType();
+    rememberShop(shop.shop_id);
+    renderSwitcher();
     loadCatalog();
     loadItems();
-  } catch { localStorage.removeItem('myna_shop_id'); }
+  } catch {
+    // The shop is gone (deleted in the owner panel, or the DB was cleared) —
+    // drop it and fall back to whatever else this device registered.
+    forgetShop(id);
+    shopId = null;
+    $('onboardCard').classList.remove('hidden');
+    const rest = myShopIds();
+    if (rest.length) loadShop(rest[0]); else renderSwitcher();
+  }
 }
 
 /* The rounds form is only for vendors who move; a fixed shop sees one line
@@ -936,7 +1025,7 @@ async function saveShop() {
       const fd = new FormData(); fd.append('photo', boardPhoto);
       await fetch(`${API}/api/shops/${shop.shop_id}/photo`, { method: 'POST', body: fd });
     }
-    localStorage.setItem('myna_shop_id', shop.shop_id);
+    rememberShop(shop.shop_id);
     loadShop(shop.shop_id);
   } catch { alert('Save failed. Please try again.'); btn.disabled = false; btn.textContent = 'Save my shop'; }
 }

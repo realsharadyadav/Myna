@@ -172,6 +172,17 @@
     font-size: .68rem; font-weight: 800; line-height: 1.5;
   }
   .tab-pill[hidden] { display: none; }
+  .pagelinks { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+  .pagelinks a {
+    display: block; padding: 12px 14px; border-radius: 12px; text-decoration: none;
+    border: 1.5px solid var(--input-border); color: var(--text);
+  }
+  .pagelinks a:hover { border-color: var(--accent); }
+  .pagelinks b { display: block; font-size: .92rem; margin-bottom: 2px; }
+  .pagelinks span { font-size: .78rem; color: var(--text-soft); }
+  .danger-zone { border-color: color-mix(in srgb, var(--danger) 35%, transparent); }
+  .danger-zone h3 { color: var(--danger); }
+  button.ghost.danger-btn { color: var(--danger); }
   .stat-card.alert .num { color: var(--danger); }
   .stat-card.clickable { cursor: pointer; }
   .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: .72rem; font-weight: 700; }
@@ -424,12 +435,40 @@
   <!-- ==================== DASHBOARD ==================== -->
   <div id="tab-dashboard">
     <div class="stats-grid" id="statsGrid"></div>
+
+    <!-- Every page in one place. The icon-only nav in the header is fine once
+         you know the app; this is for finding your way around it. -->
+    <div class="card" style="margin-top:16px">
+      <h3>All pages</h3>
+      <div class="pagelinks">
+        <a href="/" target="_blank"><b>🍜 Food app</b><span>Paas me kya mil raha hai — the customer app</span></a>
+        <a href="/admin"><b>⚙️ Owner panel</b><span>You are here</span></a>
+        <a href="/docs" target="_blank"><b>📖 API docs</b><span>Every endpoint, try them live</span></a>
+        <a href="/classic" target="_blank"><b>🔍 Classic search</b><span>Old general product search (kirana, dish→ingredients)</span></a>
+        <a href="/shopkeeper" target="_blank"><b>🏪 Shopkeeper page</b><span>Old self-onboarding: register a shop, add stock</span></a>
+      </div>
+    </div>
+
     <div class="card" style="margin-top:16px">
       <h3>Recently registered shops</h3>
       <table>
         <thead><tr><th>ID</th><th>Name</th><th>Registered</th></tr></thead>
         <tbody id="recentShops"></tbody>
       </table>
+    </div>
+
+    <!-- Wiping test data is a routine thing to want while piloting, and doing
+         it by hand meant deleting shops one at a time. -->
+    <div class="card danger-zone" style="margin-top:16px">
+      <h3>Clear all data</h3>
+      <p class="count" style="margin:6px 0 14px">
+        Deletes every shop, item, round and report. AI settings are kept.
+        This cannot be undone.
+      </p>
+      <button class="ghost danger-btn" style="width:auto; padding:10px 22px" onclick="clearAllData()">
+        <svg class="ic" aria-hidden="true"><use href="#i-trash"/></svg> Clear all data
+      </button>
+      <span id="clearResult" style="margin-left:12px; font-size:.85rem"></span>
     </div>
   </div>
 
@@ -787,6 +826,23 @@ async function deleteReported(id) {
   if (!confirm('Delete this listing and everything on it? This cannot be undone — restoring is usually the safer call.')) return;
   await fetch(API + `/api/admin/shops/${id}`, { method: 'DELETE' });
   loadReports();
+}
+
+// Two confirms, because this is unrecoverable and the button sits one tab away
+// from everything else you do all day.
+async function clearAllData() {
+  if (!confirm('Delete ALL shops, items, rounds and reports?\n\nThis cannot be undone.')) return;
+  if (!confirm('Really clear everything? Last chance.')) return;
+  const out = document.getElementById('clearResult');
+  out.textContent = 'Clearing…';
+  try {
+    const res = await fetch(API + '/api/admin/data/clear', { method: 'POST' });
+    const data = await res.json();
+    out.textContent = `Cleared ${data.shops} shops, ${data.items} items, ${data.stops} rounds, ${data.reports} reports.`;
+    loadStats();
+  } catch (e) {
+    out.textContent = 'Clear failed — try again.';
+  }
 }
 
 function gotoReports() {
