@@ -58,6 +58,8 @@ Three stages, cheapest first, because most searches never need the expensive one
 
 1. **The word itself.** Matched with `term_in`, which anchors to a word start rather than doing a plain substring check. That check was wrong in a way that's easy to miss: "tea" sits inside "S**tea**m Momos", so searching for tea returned a momos cart. Prefixes still work — "momo" finds "Momos", "samosa" finds "Samosas".
 2. **Fuzzy correction** against the dish vocabulary *plus the dish names actually on menus nearby*, so a thela selling something the built-in list never heard of is still reachable through a misspelling. Free, instant, and enough for "chawmin" → "chowmein". A term that's already known, or is a prefix of one, is left alone — guessing wrong silently searches for a different food.
+A category is a bucket, never a dish. "Chai & drinks" used to be a category name, which meant every juice stall matched a search for "chai" — search reads the category too, so the bucket claimed a dish it didn't sell. The buckets are now `Drinks`, `Fast food`, `Main course` and so on, and a test asserts none of them is named after a dish.
+
 3. **An LLM**, but *only* for words the first two couldn't place ("chaomen", "gol gappay"). Paying for a model call on every search would be waste when "momos" needs no help. The model may only map onto dishes the app already knows; anything else is a hallucinated dish and gets dropped.
 
 Corrections come back in the response as `{typed: used}` and the app says so on screen — *"chowmein dikha rahe hain "chawmin" ke liye"*. A search that quietly looks for a different word than the one you typed is how people stop trusting results they can't explain.
@@ -110,7 +112,8 @@ Hiding is reversible and **never deletes**. Flagged listings go to the **Reports
 | `DELETE` | `/api/admin/shops/{id}` | Delete a listing, menu and rounds |
 | `GET` | `/api/admin/reports?hidden_only` | Owner review queue for flagged listings |
 | `POST` | `/api/admin/shops/{id}/visibility` | Hide or restore a listing (restoring clears its reports) |
-| `POST` | `/api/admin/data/clear` | Wipe all shops, items, rounds and reports (AI settings kept) |
+| `POST` | `/api/admin/data/clear` | Wipe all thele, dishes, rounds and reports (AI settings kept) |
+| `POST` | `/api/admin/data/sample` | Generate demo thele around `{lat, long, count, replace}` |
 
 ## Pages
 
@@ -118,11 +121,13 @@ Four screens, and the owner panel's dashboard links to all of them. The food app
 
 | Path | What it is |
 |---|---|
-| `/` | The food app — the customer-facing product |
-| `/admin` | Owner panel: Dashboard, Vendors, Reports, AI Settings |
-| `/docs` | Interactive API docs |
+| `/` | The thela app — the customer-facing product |
+| `/admin` | Owner panel: Dashboard, Thele, Reports, AI Settings |
+| `/docs` | Interactive API docs — still served, deliberately not linked from the panel (it's a developer surface) |
 
 The owner panel has exactly one management surface — the **Vendors** tab: every listing with its kind, menu size, round count, how many people confirmed it, and whether it's live, reported or hidden. Rename fixes the common case (a misread signboard) in one prompt; delete takes the menu and rounds with it. It replaced a generic shops table that showed shopkeeper names and phone numbers — columns this product no longer has, since nobody registers their own listing and numbers are never captured.
+
+**Sample thele** are on the dashboard next to Clear: 50 generated listings with menus, prices, rounds and a spread of freshness, placed around **the browser's current location** (Mumbai if it won't say). Both parts matter — sample data a thousand kilometres away answers nothing about "paas me kya mil raha hai", and a dataset where every row looks alike can't show whether the ranking works. Some carts are out right now and some come on Thursdays, some were confirmed today and some three weeks ago, a couple are already reported, and some boards hide their rates. Generator lives in `app/sample_food.py`; `{"replace": true}` wipes first.
 
 **Clearing data** is on the dashboard under a red *Clear all data* card (two confirms). It deletes shops, items, rounds and reports; AI model choices and the retention flag survive, because someone clearing test data wants an empty map, not to redo the setup that made the map work. Deletion goes through children explicitly: a bulk `DELETE` never loads the rows, so SQLAlchemy's cascade doesn't run, and SQLite doesn't enforce foreign keys by default — which used to leave orphaned rounds and reports behind.
 

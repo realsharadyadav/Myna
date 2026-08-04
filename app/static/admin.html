@@ -426,7 +426,6 @@
     <div class="header-right">
       <nav>
         <a href="/" title="Food app" aria-label="Food app"><svg class="ic" aria-hidden="true"><use href="#i-search"/></svg></a>
-        <a href="/docs" title="API docs" aria-label="API docs"><svg class="ic" aria-hidden="true"><use href="#i-book"/></svg></a>
       </nav>
       <button class="theme-toggle" id="themeBtn" title="Toggle theme" aria-label="Toggle dark/light mode"></button>
     </div>
@@ -450,7 +449,6 @@
       <div class="pagelinks">
         <a href="/" target="_blank"><b>🍜 Thela app</b><span>Paas me kya mil raha hai — the customer app</span></a>
         <a href="/admin"><b>⚙️ Owner panel</b><span>You are here</span></a>
-        <a href="/docs" target="_blank"><b>📖 API docs</b><span>Every endpoint, try them live</span></a>
       </div>
     </div>
 
@@ -466,6 +464,26 @@
 
     <!-- Wiping test data is a routine thing to want while piloting, and doing
          it by hand meant deleting shops one at a time. -->
+    <div class="card" style="margin-top:16px">
+      <h3>Load sample thele</h3>
+      <p class="count" style="margin:6px 0 14px">
+        Generates 50 demo thele around <b>your current location</b>, with menus,
+        prices, rounds and a spread of freshness — so search, ranking and the
+        reports queue all have something real-shaped to work on.
+        Sample data far from you would tell you nothing about &ldquo;paas me kya
+        mil raha hai&rdquo;.
+      </p>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center">
+        <button class="ghost" style="width:auto; padding:10px 22px" onclick="loadSampleData(false)">
+          <svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg> Load 50 sample thele
+        </button>
+        <button class="ghost" style="width:auto; padding:10px 22px" onclick="loadSampleData(true)">
+          <svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg> Wipe first, then load 50
+        </button>
+        <span id="sampleResult" style="font-size:.85rem"></span>
+      </div>
+    </div>
+
     <div class="card danger-zone" style="margin-top:16px">
       <h3>Clear all data</h3>
       <p class="count" style="margin:6px 0 14px">
@@ -803,6 +821,40 @@ async function deleteReported(id) {
   if (!confirm('Delete this listing and everything on it? This cannot be undone — restoring is usually the safer call.')) return;
   await fetch(API + `/api/admin/shops/${id}`, { method: 'DELETE' });
   loadReports();
+}
+
+// Sample thele are placed around wherever the panel is being opened from —
+// see the endpoint's docstring for why that matters.
+function browserLocation() {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) return resolve(null);
+    navigator.geolocation.getCurrentPosition(
+      (p) => resolve({ lat: p.coords.latitude, long: p.coords.longitude }),
+      () => resolve(null),
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 }
+    );
+  });
+}
+
+async function loadSampleData(replace) {
+  if (replace && !confirm('Delete everything first, then load 50 sample thele?')) return;
+  const out = document.getElementById('sampleResult');
+  out.textContent = 'Location le rahe hain…';
+  const pos = await browserLocation();
+  out.textContent = 'Generating…';
+  try {
+    const res = await fetch(API + '/api/admin/data/sample', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ count: 50, replace, ...(pos || {}) }),
+    });
+    const data = await res.json();
+    out.textContent = `${data.created} thele, ${data.items} dishes, ${data.rounds} rounds`
+      + (pos ? ' around you.' : ' around Mumbai (location nahi mili).');
+    loadStats();
+  } catch (e) {
+    out.textContent = 'Could not load sample data — try again.';
+  }
 }
 
 // Two confirms, because this is unrecoverable and the button sits one tab away

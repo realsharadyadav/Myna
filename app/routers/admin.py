@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from .. import ai, embeddings, food, models, schemas, vision_check
+from .. import ai, embeddings, food, models, sample_food, schemas, vision_check
 from ..database import (
     get_db,
     get_default_embedding_model,
@@ -333,3 +333,40 @@ def clear_all_data(db: Session = Depends(get_db)):
     setup that made the map work.
     """
     return {"cleared": True, **_wipe_everything(db)}
+
+
+@router.post("/data/sample", response_model=dict)
+def load_sample_data(payload: dict | None = None, db: Session = Depends(get_db)):
+    """Fill the map with generated thele around a point, for trying the app.
+
+    Coordinates come from the caller's browser: sample data a thousand
+    kilometres away answers nothing about "paas me kya mil raha hai". Falls
+    back to Mumbai when the browser won't say.
+    """
+    payload = payload or {}
+    try:
+        lat = float(payload.get("lat") or 19.0760)
+        long = float(payload.get("long") or 72.8777)
+    except (TypeError, ValueError):
+        raise HTTPException(422, "lat/long must be numbers")
+    count = max(1, min(int(payload.get("count") or 50), 200))
+    replace = bool(payload.get("replace"))
+
+    if replace:
+        _wipe_everything(db)
+
+    shops = sample_food.build(lat, long, count=count)
+    db.add_all(shops)
+    db.flush()
+    items = [item for shop in shops for item in shop.items]
+    if items:
+        embeddings.embed_items(items, db)
+    db.commit()
+    embeddings.invalidate_cache()
+    return {
+        "created": len(shops),
+        "items": len(items),
+        "rounds": sum(len(s.stops) for s in shops),
+        "lat": lat,
+        "long": long,
+    }

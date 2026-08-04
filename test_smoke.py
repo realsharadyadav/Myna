@@ -202,7 +202,7 @@ assert _food.normalise_kind("") == "other"
 assert _food.suggest_category("Veg Chowmein") == "Chinese"
 assert _food.suggest_category("Gulab Jamun") == "Sweets"
 assert _food.suggest_category("Chilli Potato") == "Chinese"
-assert _food.normalise_category("nonsense", "Masala Chai") == "Chai & drinks"
+assert _food.normalise_category("nonsense", "Masala Chai") == "Drinks"
 # Every chip the home screen offers must be a dish the vocabulary actually
 # knows, not one that silently lands on the default category. "Golgappe" used
 # to miss because only "golgappa" was listed — the app's own top chip.
@@ -245,6 +245,14 @@ assert term_in("momo", "raju momos") is True                 # prefix still matc
 assert term_in("samosa", "garam samosas") is True
 assert term_in("", "anything") is False
 print("PASS word-aware matching")
+
+# A category is a bucket, not a dish. Naming one "Chai & drinks" made every
+# juice stall match a search for "chai", because search reads the category too.
+for _bucket in _food.CATEGORY_NAMES:
+    _clash = [d for d in ("chai", "roll", "tandoor", "momo", "dosa", "jalebi")
+              if d in _bucket.lower()]
+    assert not _clash, f"category {_bucket!r} is named after dish(es) {_clash}"
+print("PASS category names don't claim a dish")
 
 # 47b. Board parsing — the object shape, a fenced reply, and the array fallback.
 board = _ai._parse_board(
@@ -541,11 +549,52 @@ assert client.get("/api/admin/settings").json()["retain_uploaded_images"] is Tru
 client.patch("/api/admin/settings", json={"retain_uploaded_images": False})
 print("PASS clear all data (children too, settings kept)")
 
+# 4k-2b. Sample thele — the button next to Clear, for getting the map into a
+# testable state.
+from app import sample_food as _sf
+
+built = _sf.build(19.0760, 72.8777, count=50, seed=7)
+assert len(built) == 50
+assert len({s.name for s in built}) == 50                  # no duplicate names
+assert all(s.items for s in built)                         # every thela has a menu
+assert all(_food.normalise_kind(s.food_kind) == s.food_kind for s in built)
+# Placed within walking distance, not scattered across the country.
+from app.geo import haversine_km as _hav
+assert all(_hav(19.0760, 72.8777, s.lat, s.long) < 4 for s in built)
+# Varied on the axes the UI actually ranks on, or it can't show anything.
+assert len({s.food_kind for s in built}) >= 5
+assert any(s.last_seen_at is None for s in built)           # never confirmed
+assert any(s.stops for s in built)                          # some run rounds
+assert any(i.price == 0 for s in built for i in s.items)    # some boards hide rates
+assert any(i.price > 0 for s in built for i in s.items)
+assert any(s.report_count for s in built)                   # reports queue not empty
+# Prices are street-plausible, rounded like a real board.
+prices = [i.price for s in built for i in s.items if i.price]
+assert all(5 <= p <= 400 and p % 5 == 0 for p in prices)
+
+res = client.post("/api/admin/data/sample",
+                  json={"lat": 19.0760, "long": 72.8777, "count": 12, "replace": True}).json()
+assert res["created"] == 12 and res["items"] > 0
+listing = client.get("/api/food/near", params={
+    "lat": 19.0760, "long": 72.8777, "radius_km": 10}).json()
+assert listing["count"] >= 1, listing["count"]
+# Loading again appends rather than replacing, unless asked.
+client.post("/api/admin/data/sample", json={"lat": 19.076, "long": 72.8777, "count": 5})
+assert client.get("/api/admin/stats").json()["total_shops"] == 17
+assert client.post("/api/admin/data/sample", json={"lat": "abc"}).status_code == 422
+assert 'loadSampleData' in panel and 'Load 50 sample thele' in panel
+client.post("/api/admin/data/clear")
+print("PASS sample thele (placed near you, varied, wipe-first option)")
+
 # 47k-3. Navigation + the shopkeeper page can hold more than one shop.
 panel = client.get("/admin").text
 assert 'class="pagelinks"' in panel and 'clearAllData()' in panel
-for path in ('href="/"', 'href="/admin"', 'href="/docs"'):
+for path in ('href="/"', 'href="/admin"'):
     assert path in panel, path
+# /docs is a developer surface — the owner panel shouldn't point at it. The
+# route still exists, it's just not advertised here.
+assert 'href="/docs"' not in panel
+assert client.get("/docs").status_code == 200
 # The removed pages must not be linked from anywhere either.
 assert "/classic" not in panel and "/shopkeeper" not in panel
 assert 'class="ownerlink"' in client.get("/").text

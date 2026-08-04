@@ -144,6 +144,10 @@ def kind_list() -> list[dict]:
 # ---------------------------------------------------------------------------
 # Small on purpose. A street-food menu doesn't need sixteen aisles, and a short
 # list is one the vision model actually picks from instead of inventing its own.
+#
+# One rule about the names: a bucket must never be named after a specific dish.
+# "Chai & drinks" meant every juice stall matched a search for "chai", because
+# search reads the category too — the bucket claimed a dish it didn't sell.
 
 CATEGORIES: dict[str, list[str]] = {
     "Chaat & street": [
@@ -159,12 +163,12 @@ CATEGORIES: dict[str, list[str]] = {
         "spring roll", "fried rice", "hakka", "chilli potato", "honey chilli",
         "schezwan", "soup", "dimsum",
     ],
-    "Rolls & fast food": [
+    "Fast food": [
         "roll", "kathi roll", "egg roll", "frankie", "shawarma", "burger",
         "sandwich", "pizza", "hot dog", "maggi", "fries", "french fries", "pasta",
         "omelette", "anda", "bhurji", "toast",
     ],
-    "Tandoor & main course": [
+    "Main course": [
         "roti", "naan", "tandoori", "paratha", "thali", "dal", "paneer",
         "butter masala", "kadhai", "biryani", "pulao", "rajma", "chawal", "curry",
         "sabzi", "kofta", "korma", "tikka", "kebab", "chicken", "mutton", "fish",
@@ -178,7 +182,7 @@ CATEGORIES: dict[str, list[str]] = {
         "imarti", "halwa", "rabri", "kheer", "gajak", "peda", "sandesh", "mithai",
         "ice cream", "kulfi", "falooda",
     ],
-    "Chai & drinks": [
+    "Drinks": [
         "chai", "tea", "coffee", "lassi", "juice", "shikanji", "nimbu pani",
         "cold drink", "shake", "milkshake", "coconut water", "nariyal pani",
         "ganne ka ras", "sugarcane", "buttermilk", "chaas", "thandai", "soda",
@@ -189,7 +193,7 @@ CATEGORIES: dict[str, list[str]] = {
     ],
 }
 
-DEFAULT_CATEGORY = "Rolls & fast food"
+DEFAULT_CATEGORY = "Fast food"
 
 CATEGORY_NAMES = list(CATEGORIES.keys())
 
