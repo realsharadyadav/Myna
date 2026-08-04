@@ -15,7 +15,7 @@ from .database import (
     set_default_vision_model,
 )
 from . import ai
-from .routers import admin, food, items, search, shops
+from .routers import admin, food
 
 Base.metadata.create_all(bind=engine)
 
@@ -113,10 +113,6 @@ app.add_middleware(
 )
 
 app.include_router(food.router)
-app.include_router(shops.router)
-app.include_router(items.router)
-app.include_router(items.catalog_router)
-app.include_router(search.router)
 app.include_router(admin.router)
 
 app.mount("/uploads", StaticFiles(directory=BASE_DIR / "uploads"), name="uploads")
@@ -127,18 +123,6 @@ app.mount("/static", StaticFiles(directory=BASE_DIR / "app" / "static"), name="s
 def home():
     """The food app — two screens, no login. See app/static/khana.html."""
     return FileResponse(BASE_DIR / "app" / "static" / "khana.html")
-
-
-@app.get("/classic", include_in_schema=False)
-def classic():
-    """The original general-purpose product search, kept for the admin panel's
-    demo data and for anyone still pointed at it."""
-    return FileResponse(BASE_DIR / "app" / "static" / "index.html")
-
-
-@app.get("/shopkeeper", include_in_schema=False)
-def shopkeeper():
-    return FileResponse(BASE_DIR / "app" / "static" / "shopkeeper.html")
 
 
 @app.get("/admin", include_in_schema=False)

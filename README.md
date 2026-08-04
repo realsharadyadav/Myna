@@ -25,8 +25,6 @@ Then open:
 - **Owner panel:** http://localhost:8000/admin
 - **API docs:** http://localhost:8000/docs
 
-The original general-purpose product search (kirana, multi-item lists, dish→ingredients) is still served at **/classic** and **/shopkeeper** — see [General product search](#general-product-search-classic) below.
-
 ## The food app
 
 ### Home — "Kya khaana hai?"
@@ -92,140 +90,70 @@ Hiding is reversible and **never deletes**. Flagged listings go to the **Reports
 | `POST` | `/api/food/{shop_id}/report` | `{"reason": "fake", "device_id": "…"}` — flag a bad listing |
 | `POST` | `/api/food/{shop_id}/items` | Add one dish by hand, when the board wasn't readable |
 | `GET` | `/api/food/kinds` | Vendor kinds, popular-dish chips, categories, and both reason lists |
+| `GET` | `/api/admin/vendors?q&kind&hidden` | Owner panel's vendor list |
+| `PATCH` | `/api/admin/shops/{id}` | Rename / fix a listing |
+| `DELETE` | `/api/admin/shops/{id}` | Delete a listing, menu and rounds |
 | `GET` | `/api/admin/reports?hidden_only` | Owner review queue for flagged listings |
 | `POST` | `/api/admin/shops/{id}/visibility` | Hide or restore a listing (restoring clears its reports) |
 | `POST` | `/api/admin/data/clear` | Wipe all shops, items, rounds and reports (AI settings kept) |
 
 ## Pages
 
-The owner panel's dashboard links to all of these; the food app carries a small **Owner panel** link in its header.
+Four screens, and the owner panel's dashboard links to all of them. The food app carries a small **Owner panel** link in its header.
 
 | Path | What it is |
 |---|---|
 | `/` | The food app — the customer-facing product |
-| `/admin` | Owner panel: dashboard, reports queue, shops, items, AI settings, CSV import, clear-all |
+| `/admin` | Owner panel: Dashboard, Vendors, Reports, AI Settings |
 | `/docs` | Interactive API docs |
-| `/classic` | The old general product search (kirana, dish→ingredients) |
-| `/shopkeeper` | The old self-onboarding page — register a shop, add stock, manage rounds |
 
-**Clearing data** is on the dashboard under a red *Clear all data* card (two confirms). It deletes shops, items, rounds and reports; AI model choices and the retention flag survive, because someone clearing test data wants an empty map, not to redo the setup that made the map work. Note that this also fixed the CSV import's `replace=true` path, which used to delete only shops and items — rounds and reports for those shops were left behind as orphans, since a bulk `DELETE` doesn't run SQLAlchemy's cascade and SQLite doesn't enforce foreign keys by default.
+The owner panel has exactly one management surface — the **Vendors** tab: every listing with its kind, menu size, round count, how many people confirmed it, and whether it's live, reported or hidden. Rename fixes the common case (a misread signboard) in one prompt; delete takes the menu and rounds with it. It replaced a generic shops table that showed shopkeeper names and phone numbers — columns this product no longer has, since nobody registers their own listing and numbers are never captured.
 
-**Multiple shops per device.** `/shopkeeper` used to pin itself to one `localStorage` shop id: register once and the onboarding form hid forever, so every later visit reopened the same shop with no way to add a second. It now keeps a list, shows a **Working on** picker plus **+ Register another shop**, and drops a shop from the list if it 404s (deleted in the owner panel, or wiped by a clear). Names are read from the API, not from storage, so renaming a shop elsewhere doesn't leave a stale label here.
+**Clearing data** is on the dashboard under a red *Clear all data* card (two confirms). It deletes shops, items, rounds and reports; AI model choices and the retention flag survive, because someone clearing test data wants an empty map, not to redo the setup that made the map work. Deletion goes through children explicitly: a bulk `DELETE` never loads the rows, so SQLAlchemy's cascade doesn't run, and SQLite doesn't enforce foreign keys by default — which used to leave orphaned rounds and reports behind.
 
 Vendor kinds and food categories live in `app/food.py` — thela, chaat, chinese, chai, dhaba, sweets, juice, bakery, tiffin, restaurant.
-
-## General product search (`/classic`)
-
-The original kirana-oriented app is unchanged and still mounted. Everything below this line describes it.
-
-> 📱 For phone testing (camera + GPS require a secure context): serve over HTTPS or use a tunnel
-> like `cloudflared tunnel --url http://localhost:8000` / `ngrok http 8000`, then open the tunnel URL on the phone.
-
-### Features (original Phase 1 scope)
-
-- **Thela / cart vendors (no fixed place)** — a vendor who moves around registers as a *thela* and adds **rounds** instead of one address: each round is a spot plus its timing ("Gali no. 4, har mangalwar 10 se 12", or every day 6–9 AM). Customers see the round they can actually reach — "Here now · till 12 PM" — with directions to that corner, plus the vendor's other rounds and when they come next. Search puts what you can buy right now first: fixed shops and carts standing at a stop, then today's rounds, then later in the week
-- **Shop onboarding** — signage photo → AI reads shop name (Claude Vision), GPS auto-capture, address auto-filled via OpenStreetMap reverse geocoding, manual override everywhere
-- **Item add (semi-auto)** — item photo → AI suggests name/category → shopkeeper confirms → listed as available
-- **Item edit/delete** anytime
-- **Two ways to search** — the landing screen asks how you want to look:
-  - **Search items** — type what you need ("milk bread eggs", *"atta chawal aur namak"*)
-  - **By dish** — type a dish ("paneer butter masala", "poha") and Myna turns it into the full ingredient shopping list, then finds who nearby stocks each one. The LLM plans the ingredients (grounded with web search); a curated glossary (`app/dishes.py`) covers ~50 common dishes so dish mode works with no API key at all.
-- **Mobile-first UI** — white & yellow theme, transparent header so the content gets the full screen, bottom tab bar, tick-off shopping list, one-tap Directions/Call per shop, light + dark mode
-- **Customer search** — multi-item agentic pipeline: the query is parsed into individual items (LLM, with rule-based fallback so it works without an API key), each item is fuzzy-matched across name/category/shop/shopkeeper/address, then results are aggregated per shop — shops that stock more of your list rank first, then nearest-first (Haversine). Handles multi-item and Hinglish queries: *"salt milk and mango"*, *"atta chawal aur namak"*
-- **Owner panel** — dashboard stats (shops/items counts), shop list with search, inline edit/delete, and an AI settings screen organised by what each model is *for* (reading photos / understanding searches / matching similar words), with one save bar instead of a save button per field
-- **Vision self-test** — model pickers mark which models can accept images, and "Test with a sample photo" sends a generated shop board with a random code on it and reports whether the model read it back. Picking a text-only model for OCR used to break every photo upload silently; now the panel says so up front
-- **CSV import** — owner can download a blank template (or 50-shop demo dataset) and upload a filled CSV to bulk-create/update shops & items; optional "wipe existing data first"
 
 ## Configuration
 
 | Env var | Default | Purpose |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | _(empty)_ | Claude Vision for signage/item recognition. |
-| `GROQ_API_KEY` | _(empty)_ | Groq Vision (e.g. Llama 4 Scout) for signage/item recognition. |
-| `GEMINI_API_KEY` | _(empty)_ | Gemini Vision (e.g. 2.5 Flash) for signage/item recognition. |
+| `ANTHROPIC_API_KEY` | _(empty)_ | Claude Vision for reading vendor boards. |
+| `GROQ_API_KEY` | _(empty)_ | Groq Vision (e.g. Llama 4 Scout). |
+| `GEMINI_API_KEY` | _(empty)_ | Gemini Vision (e.g. 2.5 Flash). |
 | `MYNA_DATABASE_URL` | _(falls back to `DATABASE_URL`, then SQLite)_ | Postgres URL. Checked first; `DATABASE_URL` (auto-set by Render/Heroku) is the fallback. |
 | `DATABASE_URL` | `sqlite:///./myna.db` | Postgres URL supplied by hosting platform, or a manual override. |
-| `MYNA_TIMEZONE` | `Asia/Kolkata` | Timezone that thela/cart round timings are read in. |
-| `UPLOAD_DIR` | `./uploads` | Where item/shop photos are stored. Swap for Cloudinary/Supabase in production. |
+| `MYNA_TIMEZONE` | `Asia/Kolkata` | Timezone that thela round timings are read in. |
+| `UPLOAD_DIR` | `./uploads` | Where photos are stored. Swap for Cloudinary/Supabase in production. |
 
-> **AI works without any API key** — name/category fields just stay manual. Set any provider key to enable AI suggestions.
+> **Without any API key the app still runs** — the photo read just fails, and you type the vendor's name yourself on the review screen. Set any provider key to turn the one-photo flow on.
 
 ## Project structure
 
 ```
 app/
-  main.py            FastAPI app, static/upload mounts
-  food.py            Food vocabulary: vendor kinds, categories, Hinglish labels
-  routers/food.py    One-photo add, "paas me kya hai", freshness votes
-  static/khana.html  The food app UI (served at /)
+  main.py            FastAPI app, lightweight migrations, static/upload mounts
   config.py          Env-driven settings
-  database.py        SQLAlchemy engine/session
-  models.py          shops + items tables
+  database.py        SQLAlchemy engine/session + DB-stored settings
+  models.py          shops (vendors) + stops (rounds) + items (menu) + reports
   schemas.py         Pydantic request/response models
+  food.py            Vendor kinds, food categories, Hinglish labels, vote reasons
   geo.py             Haversine distance + Nominatim reverse geocode
-  schedule.py        Mobile-vendor rounds: "when is he here" + human timings
-  ai.py              Multi-provider AI (Anthropic / Groq / Gemini) — vision + text
-  agent.py           Agentic search pipeline: query→items parsing, dish/concept expansion (LLM + fallback)
-  dishes.py          Curated dish→ingredients glossary (zero-config dish mode)
-  vision_check.py    Generates a test shop board and checks a model really reads it
+  schedule.py        Thela rounds: "when is he here" + human timings
+  ai.py              Multi-provider vision/text (Anthropic / Groq / Gemini)
+                     + read_food_board / read_food_boards / merge_boards
+  embeddings.py      Local (or Gemini) embeddings for menu items
+  vision_check.py    Generates a test board and checks a model really reads it
   storage.py         Image upload saving
   routers/
-    shops.py         Shop CRUD, onboarding photo, geocode endpoint, vendor stops
-    items.py         Item CRUD, AI suggest endpoint
-    search.py        Customer search (item mode + dish mode, coverage ranking)
-    admin.py         Owner panel API (stats, shop list, moderation, LLM status)
+    food.py          Add, near, seen votes, reports, menu items, reference data
+    admin.py         Stats, vendors, review queue, AI settings, clear-all
   static/
-    index.html       Customer search page (mobile-first, item + dish modes)
-    shopkeeper.html  Shop onboarding + item management page
-    admin.html       Owner dashboard (stats, shops, AI settings, CSV import)
-  sample_data.py     Reusable demo data (curated + generated shops, CSV helpers)
+    khana.html       The food app (served at /)
+    admin.html       Owner panel
 uploads/             Saved photos (gitignored)
 run.sh               Creates venv, installs deps, starts uvicorn
+test_smoke.py        End-to-end smoke test — no live server needed
 ```
-
-## API summary
-
-| Method | Path | Purpose |
-|---|---|---|
-| `POST` | `/api/shops` | Register a shop (lat/long required; address auto-geocoded if blank) |
-| `GET/PATCH` | `/api/shops/{id}` | Fetch / update shop |
-| `POST` | `/api/shops/{id}/photo` | Upload shop signage photo |
-| `GET/POST` | `/api/shops/{id}/stops` | List / add a mobile vendor's rounds (place + day + time window). Adding one marks the shop `mobile` |
-| `PATCH/DELETE` | `/api/shops/{id}/stops/{stop_id}` | Edit / remove a round |
-| `GET` | `/api/search/shops?q&lat&long&limit` | Agentic pipeline output grouped per shop (coverage score + matched items) |
-| `GET` | `/api/search/one-tap?q&lat&long&limit` | Pipeline + instant shopping list (one product per requested item) |
-| `POST` | `/api/shops/onboard/photo` | AI-read shop name from signage photo |
-| `GET` | `/api/shops/geocode/reverse?lat&long` | GPS → address |
-| `GET/POST` | `/api/shops/{id}/items` | List / add items (multipart: name, category, photo) |
-| `PATCH/DELETE` | `/api/shops/{id}/items/{item_id}` | Edit / remove item |
-| `POST` | `/api/shops/{id}/items/suggest` | AI-suggest item name/category from photo |
-| `GET` | `/api/search?q&lat&long&limit` | Agentic search — parses query into items, matches each, groups+scores per shop (coverage-first, then nearest) |
-| `GET` | `/api/search/shops?q&lat&long&limit&mode` | Same pipeline, returned as one card per shop with matched items + coverage (e.g. "2/3 items here"). `mode=dish` expands a dish name into its ingredients first |
-| `GET` | `/api/search/one-tap?q&lat&long&limit&mode` | Pipeline plus a ready shopping list — one best product per requested item from the nearest shop that stocks it. `mode=dish` treats `q` as a dish name and expands it into ingredients first |
-| `GET` | `/api/search/dishes?limit` | Popular dish suggestions for the app's dish-mode chips |
-| `GET` | `/api/admin/stats` | Owner dashboard stats (shop/item counts, recent shops) |
-| `GET` | `/api/admin/shops?q` | List/search all shops |
-| `GET/PATCH/DELETE` | `/api/admin/shops/{id}` | Shop detail / update / delete |
-| `GET` | `/api/admin/shops/{id}/items` | Items for a shop |
-| `PATCH/DELETE` | `/api/admin/items/{id}` | Edit / remove any item |
-| `GET` | `/api/admin/llm/providers` | Configured AI providers and default model |
-| `GET` | `/api/admin/llm/models` | Fetch available chat models from configured providers, each tagged with whether it accepts images |
-| `POST` | `/api/admin/llm/vision-test` | Send a generated shop-board image to a model and report whether it read the code back (`pass` / `partial` / `no_vision` / `error`) |
-| `POST` | `/api/admin/llm/default-model` | Set the default model (persisted in DB) |
-| `GET` | `/api/admin/import/template?sample` | Download CSV template (blank, or `?sample=1` = 50 demo shops) |
-| `POST` | `/api/admin/import/csv` | Import shops/items from CSV (multipart `file`; `replace=true` wipes existing first) |
-| `GET` | `/admin` | Owner panel UI (dashboard, shops, AI settings, CSV import) |
-
-### CSV import format
-
-Flat — one row per item, shop fields repeated:
-
-```csv
-shop_name,shopkeeper,lat,long,address,phone,item_name,category
-Sharma General Store,Ramesh Sharma,19.0760,72.8777,Shop 4 Link Rd Andheri West,9820012345,Parle-G Gold 100g,Snacks
-```
-
-Rows are grouped by `shop_name`: new names create a shop, existing names update it (only non-empty CSV fields overwrite). Every row with an `item_name` adds an item to its shop. Get the header right by downloading the template from the admin **Import CSV** tab.
 
 ## Deploy to Render (free plan)
 
@@ -234,31 +162,24 @@ One-click deploy using the included `render.yaml` blueprint:
 1. Push this repo to GitHub, then in Render: **New → Blueprint** → select the repo.
 2. Render creates the web service and a **free PostgreSQL DB** automatically.
 3. After deploy, go to the service's **Environment** tab and add your API keys (`ANTHROPIC_API_KEY` / `GROQ_API_KEY` / `GEMINI_API_KEY`) — they're marked `sync: false` in the blueprint.
-4. Open `https://<your-service>.onrender.com/admin` to pick the default model.
+4. Open `https://<your-service>.onrender.com/admin` to pick the default model, and use **AI Settings → Test with a sample photo** to prove it can actually read one.
 
 > **Free-tier notes:**
 > - Uploads go to the app's local `uploads/` folder, which **resets on every redeploy** (no persistent disk on free plan). Fine for a pilot; attach a disk or switch to Cloudinary/Supabase when you need permanence.
 > - The free Postgres DB expires after **90 days** — upgrade to a paid tier to keep it.
 > - Service **sleeps after ~15 min idle**; first request takes ~30 s to wake up.
-> - The blueprint injects `DATABASE_URL` automatically, which points to Postgres.
 
-## Deferred (per plan)
+## Known limitations
 
-Payments/monetization (Phase 3), full-auto shelf scanning, native mobile app (Phase 4).
-
-## Known MVP limitations
-
-**Food app**
-
-- No claim flow yet — a vendor can't take over their own listing, which is what should unlock the phone-number field.
+- **The board read is untested against real photos.** Everything here rests on the AI getting a name and a menu off a real signboard — blurry, angled, at night, spelled "chowmin". Without an API key only the failure paths have been exercised. This is the first thing to find out.
+- No claim flow — a vendor can't take over their own listing, which is what should unlock the phone-number field.
 - `device_id` is an anonymous localStorage string. It stops accidental double-voting and one-person report floods, but clearing storage mints a new id, so it isn't real abuse resistance — that needs a server-side signal.
 - "Aaj band hai" is a single flag, not a history, so a vendor shut every Monday looks the same as one shut once. Repeated closures on the same weekday should eventually become a schedule.
-- Reports are counted but not weighted by reporter — three throwaway devices hide a listing as effectively as three real ones.
+- Reports aren't weighted by reporter — three throwaway devices hide a listing as effectively as three real ones.
+- Rounds can only be set when a vendor is added. There's no edit-a-round UI now that the shopkeeper page is gone.
+- Menu matching is substring-based over name/category/kind; the embedding column exists but search doesn't use it yet.
+- Nominatim is rate-limited (~1 req/s) — fine at pilot volume.
 
-**General search**
+## History
 
-- Shopkeeper "auth" is still just `localStorage` — the page now holds several shops instead of one, but anyone on that device can edit them, and clearing storage loses the list. Needs real auth before wider rollout.
-- Vendor rounds are a weekly pattern (day + time window) — no one-off "aaj nahi aa raha" override, and no live GPS tracking; the card shows the schedule the vendor typed.
-- Item matching is substring-based (`ILIKE %q%`); upgrade to trigram/tsvector search when catalogue grows.
-- SQLite for local dev; set `DATABASE_URL` to Postgres for deployment (Haversine runs in Python, so no PostGIS needed).
-- Nominatim is rate-limited (~1 req/s) — fine at MVP volume.
+Myna started as a general hyperlocal product finder: shopkeepers listed their own stock, customers searched for any product, and a dish could be expanded into a kirana shopping list. That version is gone as of the food pivot — a kirana's 500 items can't come off one photo, and vendors never keep their own listings current. Both problems disappear on street food, where the board *is* the menu and any passer-by can add a cart. See the git history for the old app.

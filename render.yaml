@@ -36,10 +36,6 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
-      # Optional — web search grounding for concept expansion. Falls back to
-      # free/keyless DuckDuckGo without it.
-      - key: EXA_API_KEY
-        sync: false
 
   - type: web
     name: myna-app

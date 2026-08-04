@@ -1,8 +1,4 @@
-import csv
-import io
-
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
-from fastapi.responses import Response
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
@@ -18,7 +14,6 @@ from ..database import (
     set_default_vision_model,
     set_retain_uploaded_images,
 )
-from ..sample_data import CSV_HEADERS, build_shops, shops_to_csv_rows
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -65,12 +60,18 @@ def stats(db: Session = Depends(get_db)):
 
 
 # ---------------------------------------------------------------------------
-# Shop list / detail / moderation
+# Vendors
 # ---------------------------------------------------------------------------
+# The one management surface: every listing the food app knows about, in the
+# food app's own terms. It replaced a generic shops table that showed
+# shopkeeper names and phone numbers — columns this product no longer has,
+# since nobody registers their own listing and numbers are never captured.
 
-@router.get("/shops", response_model=list[schemas.ShopOut])
-def list_shops(
-    q: str = Query("", description="Search by shop name or address"),
+@router.get("/vendors", response_model=list[schemas.AdminVendor])
+def list_vendors(
+    q: str = Query("", description="Search by vendor name or address"),
+    kind: str = Query("", description="Filter by food kind"),
+    hidden: bool | None = Query(None, description="Only hidden, or only visible"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
@@ -79,31 +80,38 @@ def list_shops(
     if q.strip():
         pattern = f"%{q.strip()}%"
         query = query.filter(
-            or_(
-                models.Shop.name.ilike(pattern),
-                models.Shop.shopkeeper.ilike(pattern),
-                models.Shop.address.ilike(pattern),
-                models.Shop.phone.ilike(pattern),
-            )
+            or_(models.Shop.name.ilike(pattern), models.Shop.address.ilike(pattern))
         )
-    return (
-        query.order_by(models.Shop.created_at.desc())
-        .offset(skip)
-        .limit(limit)
-        .all()
+    if kind:
+        query = query.filter(models.Shop.food_kind == food.normalise_kind(kind))
+    if hidden is not None:
+        query = query.filter(models.Shop.hidden == (1 if hidden else 0))
+
+    shops = (
+        query.order_by(models.Shop.created_at.desc()).offset(skip).limit(limit).all()
     )
-
-
-@router.get("/shops/{shop_id}", response_model=schemas.ShopOut)
-def get_shop(shop_id: int, db: Session = Depends(get_db)):
-    shop = db.get(models.Shop, shop_id)
-    if not shop:
-        raise HTTPException(404, "Shop not found")
-    return shop
+    return [
+        {
+            "shop_id": s.shop_id,
+            "name": s.name,
+            "food_kind": food.normalise_kind(s.food_kind),
+            "kind_label": food.kind_label(s.food_kind),
+            "kind_emoji": food.kind_emoji(s.food_kind),
+            "address": s.address or "",
+            "menu_count": len(s.items),
+            "round_count": len(s.stops),
+            "seen_yes": s.seen_yes or 0,
+            "report_count": s.report_count or 0,
+            "hidden": bool(s.hidden),
+            "created_at": s.created_at,
+        }
+        for s in shops
+    ]
 
 
 @router.patch("/shops/{shop_id}", response_model=schemas.ShopOut)
 def update_shop(shop_id: int, payload: schemas.ShopUpdate, db: Session = Depends(get_db)):
+    """Fix a listing in place — a misread name is the common case."""
     shop = db.get(models.Shop, shop_id)
     if not shop:
         raise HTTPException(404, "Shop not found")
@@ -116,68 +124,17 @@ def update_shop(shop_id: int, payload: schemas.ShopUpdate, db: Session = Depends
 
 @router.delete("/shops/{shop_id}", status_code=204)
 def delete_shop(shop_id: int, db: Session = Depends(get_db)):
+    """Delete one listing and everything on it.
+
+    Uses session delete, not a bulk query delete, so the cascade actually runs
+    and the menu, rounds and reports go with it.
+    """
     shop = db.get(models.Shop, shop_id)
     if not shop:
         raise HTTPException(404, "Shop not found")
     db.delete(shop)
     db.commit()
-
-
-@router.get("/shops/{shop_id}/items", response_model=list[schemas.ItemOut])
-def list_shop_items(shop_id: int, db: Session = Depends(get_db)):
-    if not db.get(models.Shop, shop_id):
-        raise HTTPException(404, "Shop not found")
-    return (
-        db.query(models.Item)
-        .filter(models.Item.shop_id == shop_id)
-        .order_by(models.Item.created_at.desc())
-        .all()
-    )
-
-
-@router.get("/items", response_model=list[schemas.ItemOut])
-def list_all_items(
-    q: str = Query("", description="Search by item name"),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500),
-    db: Session = Depends(get_db),
-):
-    """Get all items across all shops (admin global view)."""
-    query = db.query(models.Item).join(models.Shop)
-    if q.strip():
-        pattern = f"%{q.strip()}%"
-        query = query.filter(models.Item.name.ilike(pattern))
-    return (
-        query.order_by(models.Item.created_at.desc())
-        .offset(skip)
-        .limit(limit)
-        .all()
-    )
-
-
-@router.patch("/items/{item_id}", response_model=schemas.ItemOut)
-def update_any_item(item_id: int, payload: schemas.ItemUpdate, db: Session = Depends(get_db)):
-    item = db.get(models.Item, item_id)
-    if not item:
-        raise HTTPException(404, "Item not found")
-    fields = payload.model_dump(exclude_unset=True)
-    for field, value in fields.items():
-        setattr(item, field, value)
-    if "name" in fields or "category" in fields:
-        embeddings.embed_item(item, db)
-    db.commit()
-    db.refresh(item)
     embeddings.invalidate_cache()
-    return item
-
-
-@router.delete("/items/{item_id}", status_code=204)
-def delete_any_item(item_id: int, db: Session = Depends(get_db)):
-    item = db.get(models.Item, item_id)
-    if not item:
-        raise HTTPException(404, "Item not found")
-    db.delete(item)
-    db.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -280,153 +237,6 @@ def embeddings_backfill(db: Session = Depends(get_db)):
     """Embed all items missing a vector or using a stale embedding model."""
     done = embeddings.backfill(db)
     return {"embedded": done}
-
-@router.get("/import/template")
-def import_template(sample: bool = Query(False)):
-    """CSV template. With ?sample=1, pre-filled with demo data you can tweak."""
-    shops = build_shops(50) if sample else [{
-        "name": "Sharma General Store",
-        "shopkeeper": "Ramesh Sharma",
-        "lat": 19.0760,
-        "long": 72.8777,
-        "address": "Shop 4, Link Road, Andheri West, Mumbai",
-        "phone": "9820012345",
-        "items": [
-            ("Parle-G Gold Biscuits 100g", "Snacks"),
-            ("Tata Salt 1kg", "Grocery"),
-        ],
-    }]
-    rows = shops_to_csv_rows(shops)
-    buf = io.StringIO()
-    writer = csv.DictWriter(buf, fieldnames=CSV_HEADERS)
-    writer.writeheader()
-    writer.writerows(rows)
-    filename = "myna_sample_data.csv" if sample else "myna_import_template.csv"
-    return Response(
-        content=buf.getvalue().encode("utf-8-sig"),
-        media_type="text/csv",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
-
-
-@router.post("/import/csv")
-def import_csv(
-    file: UploadFile = File(...),
-    replace: bool = Form(False),
-    db: Session = Depends(get_db),
-):
-    """Import shops + items from a CSV file.
-
-    Flat format — one row per item, shop fields repeated:
-    shop_name, shopkeeper, lat, long, address, phone, item_name, category
-
-    Matching is by shop_name: existing shops are updated, new ones created.
-    If replace=true, all existing shops/items are wiped first.
-    """
-    raw = file.file.read()
-    try:
-        text = raw.decode("utf-8-sig")
-    except UnicodeDecodeError:
-        text = raw.decode("latin-1")
-
-    reader = csv.DictReader(io.StringIO(text))
-    if not reader.fieldnames:
-        raise HTTPException(400, "Empty CSV — missing header row")
-
-    header_lower = {h.strip().lower(): h for h in reader.fieldnames if h}
-    def col(row, name):  # tolerate case/spaces in header names
-        original = header_lower.get(name.lower())
-        return (row.get(original) or "").strip() if original else ""
-
-    required = ["shop_name", "lat", "long"]
-    missing = [h for h in required if h not in header_lower]
-    if missing:
-        raise HTTPException(
-            400,
-            f"Missing required column(s): {', '.join(missing)}. "
-            f"Expected: {', '.join(CSV_HEADERS)}",
-        )
-
-    if replace:
-        _wipe_everything(db)
-
-    seen: set[str] = set()
-    shops_by_name: dict[str, models.Shop] = {}
-    created = updated = items_added = 0
-    errors: list[str] = []
-
-    for line_no, row in enumerate(reader, start=2):
-        if not any((col(row, h) or "") for h in CSV_HEADERS):
-            continue  # blank line
-
-        shop_name = col(row, "shop_name")
-        lat_raw = col(row, "lat")
-        lon_raw = col(row, "long")
-        try:
-            lat = float(lat_raw)
-            lon = float(lon_raw)
-        except ValueError:
-            errors.append(f"Row {line_no}: bad lat/long ('{lat_raw}', '{lon_raw}')")
-            continue
-
-        if not shop_name:
-            errors.append(f"Row {line_no}: missing shop_name")
-            continue
-
-        shop = shops_by_name.get(shop_name)
-        if shop is None and shop_name not in seen:
-            shop = db.query(models.Shop).filter(models.Shop.name == shop_name).first()
-            if shop is None:
-                shop = models.Shop(
-                    name=shop_name,
-                    shopkeeper=col(row, "shopkeeper"),
-                    lat=lat,
-                    long=lon,
-                    address=col(row, "address"),
-                    phone=col(row, "phone"),
-                )
-                db.add(shop)
-                db.flush()
-                created += 1
-            else:
-                updated += 1
-            seen.add(shop_name)
-        elif shop is None:
-            # shop_name seen earlier in this file but vanished from cache —
-            # refetch it so items don't error out
-            shop = db.query(models.Shop).filter(models.Shop.name == shop_name).first()
-
-        if shop is not None:
-            # Merge: keep existing values unless the CSV provides new ones.
-            if col(row, "shopkeeper"):
-                shop.shopkeeper = col(row, "shopkeeper")
-            if col(row, "address"):
-                shop.address = col(row, "address")
-            if col(row, "phone"):
-                shop.phone = col(row, "phone")
-            shop.lat = lat
-            shop.long = lon
-        shops_by_name[shop_name] = shop
-
-        item_name = col(row, "item_name")
-        if item_name:
-            db.add(models.Item(
-                shop_id=shop.shop_id,
-                name=item_name,
-                category=col(row, "category"),
-            ))
-            items_added += 1
-
-    db.commit()
-    embeddings.invalidate_cache()
-    return {
-        "created": created,
-        "updated": updated,
-        "items": items_added,
-        "errors": errors[:20],
-        "total_errors": len(errors),
-    }
-
 
 # ---------------------------------------------------------------------------
 # Reported listings — the review queue behind the food app's flag button

@@ -415,8 +415,7 @@
     </div>
     <div class="header-right">
       <nav>
-        <a href="/" title="Customer search" aria-label="Customer search"><svg class="ic" aria-hidden="true"><use href="#i-search"/></svg></a>
-        <a href="/shopkeeper" title="Shopkeeper" aria-label="Shopkeeper"><svg class="ic" aria-hidden="true"><use href="#i-store"/></svg></a>
+        <a href="/" title="Food app" aria-label="Food app"><svg class="ic" aria-hidden="true"><use href="#i-search"/></svg></a>
         <a href="/docs" title="API docs" aria-label="API docs"><svg class="ic" aria-hidden="true"><use href="#i-book"/></svg></a>
       </nav>
       <button class="theme-toggle" id="themeBtn" title="Toggle theme" aria-label="Toggle dark/light mode"></button>
@@ -425,11 +424,9 @@
 <main>
   <div class="tabs">
     <button class="active" onclick="showTab('dashboard', this)" title="Dashboard" aria-label="Dashboard"><svg class="ic" aria-hidden="true"><use href="#i-target"/></svg><span class="tab-text">Dashboard</span></button>
-    <button onclick="showTab('shops', this)" title="Shops" aria-label="Shops"><svg class="ic" aria-hidden="true"><use href="#i-store"/></svg><span class="tab-text">Shops</span></button>
+    <button onclick="showTab('vendors', this)" title="Vendors" aria-label="Vendors"><svg class="ic" aria-hidden="true"><use href="#i-store"/></svg><span class="tab-text">Vendors</span></button>
     <button onclick="showTab('reports', this)" title="Reported listings" aria-label="Reported listings"><svg class="ic" aria-hidden="true"><use href="#i-alert"/></svg><span class="tab-text">Reports</span><span class="tab-pill" id="reportPill" hidden></span></button>
-    <button onclick="showTab('items', this)" title="All items" aria-label="All items"><svg class="ic" aria-hidden="true"><use href="#i-bag"/></svg><span class="tab-text">All Items</span></button>
     <button onclick="showTab('settings', this)" title="AI settings" aria-label="AI settings"><svg class="ic" aria-hidden="true"><use href="#i-spark"/></svg><span class="tab-text">AI Settings</span></button>
-    <button onclick="showTab('import', this)" title="Import CSV" aria-label="Import CSV"><svg class="ic" aria-hidden="true"><use href="#i-receipt"/></svg><span class="tab-text">Import CSV</span></button>
   </div>
 
   <!-- ==================== DASHBOARD ==================== -->
@@ -444,8 +441,6 @@
         <a href="/" target="_blank"><b>🍜 Food app</b><span>Paas me kya mil raha hai — the customer app</span></a>
         <a href="/admin"><b>⚙️ Owner panel</b><span>You are here</span></a>
         <a href="/docs" target="_blank"><b>📖 API docs</b><span>Every endpoint, try them live</span></a>
-        <a href="/classic" target="_blank"><b>🔍 Classic search</b><span>Old general product search (kirana, dish→ingredients)</span></a>
-        <a href="/shopkeeper" target="_blank"><b>🏪 Shopkeeper page</b><span>Old self-onboarding: register a shop, add stock</span></a>
       </div>
     </div>
 
@@ -473,17 +468,22 @@
   </div>
 
   <!-- ==================== SHOPS ==================== -->
-  <div id="tab-shops" style="display:none">
+  <!-- ==================== VENDORS ====================
+       Every listing, in the food app's own terms. The table it replaced showed
+       shopkeeper names and phone numbers — columns this product no longer has,
+       since nobody registers their own listing and numbers are never taken. -->
+  <div id="tab-vendors" style="display:none">
     <div class="card">
       <div class="toolbar">
-        <input id="shopSearch" type="text" placeholder="Search shops…" onkeydown="if(event.key==='Enter')loadShops()">
-        <button onclick="loadShops()">Search</button>
+        <input id="vendorSearch" type="text" placeholder="Search by name or address…" onkeydown="if(event.key==='Enter')loadVendors()">
+        <select id="vendorKind" onchange="loadVendors()"><option value="">All kinds</option></select>
+        <button onclick="loadVendors()">Search</button>
       </div>
       <table>
-        <thead><tr><th>ID</th><th>Name</th><th>Shopkeeper</th><th>Address</th><th>Phone</th><th>Items</th><th>Actions</th></tr></thead>
-        <tbody id="shopTable"></tbody>
+        <thead><tr><th>ID</th><th>Vendor</th><th>Kind</th><th>Menu</th><th>Rounds</th><th>Confirmed</th><th>Status</th><th></th></tr></thead>
+        <tbody id="vendorTable"></tbody>
       </table>
-      <div class="count" style="margin-top:10px" id="shopCount"></div>
+      <div class="count" style="margin-top:10px" id="vendorCount"></div>
     </div>
   </div>
 
@@ -513,7 +513,7 @@
         <span class="setting-ico"><svg class="ic" aria-hidden="true"><use href="#i-camera"/></svg></span>
         <div>
           <h3>Reading photos (OCR)</h3>
-          <p class="setting-why">Used when a shopkeeper photographs their name board or a product — the model reads the text and fills the form.</p>
+          <p class="setting-why">Used when someone photographs a vendor&rsquo;s board — the model reads the name, the menu and the rates off it.</p>
         </div>
       </div>
       <div id="visionWarn"></div>
@@ -604,42 +604,6 @@
   </div>
 
   <!-- ==================== ALL ITEMS ==================== -->
-  <div id="tab-items" style="display:none">
-    <div class="card">
-      <div class="toolbar">
-        <input id="itemSearch" type="text" placeholder="Search items…" onkeydown="if(event.key==='Enter')loadAllItems()">
-        <button onclick="loadAllItems()">Search</button>
-        <span class="count" id="itemCount"></span>
-      </div>
-      <table>
-        <thead><tr><th>ID</th><th>Shop</th><th>Name</th><th>Category</th><th>Created</th><th>Actions</th></tr></thead>
-        <tbody id="itemTable"></tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- ==================== IMPORT CSV ==================== -->
-  <div id="tab-import" style="display:none">
-    <div class="card">
-      <h3>Import shops &amp; items from CSV</h3>
-      <p class="count" style="margin:6px 0 14px">Flat format — one row per item, shop fields repeated on each row.</p>
-
-      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:14px">
-        <input id="importFile" type="file" accept=".csv,text/csv">
-        <label class="checkbox" style="display:inline-flex; align-items:center; gap:6px; font-size:.85rem">
-          <input type="checkbox" id="importReplace"> Wipe existing data first
-        </label>
-      </div>
-
-      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center">
-        <button onclick="doImport()" style="width:auto; padding:10px 22px">Import CSV</button>
-        <button onclick="downloadTemplate(false)" style="width:auto; padding:10px 22px" class="ghost">Download blank template</button>
-        <button onclick="downloadTemplate(true)" style="width:auto; padding:10px 22px" class="ghost">Download sample data (50 shops)</button>
-      </div>
-
-      <div id="importResult" style="margin-top:14px"></div>
-    </div>
-  </div>
 </main>
 <script>
 const API = window.MYNA_API_BASE || '';
@@ -716,13 +680,12 @@ const API = window.MYNA_API_BASE || '';
 function showTab(name, btn) {
   document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  ['dashboard', 'shops', 'reports', 'items', 'settings', 'import'].forEach(t => {
+  ['dashboard', 'vendors', 'reports', 'settings'].forEach(t => {
     document.getElementById('tab-' + t).style.display = t === name ? '' : 'none';
   });
   if (name === 'dashboard') loadStats();
-  if (name === 'shops') loadShops();
+  if (name === 'vendors') { loadVendorKinds(); loadVendors(); }
   if (name === 'reports') loadReports();
-  if (name === 'items') { loadShopNames(); loadAllItems(); }
   if (name === 'settings') loadSettings();
 }
 
@@ -858,44 +821,6 @@ function updateReportPill(count) {
 }
 
 // ---------------------------------------------------------------------------
-// CSV Import
-// ---------------------------------------------------------------------------
-async function doImport() {
-  const input = document.getElementById('importFile');
-  const result = document.getElementById('importResult');
-  if (!input.files.length) {
-    result.innerHTML = '<p class="msg" style="padding:8px 0">Choose a CSV file first.</p>';
-    return;
-  }
-  const form = new FormData();
-  form.append('file', input.files[0]);
-  form.append('replace', document.getElementById('importReplace').checked ? 'true' : 'false');
-  result.innerHTML = '<p class="msg" style="padding:8px 0">Importing…</p>';
-  try {
-    const res = await fetch(API + '/api/admin/import/csv', { method: 'POST', body: form });
-    const data = await res.json();
-    if (!res.ok) {
-      result.innerHTML = `<p class="msg" style="padding:8px 0; color:#e74c3c">Error: ${esc(data.detail || 'failed')}</p>`;
-      return;
-    }
-    let html = `<div class="badge on" style="margin-right:6px">${data.created} shops created</div>
-                <div class="badge on" style="margin-right:6px">${data.updated} shops updated</div>
-                <div class="badge on">${data.items} items added</div>`;
-    if (data.total_errors) {
-      html += `<div style="margin-top:10px; color:#e74c3c; font-size:.82rem">${data.total_errors} row(s) skipped:</div>
-               <ul style="margin:6px 0 0 18px; font-size:.8rem; color:#e74c3c">${(data.errors || []).map(e => `<li>${esc(e)}</li>`).join('')}</ul>`;
-    }
-    result.innerHTML = html;
-  } catch (e) {
-    result.innerHTML = '<p class="msg" style="padding:8px 0; color:#e74c3c">Import failed — try again.</p>';
-  }
-}
-
-async function downloadTemplate(sample) {
-  window.location.href = API + '/api/admin/import/template' + (sample ? '?sample=1' : '');
-}
-
-// ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------
 async function loadStats() {
@@ -917,130 +842,61 @@ async function loadStats() {
 }
 
 // ---------------------------------------------------------------------------
-// Shops
+// Vendors
 // ---------------------------------------------------------------------------
-async function loadShops() {
-  const q = document.getElementById('shopSearch').value.trim();
-  const res = await fetch(API + '/api/admin/shops?q=' + encodeURIComponent(q));
-  const shops = await res.json();
-  document.getElementById('shopCount').textContent = shops.length + ' shop(s)';
-  const tbody = document.getElementById('shopTable');
-  tbody.innerHTML = '';
-  for (const s of shops) {
-    const itemsRes = await fetch(`${API}/api/admin/shops/${s.shop_id}/items`);
-    const items = await itemsRes.json();
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${s.shop_id}</td>
-      <td><input value="${esc(s.name)}" onchange="patchShop(${s.shop_id}, 'name', this.value)"></td>
-      <td><input value="${esc(s.shopkeeper)}" onchange="patchShop(${s.shop_id}, 'shopkeeper', this.value)"></td>
-      <td><input value="${esc(s.address)}" onchange="patchShop(${s.shop_id}, 'address', this.value)"></td>
-      <td><input value="${esc(s.phone)}" onchange="patchShop(${s.shop_id}, 'phone', this.value)"></td>
-      <td style="text-align:center">${items.length}</td>
-      <td class="actions">
-        <button class="btn-icon" onclick="toggleItems(this, ${s.shop_id})" title="Show items" aria-label="Show items"><svg class="ic" aria-hidden="true"><use href="#i-bag"/></svg></button>
-        <button class="del btn-icon" onclick="deleteShop(${s.shop_id})" title="Delete shop" aria-label="Delete shop"><svg class="ic" aria-hidden="true"><use href="#i-trash"/></svg></button>
+async function loadVendors() {
+  const q = document.getElementById('vendorSearch').value.trim();
+  const kind = document.getElementById('vendorKind').value;
+  const res = await fetch(API + '/api/admin/vendors?q=' + encodeURIComponent(q)
+    + '&kind=' + encodeURIComponent(kind));
+  const vendors = await res.json();
+  document.getElementById('vendorCount').textContent = `${vendors.length} vendor(s)`;
+  document.getElementById('vendorTable').innerHTML = vendors.map(v => `
+    <tr>
+      <td>${v.shop_id}</td>
+      <td>${v.kind_emoji} ${esc(v.name)}<br><span class="count">${esc(v.address || '')}</span></td>
+      <td>${esc(v.kind_label)}</td>
+      <td>${v.menu_count}</td>
+      <td>${v.round_count || '—'}</td>
+      <td>${v.seen_yes}×</td>
+      <td>${v.hidden
+        ? '<span class="badge off">Hidden</span>'
+        : (v.report_count
+            ? `<span class="badge off">${v.report_count} report(s)</span>`
+            : '<span class="badge on">Live</span>')}</td>
+      <td>
+        <button class="btn-icon" onclick="renameVendor(${v.shop_id}, '${esc(v.name).replace(/'/g, "\\'")}')" title="Rename" aria-label="Rename"><svg class="ic" aria-hidden="true"><use href="#i-edit"/></svg></button>
+        <button class="del btn-icon" onclick="deleteVendor(${v.shop_id})" title="Delete vendor" aria-label="Delete vendor"><svg class="ic" aria-hidden="true"><use href="#i-trash"/></svg></button>
       </td>
-    `;
-    tbody.appendChild(tr);
-    const drawer = document.createElement('tr');
-    drawer.style.display = 'none';
-    drawer.innerHTML = `<td colspan="7"><div class="items-drawer" id="items-${s.shop_id}"></div></td>`;
-    tbody.appendChild(drawer);
-  }
-  if (!shops.length) tbody.innerHTML = '<tr><td colspan="7" class="msg">No shops found.</td></tr>';
+    </tr>`).join('') || '<tr><td colspan="8" class="msg">No vendors yet.</td></tr>';
 }
 
-async function patchShop(id, field, value) {
+// A misread signboard is the common fix, so renaming is one prompt rather than
+// a whole edit form.
+async function renameVendor(id, current) {
+  const name = prompt('Vendor name:', current);
+  if (name === null || !name.trim()) return;
   await fetch(`${API}/api/admin/shops/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ [field]: value }),
+    body: JSON.stringify({ name: name.trim() }),
   });
+  loadVendors();
 }
 
-async function deleteShop(id) {
-  if (!confirm('Delete shop #' + id + ' and all its items?')) return;
+async function deleteVendor(id) {
+  if (!confirm('Delete vendor #' + id + ' and its whole menu?')) return;
   await fetch(`${API}/api/admin/shops/${id}`, { method: 'DELETE' });
-  loadShops();
+  loadVendors();
+  loadStats();
 }
 
-async function toggleItems(btn, shopId) {
-  const drawer = btn.closest('tr').nextElementSibling;
-  if (drawer.style.display === 'none') {
-    drawer.style.display = '';
-    const res = await fetch(`${API}/api/admin/shops/${shopId}/items`);
-    const items = await res.json();
-    const box = document.getElementById('items-' + shopId);
-    box.innerHTML = `<table>
-      <thead><tr><th>ID</th><th>Name</th><th>Category</th><th>Actions</th></tr></thead>
-      <tbody>${items.map(i => `
-        <tr>
-          <td>${i.item_id}</td>
-          <td><input value="${esc(i.name)}" onchange="patchItem(${i.item_id}, 'name', this.value)"></td>
-          <td><input value="${esc(i.category)}" onchange="patchItem(${i.item_id}, 'category', this.value)"></td>
-          <td class="actions"><button class="del btn-icon" onclick="deleteItem(${i.item_id}, ${shopId})" title="Delete item" aria-label="Delete item"><svg class="ic" aria-hidden="true"><use href="#i-trash"/></svg></button></td>
-        </tr>`).join('') || '<tr><td colspan="4" class="msg">No items</td></tr>'}
-      </tbody></table>`;
-  } else {
-    drawer.style.display = 'none';
-  }
-}
-
-async function patchItem(itemId, field, value) {
-  await fetch(`${API}/api/admin/items/${itemId}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ [field]: value }),
-  });
-}
-
-async function deleteItem(itemId, shopId) {
-  if (!confirm('Delete item #' + itemId + '?')) return;
-  await fetch(`${API}/api/admin/items/${itemId}`, { method: 'DELETE' });
-  // Refresh the items drawer
-  const btn = document.querySelector(`button[onclick="toggleItems(this, ${shopId})"]`);
-  if (btn) {
-    const drawer = btn.closest('tr').nextElementSibling;
-    drawer.style.display = 'none';
-    toggleItems(btn, shopId);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// All Items (global view)
-// ---------------------------------------------------------------------------
-let shopNames = {};
-
-async function loadShopNames() {
-  const res = await fetch(API + '/api/admin/shops');
-  const shops = await res.json();
-  shopNames = {};
-  shops.forEach(s => { shopNames[s.shop_id] = s.name; });
-}
-
-async function loadAllItems() {
-  const q = document.getElementById('itemSearch').value.trim();
-  const res = await fetch(API + '/api/admin/items?q=' + encodeURIComponent(q));
-  const items = await res.json();
-  document.getElementById('itemCount').textContent = items.length + ' item(s)';
-  const tbody = document.getElementById('itemTable');
-  tbody.innerHTML = items.map(i => `
-    <tr>
-      <td>${i.item_id}</td>
-      <td>${esc(shopNames[i.shop_id] || 'Shop #' + i.shop_id)}</td>
-      <td><input value="${esc(i.name)}" onchange="patchItem(${i.item_id}, 'name', this.value)"></td>
-      <td><input value="${esc(i.category)}" onchange="patchItem(${i.item_id}, 'category', this.value)"></td>
-      <td>${new Date(i.created_at).toLocaleString()}</td>
-      <td class="actions"><button class="del btn-icon" onclick="deleteItemGlobal(${i.item_id})" title="Delete item" aria-label="Delete item"><svg class="ic" aria-hidden="true"><use href="#i-trash"/></svg></button></td>
-    </tr>
-  `).join('') || '<tr><td colspan="6" class="msg">No items found.</td></tr>';
-}
-
-async function deleteItemGlobal(itemId) {
-  if (!confirm('Delete item #' + itemId + '?')) return;
-  await fetch(`${API}/api/admin/items/${itemId}`, { method: 'DELETE' });
-  loadAllItems();
+async function loadVendorKinds() {
+  try {
+    const data = await (await fetch(API + '/api/food/kinds')).json();
+    document.getElementById('vendorKind').innerHTML = '<option value="">All kinds</option>'
+      + data.kinds.map(k => `<option value="${k.kind}">${k.emoji} ${esc(k.label)}</option>`).join('');
+  } catch (e) { /* the filter is a nicety; search still works without it */ }
 }
 
 // ---------------------------------------------------------------------------
@@ -1128,7 +984,7 @@ function renderVisionWarning() {
   const meta = llmModels.find(m => m.label === label);
   const box = document.getElementById('visionWarn');
   if (!llmModels.length) {
-    box.innerHTML = '<div class="note info"><b>No AI provider connected</b>Photo reading is off — shopkeepers can still type names in by hand.</div>';
+    box.innerHTML = '<div class="note info"><b>No AI provider connected</b>Photo reading is off — vendors can still be added by typing a name.</div>';
     return;
   }
   if (!label) { box.innerHTML = ''; return; }
