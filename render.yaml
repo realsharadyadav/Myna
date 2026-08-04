@@ -1,37 +1,55 @@
-# Render blueprint — Myna as one service plus PostgreSQL.
+# Render blueprint — Myna: a JSON API, a web front end, and PostgreSQL.
 # Free-plan friendly: no persistent disk needed.
 # Docs: https://render.com/docs/blueprint-spec
 #
-# ONE service on purpose. There used to be a second, static-site service
-# publishing app/static, to dodge the free backend's ~30 s cold start. It cost
-# more than it saved:
+#   myna       FastAPI. The API (/api/*), the docs (/docs), and the pages too —
+#              so one `uvicorn` is a complete local dev environment.
+#   myna-app   The web front end: app/static published to a static host, so the
+#              browser isn't stuck behind the free backend's ~30 s cold start.
 #
-#   - /docs and /api/* returned 404 there, because a static host has neither
-#   - it served whatever HTML was last built, so it went stale silently while
-#     the backend was already up to date — the app looked un-deployed when it
-#     wasn't
-#   - the pages had to learn the backend's URL through a generated config.js,
-#     and any drift in that value broke every request while both services
-#     still reported healthy
+# The backend is a plain JSON API with no coupling to any client. The web app,
+# a future mobile app, and anything else all talk to the same endpoints over
+# HTTP; nothing is server-rendered. Which host happens to serve the HTML is a
+# deployment choice and changes none of that.
 #
-# Now one URL answers everything: the app at /, the owner panel at /admin, the
-# API at /api/*, the docs at /docs. The cold start is a real cost, but a
-# deployment nobody can reason about is a worse one during a pilot.
+# ---------------------------------------------------------------------------
+# What went wrong last time, and what stops it now
+# ---------------------------------------------------------------------------
+# Splitting the deploy is fine. Letting the two halves drift apart is not, and
+# that is what actually broke:
+#
+#   1. The front end served older HTML than the backend was running, so the app
+#      looked un-deployed while the deploy had in fact succeeded.
+#      -> autoDeploy is explicit on both. One push, both services, same commit.
+#
+#   2. MYNA_BACKEND_URL pointed somewhere wrong, which breaks every request
+#      while both services still report healthy.
+#      -> the app probes /api/food/health on failure and names the address it
+#         is calling, instead of telling the user to check their connection.
+#
+#   3. /docs and /api/* 404 on the static host.
+#      -> expected, not a bug: a static host has neither. Both live on the
+#         backend URL, and the owner panel no longer links to /docs at all.
+#
+# Whenever the backend gets a new onrender.com URL, MYNA_BACKEND_URL below has
+# to follow it. That is the one piece of state kept in two places.
 services:
   - type: web
     name: myna
     runtime: python
     plan: free
+    autoDeploy: true
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
-    healthCheckPath: /
+    healthCheckPath: /api/food/health
     envVars:
       - key: MYNA_DATABASE_URL
         fromDatabase:
           name: myna-db
           property: connectionString
-      # Same-origin now that there's one service, so CORS isn't load-bearing.
-      # Left open because there's no auth to protect anyway.
+      # The front end is a different origin, so CORS is load-bearing here.
+      # Open because there is no auth to protect; tighten to the myna-app URL
+      # once that matters.
       - key: MYNA_ALLOWED_ORIGINS
         value: "*"
       # ---- Set these in the Render dashboard (Environment tab) after deploy ----
@@ -45,6 +63,24 @@ services:
       # Falls back to free/keyless DuckDuckGo without it.
       - key: EXA_API_KEY
         sync: false
+
+  - type: web
+    name: myna-app
+    runtime: static
+    autoDeploy: true
+    # No bundler — app/static is plain HTML/JS. This only bakes the backend's
+    # origin into config.js, which is the single thing the pages need to know.
+    buildCommand: printf 'window.MYNA_API_BASE = "%s";' "$MYNA_BACKEND_URL" > app/static/config.js
+    staticPublishPath: ./app/static
+    envVars:
+      # Must match the "myna" service's URL above. If these drift, every
+      # request fails — the app will say so and name this value.
+      - key: MYNA_BACKEND_URL
+        value: https://myna-wzcq.onrender.com
+    routes:
+      - type: rewrite
+        source: /admin
+        destination: /admin.html
 
 databases:
   - name: myna-db

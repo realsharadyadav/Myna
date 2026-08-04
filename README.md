@@ -191,13 +191,20 @@ One-click deploy using the included `render.yaml` blueprint:
 3. After deploy, go to the service's **Environment** tab and add your API keys (`ANTHROPIC_API_KEY` / `GROQ_API_KEY` / `GEMINI_API_KEY`) — they're marked `sync: false` in the blueprint.
 4. Open `https://<backend>.onrender.com/admin` to pick the default model, and use **AI Settings → Test with a sample photo** to prove it can actually read one.
 
-**One service, one URL.** The blueprint used to add a second, static-site service publishing `app/static`, to dodge the free backend's ~30 s cold start. It cost more than it saved: `/docs` and `/api/*` returned 404 there (a static host has neither), it served whatever HTML was last built so it went stale silently while the backend was already current, and the pages had to learn the backend's URL through a generated `config.js` — any drift in that value broke every request while both services still reported healthy.
+**Two services, by design.** The backend is a plain JSON API with no coupling to any client — nothing is server-rendered, and the web app, a future mobile app and anything else all talk to the same `/api/*` endpoints over CORS. Which host serves the HTML is a deployment choice and changes none of that. The static front end exists so the browser isn't stuck behind the free backend's ~30 s cold start.
 
-Now `/`, `/admin`, `/api/*` and `/docs` are all the same host.
+| | `myna` (backend) | `myna-app` (front end) |
+|---|---|---|
+| The pages | ✅ — one `uvicorn` is a complete local dev environment | ✅ |
+| `/api/*`, `/docs` | ✅ | ❌ 404 — a static host has neither |
 
-The pages still read `window.MYNA_API_BASE`, so putting a static front end or a CDN back is a one-line change in `config.js`. **The line is one line; the consequences are not.** Splitting the front end off again brings two of those failures back by construction — a static host still has no `/docs` and no `/api/*`, and a separately deployed front end still goes stale silently. Two things can no longer fail: the pages read the configured base instead of assuming same-origin (they hardcoded an empty one before), and the app is named `index.html` so a static host has a root document at all.
+Splitting the deploy is fine. Letting the two halves **drift apart** is what actually broke, and the blueprint guards each way now:
 
-The third — this value pointing at a dead or wrong backend — is now at least *visible*. It used to surface as "check your connection", which blamed the user for a deploy mistake and hid it from everyone; the app probes `/api/food/health` on failure and names the address it is actually calling. If you do split it again, deploy both services from the same commit, every time.
+- **Version drift** — the front end served older HTML than the backend was running, so the app looked un-deployed when the deploy had in fact succeeded. `autoDeploy: true` is explicit on both services: one push, both, same commit.
+- **Address drift** — `MYNA_BACKEND_URL` pointing somewhere wrong breaks every request while both services still report healthy. The app probes `/api/food/health` on failure and names the address it is calling, rather than telling the user to check their connection. That one value is the entire coupling between the two deploys, and it has to follow the backend whenever its URL changes.
+- **`/docs` 404 on the front end** — expected, not a bug. It's a developer surface; open it on the backend URL. The owner panel doesn't link to it.
+
+Two things that were genuine code bugs can no longer fail: the pages read `window.MYNA_API_BASE` instead of assuming same-origin (they hardcoded an empty base, which broke the app on the static host completely), and the web app is named `index.html` so a static host has a root document at all.
 
 > **Free-tier notes:**
 > - Uploads go to the app's local `uploads/` folder, which **resets on every redeploy** (no persistent disk on free plan). Fine for a pilot; attach a disk or switch to Cloudinary/Supabase when you need permanence.

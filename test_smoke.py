@@ -461,6 +461,12 @@ assert 'myna_theme' in client.get("/admin").text
 assert client.get("/api/food/health").json()["ok"] is True
 assert "failureMessage" in page and "/api/food/health" in page
 assert "config.js" in page
+# The API must stay usable by any client, not just these pages — a mobile app
+# is the same JSON over the same CORS-open endpoints, with no HTML involved.
+_probe = client.get("/api/food/near", params={"lat": 19.076, "long": 72.8777},
+                    headers={"Origin": "capacitor://localhost"})
+assert _probe.status_code == 200
+assert _probe.headers.get("access-control-allow-origin") == "*"
 print("PASS two dishes -> two vendors, each matched on its own word")
 
 # 4f-3. Synonyms end to end: a word that shares no letters with the menu.
