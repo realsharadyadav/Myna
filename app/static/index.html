@@ -417,6 +417,22 @@ function cardHtml(v) {
   </article>`;
 }
 
+// Tell "your net is down" apart from "this page is pointed at a host with no
+// API". They look identical to a user and to a status page, and the second one
+// is what a mis-set MYNA_API_BASE produces — the whole failure being invisible
+// is what made it expensive last time.
+async function failureMessage() {
+  try {
+    const res = await fetch(`${API}/api/food/health`, { cache: "no-store" });
+    if (res.ok) return "Load nahi hua. Dobara try karo.";
+  } catch { /* fall through — the API host itself is unreachable */ }
+  return API
+    ? `API se baat nahi ho pa rahi:<br><code>${esc(API)}</code><br>
+       Ye page uss address pe API dhoondh raha hai. Galat ya band hai to
+       <code>config.js</code> theek karo.`
+    : "Net nahi chal raha lagta hai. Connection check karke dobara try karo.";
+}
+
 async function load() {
   const p = await ensureLocation();
   if (!p) {
@@ -446,7 +462,7 @@ async function load() {
     }
     $("list").innerHTML = data.vendors.map(cardHtml).join("");
   } catch {
-    $("list").innerHTML = `<div class="empty">Load nahi hua. Net check karke dobara try karo.</div>`;
+    $("list").innerHTML = `<div class="empty">${await failureMessage()}</div>`;
   }
 }
 

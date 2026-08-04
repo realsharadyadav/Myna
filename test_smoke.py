@@ -455,6 +455,12 @@ assert ':root[data-theme="dark"]' in page
 assert ':root:not([data-theme="light"])' in page
 assert 'myna_theme' in page and 'id="themeBtn"' in page
 assert 'myna_theme' in client.get("/admin").text
+# A dead or mis-set API base used to surface as "check your connection", which
+# blamed the user for a deploy mistake and hid it from everyone. The client
+# probes health so it can name the real problem.
+assert client.get("/api/food/health").json()["ok"] is True
+assert "failureMessage" in page and "/api/food/health" in page
+assert "config.js" in page
 print("PASS two dishes -> two vendors, each matched on its own word")
 
 # 4f-3. Synonyms end to end: a word that shares no letters with the menu.

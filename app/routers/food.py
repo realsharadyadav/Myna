@@ -233,6 +233,19 @@ def vendor_view(
 # Reference data for the UI
 # ---------------------------------------------------------------------------
 
+@router.get("/health", response_model=dict)
+def health():
+    """Cheap liveness probe, used to tell two failures apart in the client.
+
+    "Search failed" reads the same whether the network is down or the page is
+    pointed at a host that has no API — which is exactly what happened when a
+    separately deployed front end carried the wrong backend URL: every request
+    failed while both services reported healthy. The client probes this on
+    failure so it can name the real problem instead of blaming the user's net.
+    """
+    return {"ok": True, "app": "myna"}
+
+
 @router.get("/kinds", response_model=dict)
 def list_kinds():
     """Vendor kinds, chips and the reason lists, so the client hardcodes none."""

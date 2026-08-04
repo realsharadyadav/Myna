@@ -193,7 +193,11 @@ One-click deploy using the included `render.yaml` blueprint:
 
 **One service, one URL.** The blueprint used to add a second, static-site service publishing `app/static`, to dodge the free backend's ~30 s cold start. It cost more than it saved: `/docs` and `/api/*` returned 404 there (a static host has neither), it served whatever HTML was last built so it went stale silently while the backend was already current, and the pages had to learn the backend's URL through a generated `config.js` — any drift in that value broke every request while both services still reported healthy.
 
-Now `/`, `/admin`, `/api/*` and `/docs` are all the same host. The pages still read `window.MYNA_API_BASE` when it's set, so putting a static front end back is a one-line change, but nothing depends on it.
+Now `/`, `/admin`, `/api/*` and `/docs` are all the same host.
+
+The pages still read `window.MYNA_API_BASE`, so putting a static front end or a CDN back is a one-line change in `config.js`. **The line is one line; the consequences are not.** Splitting the front end off again brings two of those failures back by construction — a static host still has no `/docs` and no `/api/*`, and a separately deployed front end still goes stale silently. Two things can no longer fail: the pages read the configured base instead of assuming same-origin (they hardcoded an empty one before), and the app is named `index.html` so a static host has a root document at all.
+
+The third — this value pointing at a dead or wrong backend — is now at least *visible*. It used to surface as "check your connection", which blamed the user for a deploy mistake and hid it from everyone; the app probes `/api/food/health` on failure and names the address it is actually calling. If you do split it again, deploy both services from the same commit, every time.
 
 > **Free-tier notes:**
 > - Uploads go to the app's local `uploads/` folder, which **resets on every redeploy** (no persistent disk on free plan). Fine for a pilot; attach a disk or switch to Cloudinary/Supabase when you need permanence.
