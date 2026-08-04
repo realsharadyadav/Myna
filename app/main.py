@@ -60,6 +60,16 @@ with engine.connect() as conn:
         ("seen_no", "ALTER TABLE shops ADD COLUMN seen_no INTEGER DEFAULT 0",
          "UPDATE shops SET seen_no=0 WHERE seen_no IS NULL"),
         ("last_seen_at", "ALTER TABLE shops ADD COLUMN last_seen_at TIMESTAMP", ""),
+        # "Nahi mila" split by reason, plus reports/hiding.
+        ("moved_count", "ALTER TABLE shops ADD COLUMN moved_count INTEGER DEFAULT 0",
+         "UPDATE shops SET moved_count=0 WHERE moved_count IS NULL"),
+        ("shutdown_count", "ALTER TABLE shops ADD COLUMN shutdown_count INTEGER DEFAULT 0",
+         "UPDATE shops SET shutdown_count=0 WHERE shutdown_count IS NULL"),
+        ("closed_today_at", "ALTER TABLE shops ADD COLUMN closed_today_at TIMESTAMP", ""),
+        ("report_count", "ALTER TABLE shops ADD COLUMN report_count INTEGER DEFAULT 0",
+         "UPDATE shops SET report_count=0 WHERE report_count IS NULL"),
+        ("hidden", "ALTER TABLE shops ADD COLUMN hidden INTEGER DEFAULT 0",
+         "UPDATE shops SET hidden=0 WHERE hidden IS NULL"),
     ):
         if column not in shop_cols:
             conn.execute(text(ddl))

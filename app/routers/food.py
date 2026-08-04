@@ -21,7 +21,7 @@ Phone numbers are deliberately never captured by the add flow: someone can list
 a cart they walked past, but they can't publish that vendor's number without
 them. A vendor claiming their own listing later is what unlocks that field.
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -48,8 +48,40 @@ STALE_DAYS = 14
 # Freshness
 # ---------------------------------------------------------------------------
 
+def _is_closed_today(shop: models.Shop) -> bool:
+    """Did someone report this shut *today*?
+
+    Compared in the vendor's local timezone, not UTC — a "aaj band hai" tapped
+    at 9 PM IST is about that Tuesday, and comparing UTC dates would quietly
+    carry it into the next morning.
+    """
+    if not shop.closed_today_at:
+        return False
+    local = shop.closed_today_at.replace(tzinfo=timezone.utc).astimezone(schedule.tz())
+    return local.date() == schedule.now_local().date()
+
+
+def _wrongness(shop: models.Shop) -> int:
+    """How much the votes argue this listing is *wrong* about where the vendor is.
+
+    Weighted per reason (food.SEEN_REASONS): "aaj band hai" contributes zero,
+    because a vendor's day off says nothing about whether the listing is right.
+    """
+    return (
+        (shop.seen_no or 0) * food.SEEN_REASONS["unknown"]["weight"]
+        + (shop.moved_count or 0) * food.SEEN_REASONS["moved"]["weight"]
+        + (shop.shutdown_count or 0) * food.SEEN_REASONS["shut_down"]["weight"]
+    )
+
+
 def _seen_text(shop: models.Shop, now: datetime | None = None) -> str:
     now = now or datetime.utcnow()
+    # Today's status is the more useful sentence, and it says nothing bad about
+    # the listing itself.
+    if _is_closed_today(shop):
+        return "Aaj band bataya gaya"
+    if (shop.shutdown_count or 0) >= 2 and shop.shutdown_count > (shop.seen_yes or 0):
+        return "Log keh rahe hain ab lagta hi nahi"
     if not shop.last_seen_at:
         return "Abhi tak kisi ne confirm nahi kiya"
     days = (now - shop.last_seen_at).days
@@ -67,12 +99,18 @@ def _seen_text(shop: models.Shop, now: datetime | None = None) -> str:
 def _trust(shop: models.Shop, now: datetime | None = None) -> str:
     """How much to believe this listing, as one word the UI can style on.
 
-    'doubtful' is the only one that changes ranking: more people saying "nahi
-    mila" than "haan hai" means the cart has almost certainly moved on, and
-    showing it first would burn the exact trust the votes are there to build.
+    Only two values change ranking. 'closed' means enough people said the
+    vendor is gone for good, and it drops out of search entirely. 'doubtful'
+    means the weighted votes say this spot is wrong — note that a listing
+    reported shut *today* is neither, which is the whole point of asking why:
+    a chaat wala closed for one Tuesday would otherwise be voted down by
+    exactly the people who like him most.
     """
     now = now or datetime.utcnow()
-    if shop.seen_no > shop.seen_yes and shop.seen_no >= 2:
+    if (shop.shutdown_count or 0) >= 2 and shop.shutdown_count > (shop.seen_yes or 0):
+        return "closed"
+    wrongness = _wrongness(shop)
+    if wrongness >= 2 and wrongness > (shop.seen_yes or 0):
         return "doubtful"
     if not shop.last_seen_at:
         return "new"
@@ -177,6 +215,11 @@ def vendor_view(
         "seen_yes": shop.seen_yes or 0,
         "seen_no": shop.seen_no or 0,
         "trust": _trust(shop),
+        "closed_today": _is_closed_today(shop),
+        "moved_count": shop.moved_count or 0,
+        "shutdown_count": shop.shutdown_count or 0,
+        "report_count": shop.report_count or 0,
+        "hidden": bool(shop.hidden),
     }
 
 
@@ -186,9 +229,14 @@ def vendor_view(
 
 @router.get("/kinds", response_model=dict)
 def list_kinds():
-    """Vendor kinds and the popular-dish chips, so the client hardcodes neither."""
-    return {"kinds": food.kind_list(), "popular": food.POPULAR,
-            "categories": food.CATEGORY_NAMES}
+    """Vendor kinds, chips and the reason lists, so the client hardcodes none."""
+    return {
+        "kinds": food.kind_list(),
+        "popular": food.POPULAR,
+        "categories": food.CATEGORY_NAMES,
+        "seen_reasons": food.seen_reason_list(),
+        "report_reasons": food.report_reason_list(),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -350,19 +398,29 @@ def near(
 
     cards = []
     for shop in db.query(models.Shop).all():
+        # Reported into hiding, or voted permanently shut — neither belongs in
+        # a "where do I eat now" list. Both are reversible states, not deletes.
+        if shop.hidden:
+            continue
         if wanted_kind and food.normalise_kind(shop.food_kind) != wanted_kind:
             continue
         matched = _matches(shop, terms)
         if terms and not matched:
             continue
         card = vendor_view(shop, lat, long, matched)
+        if card["trust"] == "closed":
+            continue
         if card["distance_km"] > radius:
             continue
         if open_now and not card["is_open_now"]:
             continue
         cards.append(card)
 
+    # "Aaj band hai" sinks a listing to the bottom for today and no longer —
+    # tomorrow the same card ranks normally again. That's the difference
+    # between a vendor's day off and a vendor who moved.
     cards.sort(key=lambda c: (
+        1 if c["closed_today"] else 0,
         0 if c["is_open_now"] else 1,
         1 if c["trust"] == "doubtful" else 0,
         -len(c["matched"]),
@@ -390,19 +448,92 @@ def report_seen(shop_id: int, payload: schemas.SeenReport, db: Session = Depends
 
     A "haan" also moves `last_seen_at`; a "nahi" doesn't, because a cart being
     missing is not evidence about when it was last there — it only argues the
-    listing is wrong, which is what `seen_no` already carries.
+    listing is wrong, and how strongly depends entirely on *why*:
+
+    - "aaj band hai"  → today's note only. Nothing held against the listing.
+    - "yahan se hat gaya" → this spot looks wrong.
+    - "hamesha ke liye band" → weighted heavily; two of these retire the card.
+
+    A "haan hai" also clears today's closed flag: whoever is standing in front
+    of the open shop is more current than whoever found it shut this morning.
     """
     shop = db.get(models.Shop, shop_id)
     if not shop:
         raise HTTPException(404, "Ye dukaan nahi mili")
+
     if payload.yes:
         shop.seen_yes = (shop.seen_yes or 0) + 1
         shop.last_seen_at = datetime.utcnow()
+        shop.closed_today_at = None
     else:
-        shop.seen_no = (shop.seen_no or 0) + 1
+        reason = food.normalise_seen_reason(payload.reason)
+        if reason == "closed_today":
+            shop.closed_today_at = datetime.utcnow()
+        elif reason == "moved":
+            shop.moved_count = (shop.moved_count or 0) + 1
+        elif reason == "shut_down":
+            shop.shutdown_count = (shop.shutdown_count or 0) + 1
+        else:
+            shop.seen_no = (shop.seen_no or 0) + 1
+
     db.commit()
     db.refresh(shop)
     return vendor_view(shop)
+
+
+@router.post("/{shop_id}/report", response_model=schemas.ReportResponse)
+def report_listing(shop_id: int, payload: schemas.ReportCreate, db: Session = Depends(get_db)):
+    """Flag a listing as wrong — fake, joke, duplicate, offensive.
+
+    Separate from the seen votes on purpose: a vote is about today, a report is
+    about whether the listing should exist at all. Enough distinct people
+    (food.REPORTS_TO_HIDE) pulls it out of search, reversibly — nothing is
+    deleted, and the owner panel reviews and restores.
+
+    One report per device: without this, a single annoyed person could bury a
+    competitor by tapping the same button five times.
+    """
+    shop = db.get(models.Shop, shop_id)
+    if not shop:
+        raise HTTPException(404, "Ye dukaan nahi mili")
+
+    device_id = (payload.device_id or "").strip()
+    if device_id:
+        already = (
+            db.query(models.ShopReport)
+            .filter(models.ShopReport.shop_id == shop_id,
+                    models.ShopReport.device_id == device_id)
+            .first()
+        )
+        if already:
+            return {
+                "reported": False,
+                "report_count": shop.report_count or 0,
+                "hidden": bool(shop.hidden),
+                "message": "Aap pehle hi report kar chuke ho.",
+            }
+
+    db.add(models.ShopReport(
+        shop_id=shop_id,
+        device_id=device_id,
+        reason=food.normalise_report_reason(payload.reason),
+        note=(payload.note or "").strip()[:500],
+    ))
+    shop.report_count = (shop.report_count or 0) + 1
+    if shop.report_count >= food.REPORTS_TO_HIDE:
+        shop.hidden = 1
+    db.commit()
+    db.refresh(shop)
+
+    return {
+        "reported": True,
+        "report_count": shop.report_count,
+        "hidden": bool(shop.hidden),
+        "message": (
+            "Report mil gayi — ye listing ab chhup gayi hai, review hogi."
+            if shop.hidden else "Report mil gayi, shukriya."
+        ),
+    }
 
 
 @router.post("/{shop_id}/items", response_model=schemas.MenuItemOut)

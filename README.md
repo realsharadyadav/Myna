@@ -46,7 +46,24 @@ Everything else is optional and behind a disclosure: a typed name if the board w
 
 ### Freshness — the loop that keeps it alive
 
-Every card carries "Aaj dekha gaya" / "3 din pehle dekha gaya" and two buttons. A "haan" bumps `seen_yes` and `last_seen_at`; a "nahi" bumps `seen_no` only — a cart being missing says nothing about when it was last there. More "nahi" than "haan" (and at least 2) marks the listing `doubtful`, which fades the card and sinks it in search.
+Every card carries "Aaj dekha gaya" / "3 din pehle dekha gaya" and two buttons. A "haan hai" is one tap: it bumps `seen_yes`, moves `last_seen_at`, and clears any "band hai" reported earlier that day — whoever is standing at the open shop is more current than whoever found it shut this morning.
+
+A "nahi mila" asks **why**, because a cart being absent means three completely different things and treating them alike is what kills good listings — a chaat wala shut for one Tuesday would otherwise be voted down by exactly the people who like him most:
+
+| Reason | Weight | What it does |
+|---|---|---|
+| **Aaj band hai** | 0 | Today's note only. Card shows "Aaj band bataya gaya" and sinks to the bottom **for today**; tomorrow it ranks normally again. Nothing is held against the listing. |
+| **Yahan se hat gaya** | 1 | Argues this spot is wrong. Counts toward `doubtful`. |
+| **Hamesha ke liye band** | 3 | Two of these retire the listing — `trust: "closed"`, dropped from search. |
+| *(no reason given)* | 1 | Treated as a plain "nahi mila". |
+
+A listing goes `doubtful` (faded, sunk) when the weighted total is ≥ 2 and exceeds `seen_yes`. Weights live in `food.SEEN_REASONS`, and the client fetches the reason list from `/api/food/kinds` rather than hardcoding one the backend scores differently.
+
+### Reports — when the listing itself is wrong
+
+The votes are about *today*; a report is about whether the listing should exist at all. The quiet ⚑ on each card flags it as fake, a joke, a duplicate, wrong info, or offensive.
+
+**Three distinct devices hide a listing** from search — low enough that obvious junk goes fast, high enough that one annoyed person can't bury a competitor. One report per device, enforced by row rather than by counter. Hiding is reversible and **never deletes**: flagged listings land in an owner review queue at `GET /api/admin/reports` with the reason breakdown and any notes, and `POST /api/admin/shops/{id}/visibility` `{"hidden": false}` restores one — clearing its reports at the same time, or the next stray tap would just re-hide it.
 
 ### Food API
 
@@ -55,9 +72,12 @@ Every card carries "Aaj dekha gaya" / "3 din pehle dekha gaya" and two buttons. 
 | `GET` | `/api/food/near?lat&long&q&kind&radius_km&open_now&limit` | The home screen. No `q` = everything nearby |
 | `POST` | `/api/food/add` | One-photo add (multipart: `photo`, `lat`, `long`, optional `name`/`kind`/`address`/`device_id`/`day_of_week`/`start_time`/`end_time`) |
 | `GET` | `/api/food/{shop_id}?lat&long` | One vendor card |
-| `POST` | `/api/food/{shop_id}/seen` | `{"yes": true}` — the freshness vote |
+| `POST` | `/api/food/{shop_id}/seen` | `{"yes": false, "reason": "closed_today"}` — the freshness vote |
+| `POST` | `/api/food/{shop_id}/report` | `{"reason": "fake", "device_id": "…"}` — flag a bad listing |
 | `POST` | `/api/food/{shop_id}/items` | Add one dish by hand, when the board wasn't readable |
-| `GET` | `/api/food/kinds` | Vendor kinds, popular-dish chips, food categories |
+| `GET` | `/api/food/kinds` | Vendor kinds, popular-dish chips, categories, and both reason lists |
+| `GET` | `/api/admin/reports?hidden_only` | Owner review queue for flagged listings |
+| `POST` | `/api/admin/shops/{id}/visibility` | Hide or restore a listing (restoring clears its reports) |
 
 Vendor kinds and food categories live in `app/food.py` — thela, chaat, chinese, chai, dhaba, sweets, juice, bakery, tiffin, restaurant.
 
@@ -198,9 +218,10 @@ Payments/monetization (Phase 3), full-auto shelf scanning, native mobile app (Ph
 **Food app**
 
 - No claim flow yet — a vendor can't take over their own listing, which is what should unlock the phone-number field.
-- `device_id` is an anonymous localStorage string, so it stops accidental double-voting but not deliberate abuse. Real rate limiting needs a server-side signal.
-- Anyone can add anyone, and nothing moderates a bad or joke listing beyond the "nahi mila" votes. The owner panel can delete, but there's no report button.
-- A "nahi mila" can't say *why* — moved, closed today, shut down. All three sink a listing identically.
+- `device_id` is an anonymous localStorage string. It stops accidental double-voting and one-person report floods, but clearing storage mints a new id, so it isn't real abuse resistance — that needs a server-side signal.
+- The report queue is API-only; `admin.html` has no screen for it yet.
+- "Aaj band hai" is a single flag, not a history, so a vendor shut every Monday looks the same as one shut once. Repeated closures on the same weekday should eventually become a schedule.
+- Reports are counted but not weighted by reporter — three throwaway devices hide a listing as effectively as three real ones.
 
 **General search**
 

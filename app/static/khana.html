@@ -67,7 +67,12 @@
   .emoji { font-size: 1.7rem; line-height: 1; }
   .name { font-weight: 650; font-size: 1.05rem; margin: 0; }
   .meta { color: var(--muted); font-size: .85rem; margin: .1rem 0 0; }
-  .dist { margin-left: auto; font-size: .85rem; color: var(--muted); white-space: nowrap; }
+  .dist-col { margin-left: auto; text-align: right; }
+  .dist { font-size: .85rem; color: var(--muted); white-space: nowrap; }
+  /* Reporting sits above the card, quiet and small — it should never compete
+     with the two vote buttons, which are what most people came to tap. */
+  .flag { background: none; border: none; color: var(--muted); cursor: pointer;
+          font-size: .95rem; padding: .3rem 0 0; line-height: 1; }
 
   .open { display: inline-block; font-size: .8rem; font-weight: 650; padding: .2rem .55rem;
           border-radius: 999px; margin-top: .5rem; }
@@ -84,6 +89,23 @@
   .row { display: flex; gap: .5rem; align-items: center; margin-top: .75rem;
          flex-wrap: wrap; }
   .seen { font-size: .78rem; color: var(--muted); margin-top: .55rem; }
+  .badge { display: inline-block; font-size: .78rem; font-weight: 650; padding: .2rem .55rem;
+           border-radius: 999px; background: rgba(198,40,40,.13); color: var(--bad);
+           margin-top: .5rem; }
+
+  /* Reason picker — opens inside the card rather than as a modal, so the
+     vendor you're answering about stays on screen while you answer. */
+  .panel { margin-top: .7rem; border-top: 1px solid var(--line); padding-top: .7rem; }
+  .panel[hidden] { display: none; }
+  .panel p { margin: 0 0 .5rem; font-size: .85rem; font-weight: 600; }
+  .reasons { display: flex; flex-direction: column; gap: .4rem; }
+  .reason {
+    text-align: left; padding: .6rem .75rem; border-radius: .6rem; cursor: pointer;
+    border: 1.5px solid var(--line); background: var(--card); color: var(--ink);
+    font-size: .9rem;
+  }
+  .reason small { display: block; color: var(--muted); font-size: .78rem; font-weight: 400; }
+  .reason:hover { border-color: var(--brand); }
   .btn {
     padding: .6rem .9rem; border-radius: .7rem; border: 1.5px solid var(--line);
     background: var(--card); color: var(--ink); font-size: .9rem; font-weight: 600;
@@ -307,16 +329,20 @@ function cardHtml(v) {
         <p class="name">${esc(v.name)}</p>
         <p class="meta">${esc(v.kind_label)}${v.address ? " · " + esc(v.address.split(",").slice(0, 2).join(",")) : ""}</p>
       </div>
-      <div class="dist">${v.distance_km} km</div>
+      <div class="dist-col">
+        <div class="dist">${v.distance_km} km</div>
+        <button class="flag" title="Galat listing report karo" aria-label="Report karo">⚑</button>
+      </div>
     </div>
-    ${open}
+    ${v.closed_today ? `<div><span class="badge">Aaj band bataya gaya</span></div>` : open}
     ${menu.length ? `<div class="menu">${shown}${extra}</div>` : ""}
-    <p class="seen">${esc(v.seen_text)}${v.seen_no > 0 ? ` · ${v.seen_no} ne kaha nahi mila` : ""}</p>
+    <p class="seen">${esc(v.seen_text)}${v.moved_count > 0 ? ` · ${v.moved_count} ne kaha yahan se hat gaya` : ""}</p>
     <div class="row">
       <a class="btn brand tiny" href="${maps}" target="_blank" rel="noopener">Raasta 🧭</a>
       <button class="btn tiny seen-yes">Abhi hai ✓</button>
       <button class="btn tiny seen-no">Nahi mila ✕</button>
     </div>
+    <div class="panel" hidden></div>
   </article>`;
 }
 
@@ -347,25 +373,79 @@ async function load() {
   }
 }
 
-// ── Freshness votes ─────────────────────────────────────────────────────────
-$("list").addEventListener("click", async (e) => {
-  const yes = e.target.closest(".seen-yes");
-  const no = e.target.closest(".seen-no");
-  if (!yes && !no) return;
-  const card = e.target.closest(".card");
+// ── Freshness votes + reports ───────────────────────────────────────────────
+// Reasons come from the server so the client never hardcodes a list that the
+// backend weighs differently.
+let REASONS = { seen: [], report: [] };
+
+function openPanel(card, mode) {
+  const panel = card.querySelector(".panel");
+  const list = mode === "seen" ? REASONS.seen : REASONS.report;
+  const title = mode === "seen" ? "Kyun nahi mila?" : "Is listing me kya galat hai?";
+  panel.innerHTML = `<p>${title}</p><div class="reasons">` +
+    list.map((r) => `<button class="reason" data-mode="${mode}" data-reason="${r.reason}">
+        ${esc(r.label)}${r.hint ? `<small>${esc(r.hint)}</small>` : ""}
+      </button>`).join("") +
+    `<button class="reason" data-mode="cancel">Rehne do</button></div>`;
+  panel.hidden = false;
+}
+
+async function sendSeen(card, yes, reason) {
   const id = card.dataset.id;
-  card.querySelectorAll(".seen-yes,.seen-no").forEach((b) => (b.disabled = true));
+  const res = await fetch(`${API}/api/food/${id}/seen`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ yes, reason: reason || "", device_id: deviceId }),
+  });
+  const v = await res.json();
+  card.querySelector(".seen").textContent =
+    (yes ? "Shukriya! " : "Bata diya. ") + v.seen_text;
+  // "Aaj band hai" is about today, so the card says so instead of quietly
+  // sinking — the vendor keeps their listing.
+  if (v.closed_today) {
+    const slot = card.querySelector(".open, .badge");
+    if (slot) slot.outerHTML = `<span class="badge">Aaj band bataya gaya</span>`;
+  }
+}
+
+async function sendReport(card, reason) {
+  const id = card.dataset.id;
+  const res = await fetch(`${API}/api/food/${id}/report`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reason, device_id: deviceId }),
+  });
+  const data = await res.json();
+  card.querySelector(".seen").textContent = data.message;
+  if (data.hidden) card.classList.add("doubtful");
+}
+
+$("list").addEventListener("click", async (e) => {
+  const card = e.target.closest(".card");
+  if (!card) return;
+  const panel = card.querySelector(".panel");
+
+  // A "haan hai" needs no reason — one tap, done.
+  if (e.target.closest(".seen-yes")) {
+    card.querySelectorAll(".seen-yes,.seen-no").forEach((b) => (b.disabled = true));
+    try { await sendSeen(card, true, ""); }
+    catch { card.querySelector(".seen").textContent = "Vote nahi gaya, net check karo."; }
+    return;
+  }
+  if (e.target.closest(".seen-no")) return openPanel(card, "seen");
+  if (e.target.closest(".flag")) return openPanel(card, "report");
+
+  const reason = e.target.closest(".reason");
+  if (!reason) return;
+  if (reason.dataset.mode === "cancel") { panel.hidden = true; return; }
+  panel.querySelectorAll(".reason").forEach((b) => (b.disabled = true));
   try {
-    const res = await fetch(`${API}/api/food/${id}/seen`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ yes: !!yes, device_id: deviceId }),
-    });
-    const v = await res.json();
-    card.querySelector(".seen").textContent =
-      (yes ? "Shukriya! " : "Bata diya. ") + v.seen_text;
+    if (reason.dataset.mode === "seen") await sendSeen(card, false, reason.dataset.reason);
+    else await sendReport(card, reason.dataset.reason);
+    panel.hidden = true;
   } catch {
-    card.querySelector(".seen").textContent = "Vote nahi gaya, net check karo.";
+    card.querySelector(".seen").textContent = "Nahi bheja ja saka, net check karo.";
+    panel.hidden = true;
   }
 });
 
@@ -397,6 +477,7 @@ async function loadChips() {
       .join("");
     $("mkind").innerHTML = `<option value="">Photo se pata kar lo</option>` +
       data.kinds.map((k) => `<option value="${k.kind}">${k.emoji} ${esc(k.label)}</option>`).join("");
+    REASONS = { seen: data.seen_reasons || [], report: data.report_reasons || [] };
   } catch { /* chips are a nicety — the search box works without them */ }
 }
 

@@ -6,7 +6,7 @@ from fastapi.responses import Response
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from .. import ai, embeddings, models, schemas, vision_check
+from .. import ai, embeddings, food, models, schemas, vision_check
 from ..database import (
     get_db,
     get_default_embedding_model,
@@ -415,3 +415,65 @@ def import_csv(
         "errors": errors[:20],
         "total_errors": len(errors),
     }
+
+
+# ---------------------------------------------------------------------------
+# Reported listings — the review queue behind the food app's flag button
+# ---------------------------------------------------------------------------
+# Auto-hiding is deliberately reversible and never deletes: three taps from
+# strangers is enough to pull a listing out of search, but not enough to
+# destroy a real vendor's entry. This is where that gets looked at.
+
+@router.get("/reports", response_model=list[schemas.ReportedVendor])
+def list_reported(hidden_only: bool = False, db: Session = Depends(get_db)):
+    """Flagged listings, most-reported first."""
+    query = db.query(models.Shop).filter(models.Shop.report_count > 0)
+    if hidden_only:
+        query = query.filter(models.Shop.hidden == 1)
+    shops = query.order_by(models.Shop.report_count.desc()).all()
+
+    out = []
+    for shop in shops:
+        reasons: dict[str, int] = {}
+        notes: list[str] = []
+        for report in shop.reports:
+            reasons[report.reason] = reasons.get(report.reason, 0) + 1
+            if report.note:
+                notes.append(report.note)
+        out.append({
+            "shop_id": shop.shop_id,
+            "name": shop.name,
+            "kind_label": food.kind_label(shop.food_kind),
+            "address": shop.address or "",
+            "added_by": shop.added_by or "",
+            "report_count": shop.report_count or 0,
+            "hidden": bool(shop.hidden),
+            "seen_yes": shop.seen_yes or 0,
+            "shutdown_count": shop.shutdown_count or 0,
+            "reasons": reasons,
+            "notes": notes[:10],
+            "created_at": shop.created_at,
+        })
+    return out
+
+
+@router.post("/shops/{shop_id}/visibility", response_model=dict)
+def set_visibility(shop_id: int, payload: dict, db: Session = Depends(get_db)):
+    """Hide or restore a listing. `{"hidden": false}` clears the reports too.
+
+    Restoring without clearing them would just re-hide the listing on the next
+    stray tap, which would make the whole queue pointless.
+    """
+    shop = db.get(models.Shop, shop_id)
+    if not shop:
+        raise HTTPException(404, "Shop not found")
+    hidden = bool(payload.get("hidden"))
+    shop.hidden = 1 if hidden else 0
+    if not hidden:
+        for report in list(shop.reports):
+            db.delete(report)
+        shop.report_count = 0
+    db.commit()
+    db.refresh(shop)
+    return {"shop_id": shop.shop_id, "hidden": bool(shop.hidden),
+            "report_count": shop.report_count or 0}

@@ -39,9 +39,25 @@ class Shop(Base):
     # a vendor to keep their own listing updated — they never will.
     added_by = Column(String, default="")
     seen_yes = Column(Integer, default=0)
-    seen_no = Column(Integer, default=0)
+    # "Nahi mila" split by what it actually means — see food.SEEN_REASONS.
+    # Lumping these together is what kills a good listing over one holiday:
+    # `closed_today_at` is a note about today, `moved_count` argues the spot is
+    # wrong, and `shutdown_count` argues the vendor is gone for good.
+    seen_no = Column(Integer, default=0)          # reason not given
+    moved_count = Column(Integer, default=0)
+    shutdown_count = Column(Integer, default=0)
+    closed_today_at = Column(DateTime, nullable=True)
     last_seen_at = Column(DateTime, nullable=True)
+    # Reports are about the listing existing at all, not about today. Enough of
+    # them from distinct people hides it from search — reversibly, never
+    # deleted, for the owner panel to review.
+    report_count = Column(Integer, default=0)
+    hidden = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    reports = relationship(
+        "ShopReport", back_populates="shop", cascade="all, delete-orphan"
+    )
 
     items = relationship("Item", back_populates="shop", cascade="all, delete-orphan")
     stops = relationship(
@@ -73,6 +89,25 @@ class ShopStop(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     shop = relationship("Shop", back_populates="stops")
+
+
+class ShopReport(Base):
+    """One person flagging a listing as wrong — fake, joke, duplicate.
+
+    Stored per row rather than as a bare counter so the same device can't flag
+    the same listing repeatedly, and so the owner panel can see *why* something
+    was reported instead of only how often.
+    """
+    __tablename__ = "shop_reports"
+
+    report_id = Column(Integer, primary_key=True, index=True)
+    shop_id = Column(Integer, ForeignKey("shops.shop_id"), nullable=False, index=True)
+    device_id = Column(String, default="", index=True)
+    reason = Column(String, default="wrong")
+    note = Column(String, default="")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    shop = relationship("Shop", back_populates="reports")
 
 
 class Item(Base):

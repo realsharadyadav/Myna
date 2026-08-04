@@ -245,7 +245,14 @@ class FoodVendorOut(BaseModel):
     seen_text: str = ""
     seen_yes: int = 0
     seen_no: int = 0
-    trust: str = "new"       # 'fresh' | 'ok' | 'stale' | 'new' | 'doubtful'
+    # 'fresh' | 'ok' | 'stale' | 'new' | 'doubtful' | 'closed'
+    trust: str = "new"
+    # Someone said it's shut *today* — a note, not a mark against the listing.
+    closed_today: bool = False
+    moved_count: int = 0
+    shutdown_count: int = 0
+    report_count: int = 0
+    hidden: bool = False
 
 
 class NearResponse(BaseModel):
@@ -267,6 +274,42 @@ class QuickAddResponse(BaseModel):
 
 
 class SeenReport(BaseModel):
-    """A passer-by answering "abhi bhi yahan hai?"."""
+    """A passer-by answering "abhi bhi yahan hai?".
+
+    On a "no", `reason` is what separates a vendor's day off from a vendor who
+    has gone for good — see food.SEEN_REASONS. Omitting it is allowed and
+    treated as "pata nahi".
+    """
     yes: bool
+    reason: Optional[str] = ""
     device_id: Optional[str] = ""
+
+
+class ReportCreate(BaseModel):
+    """Flagging a listing as wrong — fake, joke, duplicate, offensive."""
+    reason: Optional[str] = ""
+    note: Optional[str] = ""
+    device_id: Optional[str] = ""
+
+
+class ReportResponse(BaseModel):
+    reported: bool           # False when this device had already flagged it
+    report_count: int
+    hidden: bool
+    message: str
+
+
+class ReportedVendor(BaseModel):
+    """A flagged listing as the owner panel needs to see it."""
+    shop_id: int
+    name: str
+    kind_label: str
+    address: str
+    added_by: str
+    report_count: int
+    hidden: bool
+    seen_yes: int
+    shutdown_count: int
+    reasons: dict[str, int]      # {"fake": 2, "duplicate": 1}
+    notes: list[str]
+    created_at: datetime

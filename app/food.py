@@ -212,6 +212,90 @@ def normalise_category(value: str | None, name: str = "") -> str:
     return suggest_category(name or candidate)
 
 
+# ---------------------------------------------------------------------------
+# "Nahi mila" — why?
+# ---------------------------------------------------------------------------
+# A cart being absent means three completely different things, and treating
+# them alike is what kills good listings: a chaat wala shut for one Tuesday
+# would otherwise be voted down by exactly the people it serves best.
+#
+# `weight` is how much a report argues the listing is *wrong*:
+#   0  — the listing is right, the vendor just isn't there today
+#   1  — this spot looks wrong (moved on, or nobody knows why)
+#   3  — the vendor is gone for good, so a couple of these retire the listing
+
+SEEN_REASONS: dict[str, dict] = {
+    "closed_today": {
+        "label": "Aaj band hai",
+        "hint": "Chhutti ya aaj nahi aaya",
+        "weight": 0,
+    },
+    "moved": {
+        "label": "Yahan se hat gaya",
+        "hint": "Ab kisi aur jagah lagta hai",
+        "weight": 1,
+    },
+    "shut_down": {
+        "label": "Hamesha ke liye band",
+        "hint": "Ab lagta hi nahi",
+        "weight": 3,
+    },
+    "unknown": {
+        "label": "Pata nahi, bas nahi mila",
+        "hint": "",
+        "weight": 1,
+    },
+}
+
+DEFAULT_SEEN_REASON = "unknown"
+
+
+def normalise_seen_reason(value: str | None) -> str:
+    key = (value or "").strip().lower().replace(" ", "_")
+    return key if key in SEEN_REASONS else DEFAULT_SEEN_REASON
+
+
+def seen_reason_list() -> list[dict]:
+    """Reasons in the order the sheet offers them — least damaging first, so
+    the easy honest answer ("aaj band hai") is the one under the thumb."""
+    return [
+        {"reason": r, "label": SEEN_REASONS[r]["label"], "hint": SEEN_REASONS[r]["hint"]}
+        for r in ("closed_today", "moved", "shut_down", "unknown")
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Reports — "ye listing hi galat hai"
+# ---------------------------------------------------------------------------
+# Separate from the seen votes on purpose. A vote is about *today*; a report is
+# about the listing existing at all, and only reports can hide one.
+
+REPORT_REASONS: dict[str, str] = {
+    "fake": "Aisi koi dukaan hai hi nahi",
+    "joke": "Mazaak / bakwaas entry",
+    "wrong": "Jankari galat hai",
+    "duplicate": "Ye pehle se listed hai",
+    "offensive": "Galat ya offensive content",
+}
+
+DEFAULT_REPORT_REASON = "wrong"
+
+# How many distinct people it takes to pull a listing out of search. Low enough
+# that obvious junk goes fast, high enough that one annoyed person can't
+# delete a competitor. Hiding is reversible and never deletes anything — the
+# owner panel reviews and restores.
+REPORTS_TO_HIDE = 3
+
+
+def normalise_report_reason(value: str | None) -> str:
+    key = (value or "").strip().lower()
+    return key if key in REPORT_REASONS else DEFAULT_REPORT_REASON
+
+
+def report_reason_list() -> list[dict]:
+    return [{"reason": r, "label": label} for r, label in REPORT_REASONS.items()]
+
+
 # Chips on the home screen — what people actually walk out to buy.
 POPULAR = [
     "Momos", "Chowmein", "Golgappe", "Chai", "Samosa", "Maggi", "Roll",
