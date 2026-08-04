@@ -706,9 +706,220 @@ print("PASS shop type switching + round edit/delete")
 page = client.get("/shopkeeper").text
 assert 'data-type="mobile"' in page and 'id="stopDay"' in page and 'id="stopStart"' in page
 assert 'id="addStopBtn"' in page
-home = client.get("/").text
-assert 'cart-tag' in home and "shop_type === 'mobile'" in home
+classic = client.get("/classic").text
+assert 'cart-tag' in classic and "shop_type === 'mobile'" in classic
 print("PASS shopkeeper + customer pages carry the thela UI")
+
+
+# ---------------------------------------------------------------------------
+# 47. Food app: one-photo add, "paas me kya hai", freshness votes
+# ---------------------------------------------------------------------------
+from app import ai as _ai, food as _food
+
+# 47a. Vocabulary
+assert _food.normalise_kind("Chinese") == "chinese"
+assert _food.normalise_kind("momos") == "chinese"      # inferred from a hint
+assert _food.normalise_kind("") == "other"
+assert _food.suggest_category("Veg Chowmein") == "Chinese"
+assert _food.suggest_category("Gulab Jamun") == "Sweets"
+assert _food.suggest_category("Chilli Potato") == "Chinese"
+assert _food.normalise_category("nonsense", "Masala Chai") == "Chai & drinks"
+print("PASS food vocabulary")
+
+# 47b. Board parsing — the object shape, a fenced reply, and the array fallback.
+board = _ai._parse_board(
+    '{"name": "Sharma Chinese Corner", "kind": "chinese", "items": '
+    '[{"name": "Chowmein", "price": "₹40", "category": "Chinese"},'
+    ' {"name": "Veg Momos", "price": 50, "category": "Chinese"},'
+    ' {"name": "Chowmein", "price": 40}]}'
+)
+assert board["name"] == "Sharma Chinese Corner" and board["kind"] == "chinese"
+assert len(board["items"]) == 2, board["items"]          # duplicate folded
+assert board["items"][0]["price"] == 40.0                # "₹40" parsed
+assert board["items"][1]["name"] == "Veg Momos"
+fenced = _ai._parse_board('```json\n{"name":"Tapri","kind":"chai","items":[]}\n```')
+assert fenced["name"] == "Tapri" and fenced["kind"] == "chai"
+# No object at all: the menu still survives via the array parser, and the kind
+# is inferred from the dishes rather than lost.
+loose = _ai._parse_board('[{"name": "Golgappe"}, {"name": "Aloo Tikki"}]')
+assert [i["name"] for i in loose["items"]] == ["Golgappe", "Aloo Tikki"]
+assert loose["kind"] == "chaat", loose["kind"]
+assert _ai._parse_price("Rs 60/-") == 60.0 and _ai._parse_price("free") == 0.0
+assert _ai._parse_price(-5) == 0.0
+print("PASS board parsing")
+
+# 47c. One-photo add. No API key is configured in tests, so the vision read
+# fails — the flow must still list the vendor from the typed name rather than
+# dropping it.
+food_img = io.BytesIO(b"\xff\xd8\xff\xe0" + b"\x00" * 100)
+res = client.post("/api/food/add", data={
+    "lat": 19.0760, "long": 72.8777, "name": "Sharma Chinese Corner",
+    "kind": "chinese", "address": "Link Road, Andheri", "device_id": "dev-test-1",
+}, files={"photo": ("board.jpg", food_img, "image/jpeg")})
+assert res.status_code == 200, res.text
+added = res.json()
+assert added["created"] is True
+vendor = added["vendor"]
+assert vendor["kind_label"] == "Chinese thela" and vendor["food_kind"] == "chinese"
+assert vendor["seen_yes"] == 1 and vendor["seen_text"] == "Aaj dekha gaya"
+assert vendor["trust"] == "fresh"
+assert vendor["phone"] == ""            # add flow never captures a vendor's number
+food_id = vendor["shop_id"]
+print(f"PASS one-photo add id={food_id}")
+
+# 47d. Nothing readable and nothing typed → no listing, and a Hinglish reason.
+res = client.post("/api/food/add", data={"lat": 19.0760, "long": 72.8777}, files={
+    "photo": ("blank.jpg", io.BytesIO(b"\xff\xd8\xff\xe0" + b"\x00" * 50), "image/jpeg")})
+assert res.json()["created"] is False and res.json()["error"]
+print("PASS unreadable photo is refused, not half-saved")
+
+# 47e. Menu items added by hand get a category derived from the dish name.
+res = client.post(f"/api/food/{food_id}/items", json={"name": "Veg Momos", "price": 50})
+assert res.status_code == 200, res.text
+assert res.json()["category"] == "Chinese" and res.json()["price"] == 50.0
+client.post(f"/api/food/{food_id}/items", json={"name": "Masala Chai", "price": 10})
+print("PASS manual menu item")
+
+# 47f. Browse + search. A dish query matches the menu; a name query matches the
+# board; and something nobody sells returns nothing rather than everything.
+near = client.get("/api/food/near", params={"lat": 19.0760, "long": 72.8777}).json()
+assert near["count"] >= 1
+assert any(v["shop_id"] == food_id for v in near["vendors"])
+hit = client.get("/api/food/near", params={
+    "lat": 19.0760, "long": 72.8777, "q": "momos"}).json()
+assert [v["shop_id"] for v in hit["vendors"]] == [food_id], hit
+assert hit["vendors"][0]["matched"] == ["momos"]
+assert any(m["name"] == "Veg Momos" and m["price"] == 50.0
+           for m in hit["vendors"][0]["menu"])
+by_name = client.get("/api/food/near", params={
+    "lat": 19.0760, "long": 72.8777, "q": "sharma"}).json()
+assert any(v["shop_id"] == food_id for v in by_name["vendors"])
+miss = client.get("/api/food/near", params={
+    "lat": 19.0760, "long": 72.8777, "q": "zzzznotadish"}).json()
+assert miss["count"] == 0
+# Far away is out of range, and the kind filter is exclusive.
+far = client.get("/api/food/near", params={"lat": 28.6139, "long": 77.2090}).json()
+assert all(v["shop_id"] != food_id for v in far["vendors"])
+kinds = client.get("/api/food/near", params={
+    "lat": 19.0760, "long": 72.8777, "kind": "sweets"}).json()
+assert all(v["shop_id"] != food_id for v in kinds["vendors"])
+print("PASS near: browse, dish search, name search, radius, kind filter")
+
+# 47g. Freshness votes. An unexplained "nahi mila" outvoting "haan hai" marks a
+# listing doubtful, which sinks it below everything else nearby.
+assert client.post(f"/api/food/{food_id}/seen", json={"yes": True}).json()["seen_yes"] == 2
+for _ in range(4):
+    client.post(f"/api/food/{food_id}/seen", json={"yes": False})
+state = client.get(f"/api/food/{food_id}").json()
+assert state["seen_no"] == 4 and state["trust"] == "doubtful"
+assert client.post("/api/food/999999/seen", json={"yes": True}).status_code == 404
+print("PASS freshness votes")
+
+# 47h. "Aaj band hai" must NOT damage a listing — the whole point of asking
+# why. A vendor closed for one holiday keeps its trust, stays in search, and
+# only sinks for today.
+res = client.post("/api/food/add", data={
+    "lat": 19.0761, "long": 72.8778, "name": "Chhutti Wala Dhaba", "kind": "dhaba",
+}, files={"photo": ("b.jpg", io.BytesIO(b"\xff\xd8\xff\xe0" + b"\x00" * 50), "image/jpeg")})
+holiday_id = res.json()["vendor"]["shop_id"]
+for _ in range(5):
+    client.post(f"/api/food/{holiday_id}/seen", json={"yes": False, "reason": "closed_today"})
+state = client.get(f"/api/food/{holiday_id}").json()
+assert state["closed_today"] is True
+assert state["trust"] == "fresh", state["trust"]     # five taps, zero damage
+assert state["seen_text"] == "Aaj band bataya gaya"
+assert state["seen_no"] == 0 and state["moved_count"] == 0
+listing = client.get("/api/food/near", params={"lat": 19.0760, "long": 72.8777}).json()
+ids = [v["shop_id"] for v in listing["vendors"]]
+assert holiday_id in ids                             # still listed…
+assert ids[-1] == holiday_id, ids                    # …just last for today
+# Someone standing at the open shop overrides this morning's "band hai".
+client.post(f"/api/food/{holiday_id}/seen", json={"yes": True})
+assert client.get(f"/api/food/{holiday_id}").json()["closed_today"] is False
+print("PASS 'aaj band hai' is a note, not a downvote")
+
+# 47i. "Yahan se hat gaya" argues the spot is wrong; "hamesha ke liye band"
+# weighs enough that two of them retire the listing from search entirely.
+res = client.post("/api/food/add", data={
+    "lat": 19.0762, "long": 72.8779, "name": "Bandh Ho Gaya Thela", "kind": "thela",
+}, files={"photo": ("c.jpg", io.BytesIO(b"\xff\xd8\xff\xe0" + b"\x00" * 50), "image/jpeg")})
+gone_id = res.json()["vendor"]["shop_id"]
+client.post(f"/api/food/{gone_id}/seen", json={"yes": False, "reason": "moved"})
+client.post(f"/api/food/{gone_id}/seen", json={"yes": False, "reason": "moved"})
+state = client.get(f"/api/food/{gone_id}").json()
+assert state["moved_count"] == 2 and state["trust"] == "doubtful"
+for _ in range(2):
+    client.post(f"/api/food/{gone_id}/seen", json={"yes": False, "reason": "shut_down"})
+state = client.get(f"/api/food/{gone_id}").json()
+assert state["shutdown_count"] == 2 and state["trust"] == "closed"
+assert state["seen_text"] == "Log keh rahe hain ab lagta hi nahi"
+gone_listing = client.get("/api/food/near", params={"lat": 19.0760, "long": 72.8777}).json()
+assert all(v["shop_id"] != gone_id for v in gone_listing["vendors"])
+# An unknown reason is accepted and weighed as a plain "nahi mila".
+assert client.post(f"/api/food/{gone_id}/seen",
+                   json={"yes": False, "reason": "kuch bhi"}).json()["seen_no"] == 1
+print("PASS 'hat gaya' vs 'hamesha band' are weighed differently")
+
+# 47j. Reports. One per device, three distinct devices hide the listing, and a
+# hidden listing drops out of search without being deleted.
+res = client.post("/api/food/add", data={
+    "lat": 19.0763, "long": 72.8780, "name": "Fake Joke Entry", "kind": "chaat",
+}, files={"photo": ("d.jpg", io.BytesIO(b"\xff\xd8\xff\xe0" + b"\x00" * 50), "image/jpeg")})
+junk_id = res.json()["vendor"]["shop_id"]
+first = client.post(f"/api/food/{junk_id}/report",
+                    json={"reason": "joke", "device_id": "dev-a"}).json()
+assert first["reported"] is True and first["report_count"] == 1 and first["hidden"] is False
+# Same device again changes nothing — one person can't bury a competitor.
+again = client.post(f"/api/food/{junk_id}/report",
+                    json={"reason": "fake", "device_id": "dev-a"}).json()
+assert again["reported"] is False and again["report_count"] == 1
+client.post(f"/api/food/{junk_id}/report", json={"reason": "fake", "device_id": "dev-b"})
+third = client.post(f"/api/food/{junk_id}/report",
+                    json={"reason": "fake", "device_id": "dev-c", "note": "aisi dukaan nahi hai"}).json()
+assert third["report_count"] == 3 and third["hidden"] is True
+assert "review" in third["message"]
+hidden_listing = client.get("/api/food/near", params={"lat": 19.0760, "long": 72.8777}).json()
+assert all(v["shop_id"] != junk_id for v in hidden_listing["vendors"])
+assert client.get(f"/api/food/{junk_id}").json()["hidden"] is True   # hidden, not deleted
+assert client.post("/api/food/999999/report", json={"reason": "fake"}).status_code == 404
+print("PASS reports hide a listing after 3 distinct devices")
+
+# 47k. Owner review queue: see why, then restore — which must also clear the
+# reports, or the next stray tap re-hides it.
+queue = client.get("/api/admin/reports").json()
+entry = next(r for r in queue if r["shop_id"] == junk_id)
+assert entry["report_count"] == 3 and entry["hidden"] is True
+assert entry["reasons"] == {"joke": 1, "fake": 2}, entry["reasons"]
+assert "aisi dukaan nahi hai" in entry["notes"]
+assert all(r["hidden"] for r in client.get("/api/admin/reports",
+                                           params={"hidden_only": True}).json())
+# The dashboard surfaces the queue, so it can't quietly pile up unreviewed.
+stats = client.get("/api/admin/stats").json()
+assert stats["reported_shops"] >= 1 and stats["hidden_shops"] >= 1
+restored = client.post(f"/api/admin/shops/{junk_id}/visibility", json={"hidden": False}).json()
+assert restored["hidden"] is False and restored["report_count"] == 0
+back = client.get("/api/food/near", params={"lat": 19.0760, "long": 72.8777}).json()
+assert any(v["shop_id"] == junk_id for v in back["vendors"])
+assert all(r["shop_id"] != junk_id for r in client.get("/api/admin/reports").json())
+assert client.get("/api/admin/stats").json()["hidden_shops"] == 0
+# The owner panel has a screen for it, not just an endpoint.
+panel = client.get("/admin").text
+assert "id=\"tab-reports\"" in panel and "loadReports()" in panel
+assert "/api/admin/reports" in panel and "visibility" in panel
+assert "Restore &amp; clear reports" in panel and "reportPill" in panel
+print("PASS owner review queue: inspect, restore, clear")
+
+# 47l. Reference data + the food UI itself.
+kinds = client.get("/api/food/kinds").json()
+assert {"kind", "label", "emoji", "mobile"} <= set(kinds["kinds"][0])
+assert "Momos" in kinds["popular"]
+assert [r["reason"] for r in kinds["seen_reasons"]][0] == "closed_today"  # gentlest first
+assert {"fake", "joke", "duplicate"} <= {r["reason"] for r in kinds["report_reasons"]}
+page = client.get("/").text
+assert 'id="fab"' in page and "/api/food/near" in page and "/api/food/add" in page
+assert "Kya khaana hai?" in page and "Abhi hai ✓" in page
+assert "/report" in page and 'class="flag"' in page and "Kyun nahi mila?" in page
+print("PASS food reference data + UI")
 
 
 print("\nALL TESTS PASSED")
