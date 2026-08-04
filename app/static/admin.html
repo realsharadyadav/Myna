@@ -164,6 +164,16 @@
   .actions button.del { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, transparent); background: var(--danger-bg); }
   .actions button.del:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
 
+  /* Count of listings waiting on review, on the tab itself — a queue nobody
+     can see is a queue nobody works. */
+  .tab-pill {
+    display: inline-block; min-width: 18px; padding: 1px 6px; margin-left: 6px;
+    border-radius: 999px; background: var(--danger); color: #fff;
+    font-size: .68rem; font-weight: 800; line-height: 1.5;
+  }
+  .tab-pill[hidden] { display: none; }
+  .stat-card.alert .num { color: var(--danger); }
+  .stat-card.clickable { cursor: pointer; }
   .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: .72rem; font-weight: 700; }
   .badge.on { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent-text); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); }
   .badge.off { background: var(--danger-bg); color: var(--danger); border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent); }
@@ -405,6 +415,7 @@
   <div class="tabs">
     <button class="active" onclick="showTab('dashboard', this)" title="Dashboard" aria-label="Dashboard"><svg class="ic" aria-hidden="true"><use href="#i-target"/></svg><span class="tab-text">Dashboard</span></button>
     <button onclick="showTab('shops', this)" title="Shops" aria-label="Shops"><svg class="ic" aria-hidden="true"><use href="#i-store"/></svg><span class="tab-text">Shops</span></button>
+    <button onclick="showTab('reports', this)" title="Reported listings" aria-label="Reported listings"><svg class="ic" aria-hidden="true"><use href="#i-alert"/></svg><span class="tab-text">Reports</span><span class="tab-pill" id="reportPill" hidden></span></button>
     <button onclick="showTab('items', this)" title="All items" aria-label="All items"><svg class="ic" aria-hidden="true"><use href="#i-bag"/></svg><span class="tab-text">All Items</span></button>
     <button onclick="showTab('settings', this)" title="AI settings" aria-label="AI settings"><svg class="ic" aria-hidden="true"><use href="#i-spark"/></svg><span class="tab-text">AI Settings</span></button>
     <button onclick="showTab('import', this)" title="Import CSV" aria-label="Import CSV"><svg class="ic" aria-hidden="true"><use href="#i-receipt"/></svg><span class="tab-text">Import CSV</span></button>
@@ -434,6 +445,23 @@
         <tbody id="shopTable"></tbody>
       </table>
       <div class="count" style="margin-top:10px" id="shopCount"></div>
+    </div>
+  </div>
+
+  <!-- ==================== REPORTS ====================
+       The review queue behind the food app's flag button. Three strangers
+       tapping ⚑ hides a listing, which is fast enough for obvious junk and
+       therefore also fast enough to catch a real vendor by mistake — so
+       hiding never deletes, and this screen is where that gets undone. -->
+  <div id="tab-reports" style="display:none">
+    <div class="card">
+      <div class="toolbar">
+        <label class="checkbox" style="display:inline-flex; align-items:center; gap:6px; font-size:.85rem">
+          <input type="checkbox" id="reportHiddenOnly" onchange="loadReports()"> Only listings already hidden
+        </label>
+        <button class="ghost" onclick="loadReports()" style="width:auto; padding:8px 16px"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg> Refresh</button>
+      </div>
+      <div id="reportList"></div>
     </div>
   </div>
 
@@ -649,13 +677,128 @@ const API = window.MYNA_API_BASE || '';
 function showTab(name, btn) {
   document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  ['dashboard', 'shops', 'items', 'settings', 'import'].forEach(t => {
+  ['dashboard', 'shops', 'reports', 'items', 'settings', 'import'].forEach(t => {
     document.getElementById('tab-' + t).style.display = t === name ? '' : 'none';
   });
   if (name === 'dashboard') loadStats();
   if (name === 'shops') loadShops();
+  if (name === 'reports') loadReports();
   if (name === 'items') { loadShopNames(); loadAllItems(); }
   if (name === 'settings') loadSettings();
+}
+
+// ---------------------------------------------------------------------------
+// Reported listings
+// ---------------------------------------------------------------------------
+// Anyone can add any thela, so anyone can also add junk. Reports are how the
+// street says so, and this is the only place that decision gets reviewed by a
+// person. Two things matter in the design: the reasons are shown broken down
+// rather than as one number (three "duplicate" is a merge, three "fake" is a
+// delete), and restoring is offered as prominently as deleting.
+
+// Hinglish reason keys, spelled out for whoever is reviewing.
+const REPORT_LABELS = {
+  fake: 'Aisi koi dukaan hai hi nahi',
+  joke: 'Mazaak / bakwaas entry',
+  wrong: 'Jankari galat hai',
+  duplicate: 'Ye pehle se listed hai',
+  offensive: 'Galat ya offensive content',
+};
+
+async function loadReports() {
+  const box = document.getElementById('reportList');
+  const hiddenOnly = document.getElementById('reportHiddenOnly').checked;
+  box.innerHTML = '<p class="msg" style="padding:8px 0">Loading…</p>';
+  try {
+    const res = await fetch(API + '/api/admin/reports' + (hiddenOnly ? '?hidden_only=true' : ''));
+    const rows = await res.json();
+    updateReportPill(rows.length);
+    if (!rows.length) {
+      box.innerHTML = `<p class="msg" style="padding:8px 0">${hiddenOnly
+        ? 'Nothing is hidden right now.'
+        : 'No reported listings. Nothing to review.'}</p>`;
+      return;
+    }
+    box.innerHTML = rows.map(reportCard).join('');
+  } catch (e) {
+    box.innerHTML = '<p class="msg" style="padding:8px 0; color:#e74c3c">Could not load reports.</p>';
+  }
+}
+
+function reportCard(r) {
+  const reasons = Object.entries(r.reasons)
+    .sort((a, b) => b[1] - a[1])
+    .map(([key, n]) => `<span class="badge off" style="margin:0 6px 6px 0">${n}× ${esc(REPORT_LABELS[key] || key)}</span>`)
+    .join('');
+  const notes = (r.notes || []).length
+    ? `<ul style="margin:8px 0 0 18px; font-size:.8rem; color:var(--text-soft)">
+         ${r.notes.map(n => `<li>${esc(n)}</li>`).join('')}</ul>`
+    : '';
+  // "Confirmed by N" is the counter-evidence: a listing people keep saying is
+  // real, flagged by three others, is very different from one nobody has ever
+  // confirmed. Deleting without that on screen is guesswork.
+  const evidence = [
+    r.seen_yes ? `${r.seen_yes}× confirmed as real` : 'never confirmed by anyone',
+    r.shutdown_count ? `${r.shutdown_count}× reported shut for good` : '',
+    r.added_by ? `added by ${esc(r.added_by.slice(0, 10))}…` : 'added anonymously',
+  ].filter(Boolean).join(' · ');
+
+  return `
+  <div class="card" style="margin-bottom:12px">
+    <div style="display:flex; gap:10px; align-items:flex-start; flex-wrap:wrap">
+      <div style="min-width:0; flex:1">
+        <h3 style="margin:0">${esc(r.name)}
+          ${r.hidden ? '<span class="badge off" style="margin-left:8px">Hidden from search</span>'
+                     : '<span class="badge on" style="margin-left:8px">Still visible</span>'}
+        </h3>
+        <p class="count" style="margin:4px 0 0">
+          #${r.shop_id} · ${esc(r.kind_label)}${r.address ? ' · ' + esc(r.address) : ''}
+        </p>
+        <p class="count" style="margin:2px 0 0">${evidence}</p>
+      </div>
+      <div class="count" style="white-space:nowrap">${r.report_count} report${r.report_count === 1 ? '' : 's'}</div>
+    </div>
+    <div style="margin-top:10px">${reasons}</div>
+    ${notes}
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px">
+      <button class="ghost" style="width:auto; padding:8px 16px" onclick="setVisibility(${r.shop_id}, false)">
+        <svg class="ic" aria-hidden="true"><use href="#i-check"/></svg> Restore &amp; clear reports
+      </button>
+      ${r.hidden ? '' : `<button class="ghost" style="width:auto; padding:8px 16px" onclick="setVisibility(${r.shop_id}, true)">
+        <svg class="ic" aria-hidden="true"><use href="#i-close"/></svg> Hide from search
+      </button>`}
+      <button class="ghost" style="width:auto; padding:8px 16px; color:var(--danger)" onclick="deleteReported(${r.shop_id})">
+        <svg class="ic" aria-hidden="true"><use href="#i-trash"/></svg> Delete permanently
+      </button>
+    </div>
+  </div>`;
+}
+
+async function setVisibility(id, hidden) {
+  await fetch(API + `/api/admin/shops/${id}/visibility`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ hidden }),
+  });
+  loadReports();
+}
+
+async function deleteReported(id) {
+  if (!confirm('Delete this listing and everything on it? This cannot be undone — restoring is usually the safer call.')) return;
+  await fetch(API + `/api/admin/shops/${id}`, { method: 'DELETE' });
+  loadReports();
+}
+
+function gotoReports() {
+  const btn = [...document.querySelectorAll('.tabs button')]
+    .find(b => b.getAttribute('aria-label') === 'Reported listings');
+  if (btn) showTab('reports', btn);
+}
+
+function updateReportPill(count) {
+  const pill = document.getElementById('reportPill');
+  pill.textContent = count;
+  pill.hidden = !count;
 }
 
 // ---------------------------------------------------------------------------
@@ -702,10 +845,16 @@ async function downloadTemplate(sample) {
 async function loadStats() {
   const res = await fetch(API + '/api/admin/stats');
   const data = await res.json();
+  const reported = data.reported_shops || 0;
   document.getElementById('statsGrid').innerHTML = `
     <div class="stat-card"><div class="num">${data.total_shops}</div><div class="label">Shops</div></div>
     <div class="stat-card"><div class="num">${data.total_items}</div><div class="label">Items</div></div>
+    ${reported ? `<div class="stat-card alert clickable" onclick="gotoReports()" title="Open the review queue">
+      <div class="num">${reported}</div>
+      <div class="label">Reported${data.hidden_shops ? ` · ${data.hidden_shops} hidden` : ''}</div>
+    </div>` : ''}
   `;
+  updateReportPill(reported);
   document.getElementById('recentShops').innerHTML = data.recent_shops.map(s =>
     `<tr><td>${s.shop_id}</td><td>${esc(s.name)}</td><td>${new Date(s.created_at).toLocaleString()}</td></tr>`
   ).join('') || '<tr><td colspan="3" class="msg">No shops yet.</td></tr>';

@@ -893,11 +893,20 @@ assert entry["reasons"] == {"joke": 1, "fake": 2}, entry["reasons"]
 assert "aisi dukaan nahi hai" in entry["notes"]
 assert all(r["hidden"] for r in client.get("/api/admin/reports",
                                            params={"hidden_only": True}).json())
+# The dashboard surfaces the queue, so it can't quietly pile up unreviewed.
+stats = client.get("/api/admin/stats").json()
+assert stats["reported_shops"] >= 1 and stats["hidden_shops"] >= 1
 restored = client.post(f"/api/admin/shops/{junk_id}/visibility", json={"hidden": False}).json()
 assert restored["hidden"] is False and restored["report_count"] == 0
 back = client.get("/api/food/near", params={"lat": 19.0760, "long": 72.8777}).json()
 assert any(v["shop_id"] == junk_id for v in back["vendors"])
 assert all(r["shop_id"] != junk_id for r in client.get("/api/admin/reports").json())
+assert client.get("/api/admin/stats").json()["hidden_shops"] == 0
+# The owner panel has a screen for it, not just an endpoint.
+panel = client.get("/admin").text
+assert "id=\"tab-reports\"" in panel and "loadReports()" in panel
+assert "/api/admin/reports" in panel and "visibility" in panel
+assert "Restore &amp; clear reports" in panel and "reportPill" in panel
 print("PASS owner review queue: inspect, restore, clear")
 
 # 47l. Reference data + the food UI itself.

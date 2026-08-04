@@ -63,7 +63,14 @@ A listing goes `doubtful` (faded, sunk) when the weighted total is ≥ 2 and exc
 
 The votes are about *today*; a report is about whether the listing should exist at all. The quiet ⚑ on each card flags it as fake, a joke, a duplicate, wrong info, or offensive.
 
-**Three distinct devices hide a listing** from search — low enough that obvious junk goes fast, high enough that one annoyed person can't bury a competitor. One report per device, enforced by row rather than by counter. Hiding is reversible and **never deletes**: flagged listings land in an owner review queue at `GET /api/admin/reports` with the reason breakdown and any notes, and `POST /api/admin/shops/{id}/visibility` `{"hidden": false}` restores one — clearing its reports at the same time, or the next stray tap would just re-hide it.
+**Three distinct devices hide a listing** from search — low enough that obvious junk goes fast, high enough that one annoyed person can't bury a competitor. One report per device, enforced by row rather than by counter.
+
+Hiding is reversible and **never deletes**. Flagged listings go to the **Reports** tab in the owner panel, which is the only place that decision gets reviewed by a person:
+
+- Reasons are broken down rather than summed — three "duplicate" is a merge, three "fake" is a delete, and one number can't tell you which.
+- Each card shows the counter-evidence next to the accusation: how many people confirmed the vendor is real, how many said it's shut for good, whether it was added anonymously. A listing four people vouched for and three flagged is a very different call from one nobody ever confirmed.
+- **Restore & clear reports** is offered as prominently as Delete, and it clears the reports too — restoring without that would just re-hide the listing on the next stray tap.
+- A red count sits on the tab and a dashboard tile appears whenever anything is pending, because a queue nobody can see is a queue nobody works.
 
 ### Food API
 
@@ -219,7 +226,6 @@ Payments/monetization (Phase 3), full-auto shelf scanning, native mobile app (Ph
 
 - No claim flow yet — a vendor can't take over their own listing, which is what should unlock the phone-number field.
 - `device_id` is an anonymous localStorage string. It stops accidental double-voting and one-person report floods, but clearing storage mints a new id, so it isn't real abuse resistance — that needs a server-side signal.
-- The report queue is API-only; `admin.html` has no screen for it yet.
 - "Aaj band hai" is a single flag, not a history, so a vendor shut every Monday looks the same as one shut once. Repeated closures on the same weekday should eventually become a schedule.
 - Reports are counted but not weighted by reporter — three throwaway devices hide a listing as effectively as three real ones.
 

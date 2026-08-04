@@ -37,9 +37,22 @@ def stats(db: Session = Depends(get_db)):
         .limit(5)
         .all()
     )
+    # Reported/hidden counts sit on the dashboard so a queue of flagged
+    # listings can't quietly build up unseen — the whole point of hiding
+    # being reversible is that someone actually reviews it.
+    reported_count = (
+        db.query(func.count(models.Shop.shop_id))
+        .filter(models.Shop.report_count > 0).scalar()
+    )
+    hidden_count = (
+        db.query(func.count(models.Shop.shop_id))
+        .filter(models.Shop.hidden == 1).scalar()
+    )
     return {
         "total_shops": shop_count,
         "total_items": item_count,
+        "reported_shops": reported_count or 0,
+        "hidden_shops": hidden_count or 0,
         "recent_shops": [
             {
                 "shop_id": s.shop_id,
