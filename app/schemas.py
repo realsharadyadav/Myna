@@ -110,6 +110,10 @@ class FoodVendorOut(BaseModel):
 class NearResponse(BaseModel):
     query: str = ""
     count: int
+    # Spellings that were corrected, {typed: used}. Surfaced rather than applied
+    # silently: a search that quietly looks for a different word than the one
+    # you typed is how people stop trusting results they can't explain.
+    corrections: dict[str, str] = {}
     vendors: list[FoodVendorOut]
 
 

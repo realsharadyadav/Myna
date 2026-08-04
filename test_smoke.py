@@ -216,6 +216,36 @@ assert _food.suggest_category("Golgappe") == "Chaat & street"
 assert _food.normalise_kind("golgappe") == "chaat"
 print("PASS food vocabulary")
 
+# 47a-2. Search: splitting a query, spelling, and word boundaries.
+assert _food.split_query("momos aur chawmin") == ["momos", "chawmin"]
+assert _food.split_query("chole bhature ya pav bhaji") == ["chole bhature", "pav bhaji"]
+assert _food.split_query("chai chai") == ["chai"]            # repeats folded
+assert _food.split_query("  ") == []
+assert "aur" not in _food.split_query("momos aur chai")      # joiners aren't dishes
+
+assert _food.correct_term("chawmin") == "chowmein"
+# Lands on a momo word — which of "momo"/"momos" wins is edit-distance
+# trivia, and either one finds a Momos menu through prefix matching.
+assert _food.correct_term("momoz") in ("momo", "momos")
+assert _food.correct_term("momos") == "momos"                # already right
+assert _food.correct_term("chai") == "chai"                  # never becomes "chaat"
+assert _food.correct_term("zzzznotafood") == "zzzznotafood"  # no wild guess
+assert _food.correct_term("momo") == "momo"                  # prefix, not a typo
+# Menu words found nearby widen the target, so a dish the built-in list never
+# heard of is still reachable through a misspelling.
+assert _food.correct_term("shwarma", _food.vocabulary({"shawarma"})) == "shawarma"
+print("PASS query splitting + spelling correction")
+
+from app.routers.food import term_in
+# The bug this exists for: "tea" sits inside "Steam Momos", so a plain
+# substring check returned a momos cart for a tea search.
+assert term_in("tea", "raju momos steam momos") is False
+assert term_in("chai", "bansal chai tapri masala chai") is True
+assert term_in("momo", "raju momos") is True                 # prefix still matches
+assert term_in("samosa", "garam samosas") is True
+assert term_in("", "anything") is False
+print("PASS word-aware matching")
+
 # 47b. Board parsing — the object shape, a fenced reply, and the array fallback.
 board = _ai._parse_board(
     '{"name": "Sharma Chinese Corner", "kind": "chinese", "items": '
@@ -342,6 +372,37 @@ kinds = client.get("/api/food/near", params={
     "lat": 19.0760, "long": 72.8777, "kind": "sweets"}).json()
 assert all(v["shop_id"] != food_id for v in kinds["vendors"])
 print("PASS near: browse, dish search, name search, radius, kind filter")
+
+# 4f-2. Two dishes, two vendors — each returned for its own word, and a typo
+# on one of them doesn't cost you the other.
+res = client.post("/api/food/add", data={
+    "lat": 19.0760, "long": 72.8777, "name": "Chowmein Corner", "kind": "chinese",
+}, files={"photo": ("cm.jpg", io.BytesIO(b"\xff\xd8\xff\xe0" + b"\x00" * 50), "image/jpeg")})
+cm_id = res.json()["vendor"]["shop_id"]
+client.post(f"/api/food/{cm_id}/items", json={"name": "Veg Chowmein", "price": 40})
+
+both = client.get("/api/food/near", params={
+    "lat": 19.0760, "long": 72.8777, "q": "momos aur chawmin"}).json()
+by_id = {v["shop_id"]: v["matched"] for v in both["vendors"]}
+assert food_id in by_id and cm_id in by_id, by_id
+assert by_id[food_id] == ["momos"]        # the momos cart, for "momos"
+assert by_id[cm_id] == ["chawmin"]        # the chowmein cart, for the typo
+# Reported per original word, so the card can say why it's there.
+assert client.get("/api/food/near", params={
+    "lat": 19.0760, "long": 72.8777, "q": "momoz"}).json()["vendors"][0]["shop_id"] == food_id
+# Semantic search never runs on hashed vectors — they'd invent matches.
+from app import embeddings as _emb
+if not _emb.semantic_ready():
+    assert client.get("/api/food/near", params={
+        "lat": 19.0760, "long": 72.8777, "q": "tea"}).json()["count"] == 0
+# Corrections are reported, not applied silently — the UI says what it
+# actually searched for, and highlights dishes on that spelling.
+assert both["corrections"].get("chawmin") == "chowmein", both["corrections"]
+assert client.get("/api/food/near", params={
+    "lat": 19.0760, "long": 72.8777, "q": "momos"}).json()["corrections"] == {}
+page = client.get("/").text
+assert 'id="fixnote"' in page and "CORRECTIONS" in page
+print("PASS two dishes -> two vendors, each matched on its own word")
 
 # 47g. Freshness votes. An unexplained "nahi mila" outvoting "haan hai" marks a
 # listing doubtful, which sinks it below everything else nearby.

@@ -31,7 +31,8 @@ Then open:
 
 GPS, a search box, and cards. Each card is a vendor: kind icon, distance, what's on the menu with prices, when it's there, how recently someone confirmed it, and one tap to Directions.
 
-- **Search a dish** — "momos", "chai", "chole bhature". Matches the menu, the vendor's name and its kind together, so a cart called *Momo Point* that never listed an item still turns up.
+- **Search a dish** — "momos", "chai", "chole bhature". Matches the menu, the thela's name and its kind together, so a cart called *Momo Point* that never listed an item still turns up.
+- **Several dishes at once** — "momos aur chawmin" returns two thele, each shown for its own word: the momos cart for "momos", the chowmein cart for "chawmin". Matches are reported per *typed* word, so a card can say why it's there.
 - **Ranking is "what can I eat right now"** — open beats closed, a doubtful listing sinks, and only then does distance decide. Sorting purely by distance would put a Sunday-only cart above one standing at the corner.
 - **Filters** — "Abhi khula 🔥" and a radius that cycles 3 → 10 → 1 km. A thela is a walk, not a drive.
 - Hinglish in Roman script throughout — it's how the food is named out loud, it needs no font support on a cheap phone, and it's what people type.
@@ -50,6 +51,20 @@ Photos → GPS → listed. `ai.read_food_board` gets `{name, kind, items:[{name,
 Capped at **5 photos** (`MAX_PHOTOS`): every extra one is another vision call, and five is well past the point where a thela has anything new to show. Only the first photo is kept when image retention is on — it's the one shown on the card; the rest were read for their text and have done their job.
 
 Everything else is optional and behind a disclosure on the review screen: a typed name if the board was unreadable, the vendor kind, and timings for a cart that moves (`day + start + end`, which creates a round via the existing stops model). Those fields sit on the review screen and not the camera screen deliberately — you only find out the board was unreadable *after* submitting, and the error tells you to type a name, so the name field has to be reachable from where the error appears. A partial read still lists the vendor — throwing away a read menu to demand a retake is exactly the friction this flow removes.
+
+### Search — spelling, word boundaries, meaning
+
+Three stages, cheapest first, because most searches never need the expensive one (`resolve_terms` in `routers/food.py`):
+
+1. **The word itself.** Matched with `term_in`, which anchors to a word start rather than doing a plain substring check. That check was wrong in a way that's easy to miss: "tea" sits inside "S**tea**m Momos", so searching for tea returned a momos cart. Prefixes still work — "momo" finds "Momos", "samosa" finds "Samosas".
+2. **Fuzzy correction** against the dish vocabulary *plus the dish names actually on menus nearby*, so a thela selling something the built-in list never heard of is still reachable through a misspelling. Free, instant, and enough for "chawmin" → "chowmein". A term that's already known, or is a prefix of one, is left alone — guessing wrong silently searches for a different food.
+3. **An LLM**, but *only* for words the first two couldn't place ("chaomen", "gol gappay"). Paying for a model call on every search would be waste when "momos" needs no help. The model may only map onto dishes the app already knows; anything else is a hallucinated dish and gets dropped.
+
+Corrections come back in the response as `{typed: used}` and the app says so on screen — *"chowmein dikha rahe hain "chawmin" ke liye"*. A search that quietly looks for a different word than the one you typed is how people stop trusting results they can't explain.
+
+**Semantic search** uses the item embeddings (`embeddings.similar_items`) to bridge words that share no letters at all — "dumpling" to a menu that only says Momos. It is skipped entirely when the embedding backend has fallen back to hashing: those vectors encode literal token overlap and nothing else, so cosine similarity between them is noise. In practice it scored "tea" against a vendor called "Raju Momos" above the match threshold. A confident wrong answer is worse than no semantic layer, so `embeddings.semantic_ready()` gates it.
+
+> The local model (`BAAI/bge-small-en-v1.5`, via fastembed) downloads on first use. Until it does — or if the download is blocked — semantic search is off and search runs on substring plus spelling correction alone.
 
 ### Freshness — the loop that keeps it alive
 
@@ -83,7 +98,7 @@ Hiding is reversible and **never deletes**. Flagged listings go to the **Reports
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/api/food/near?lat&long&q&kind&radius_km&open_now&limit` | The home screen. No `q` = everything nearby |
+| `GET` | `/api/food/near?lat&long&q&kind&radius_km&open_now&limit` | The home screen. No `q` = everything nearby. Returns `corrections` alongside `vendors` |
 | `POST` | `/api/food/add` | Photo add (multipart: repeated `photos` — or a single `photo` — plus `lat`, `long`, optional `name`/`kind`/`address`/`device_id`/`day_of_week`/`start_time`/`end_time`) |
 | `GET` | `/api/food/{shop_id}?lat&long` | One vendor card |
 | `POST` | `/api/food/{shop_id}/seen` | `{"yes": false, "reason": "closed_today"}` — the freshness vote |
@@ -167,17 +182,9 @@ One-click deploy using the included `render.yaml` blueprint:
 3. After deploy, go to the service's **Environment** tab and add your API keys (`ANTHROPIC_API_KEY` / `GROQ_API_KEY` / `GEMINI_API_KEY`) — they're marked `sync: false` in the blueprint.
 4. Open `https://<backend>.onrender.com/admin` to pick the default model, and use **AI Settings → Test with a sample photo** to prove it can actually read one.
 
-**Two services, two URLs — this trips people up:**
+**One service, one URL.** The blueprint used to add a second, static-site service publishing `app/static`, to dodge the free backend's ~30 s cold start. It cost more than it saved: `/docs` and `/api/*` returned 404 there (a static host has neither), it served whatever HTML was last built so it went stale silently while the backend was already current, and the pages had to learn the backend's URL through a generated `config.js` — any drift in that value broke every request while both services still reported healthy.
 
-| | `myna` (backend) | `myna-app` (static site) |
-|---|---|---|
-| Serves | the API, `/docs`, and the pages | the pages only |
-| `/api/*` | ✅ | ❌ 404 |
-| `/docs` | ✅ | ❌ 404 |
-
-The static site exists so the browser isn't stuck behind the free backend's ~30 s cold start. It has no API of its own, so both pages read the backend URL from `config.js`, which the blueprint's `buildCommand` writes from `MYNA_BACKEND_URL`. If that variable points at the wrong service, every request fails with a network error and the page looks broken while the backend is perfectly healthy.
-
-The static site serves `app/static/index.html` at `/` — which is why the food app is named `index.html` rather than something more descriptive. A static host looks for that filename and nothing else.
+Now `/`, `/admin`, `/api/*` and `/docs` are all the same host. The pages still read `window.MYNA_API_BASE` when it's set, so putting a static front end back is a one-line change, but nothing depends on it.
 
 > **Free-tier notes:**
 > - Uploads go to the app's local `uploads/` folder, which **resets on every redeploy** (no persistent disk on free plan). Fine for a pilot; attach a disk or switch to Cloudinary/Supabase when you need permanence.
@@ -201,7 +208,8 @@ An uncalled module is one that rots silently, so its result-shaping is covered i
 - "Aaj band hai" is a single flag, not a history, so a vendor shut every Monday looks the same as one shut once. Repeated closures on the same weekday should eventually become a schedule.
 - Reports aren't weighted by reporter — three throwaway devices hide a listing as effectively as three real ones.
 - Rounds can only be set when a vendor is added. There's no edit-a-round UI now that the shopkeeper page is gone.
-- Menu matching is substring-based over name/category/kind; the embedding column exists but search doesn't use it yet.
+- Semantic search needs the local embedding model to download on first use. Until then search is substring plus spelling correction, which handles typos but not synonyms.
+- One word, one meaning: everything a listing can be is a **thela** in the UI (the code and API say `vendor`, which is the same word in English). That's a stretch for a sit-down dhaba or restaurant — they're thele here because consistency was worth more than precision. The kind that means specifically "a cart that moves" is labelled *Chalta thela* so the word isn't overloaded.
 - Nominatim is rate-limited (~1 req/s) — fine at pilot volume.
 
 ## History

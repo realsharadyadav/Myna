@@ -1,21 +1,22 @@
-# Render blueprint — Myna as an API backend + static frontend, with PostgreSQL.
-# Free-plan friendly: no persistent disk needed (SQLite is fine for a free tier).
+# Render blueprint — Myna as one service plus PostgreSQL.
+# Free-plan friendly: no persistent disk needed.
 # Docs: https://render.com/docs/blueprint-spec
 #
-# Two services, same pattern as Locus:
-#   - myna       : the FastAPI backend (API only, in practice — see below)
-#   - myna-app   : a static site serving app/static (index = the food app,
-#                  plus admin), so the browser hits an always-on static host
-#                  directly instead of Render's cold-start splash screen on
-#                  the free backend service.
+# ONE service on purpose. There used to be a second, static-site service
+# publishing app/static, to dodge the free backend's ~30 s cold start. It cost
+# more than it saved:
 #
-# Only the backend has /docs and /api/* — the static site is HTML only. The
-# food app reaches the API through window.MYNA_API_BASE, which the build step
-# below bakes into config.js.
+#   - /docs and /api/* returned 404 there, because a static host has neither
+#   - it served whatever HTML was last built, so it went stale silently while
+#     the backend was already up to date — the app looked un-deployed when it
+#     wasn't
+#   - the pages had to learn the backend's URL through a generated config.js,
+#     and any drift in that value broke every request while both services
+#     still reported healthy
 #
-# The backend still serves these same pages itself too (app/main.py) — handy
-# for local dev with a single `uvicorn` process — but production traffic
-# should go through myna-app once its onrender.com URL is known.
+# Now one URL answers everything: the app at /, the owner panel at /admin, the
+# API at /api/*, the docs at /docs. The cold start is a real cost, but a
+# deployment nobody can reason about is a worse one during a pilot.
 services:
   - type: web
     name: myna
@@ -29,8 +30,8 @@ services:
         fromDatabase:
           name: myna-db
           property: connectionString
-      # Left open ("*") by default since there's no auth — tighten to the
-      # myna-app URL below once Render assigns it, if you want to lock it down.
+      # Same-origin now that there's one service, so CORS isn't load-bearing.
+      # Left open because there's no auth to protect anyway.
       - key: MYNA_ALLOWED_ORIGINS
         value: "*"
       # ---- Set these in the Render dashboard (Environment tab) after deploy ----
@@ -44,24 +45,6 @@ services:
       # Falls back to free/keyless DuckDuckGo without it.
       - key: EXA_API_KEY
         sync: false
-
-  - type: web
-    name: myna-app
-    runtime: static
-    # No JS bundler here — app/static is plain HTML/JS. This build step just
-    # bakes the backend's URL into config.js, the same job Vite's env
-    # replacement does for Locus's frontend.
-    buildCommand: printf 'window.MYNA_API_BASE = "%s";' "$MYNA_BACKEND_URL" > app/static/config.js
-    staticPublishPath: ./app/static
-    envVars:
-      # Myna's existing/current backend URL — update this if the "myna"
-      # service above ever gets a different onrender.com URL.
-      - key: MYNA_BACKEND_URL
-        value: https://myna-wzcq.onrender.com
-    routes:
-      - type: rewrite
-        source: /admin
-        destination: /admin.html
 
 databases:
   - name: myna-db

@@ -771,6 +771,61 @@ def _parse_price(value) -> float:
     return price if price > 0 else 0.0
 
 
+def correct_food_query(terms: list[str], known: list[str], db_default: str = "",
+                       model: str = "") -> dict[str, str]:
+    """Ask the model what a mistyped dish name was meant to be.
+
+    Only called for terms that nothing local could match — fuzzy matching
+    against the vocabulary is free and handles most typos, so paying for an
+    LLM call on every search would be waste. This is the last resort, for the
+    spellings edit distance can't reach: "chowmin" is easy, "chaomen" or
+    "gol gappay" less so.
+
+    Returns {original: corrected} for the ones it was confident about, and
+    leaves everything else out — a wrong correction is worse than none,
+    because it silently searches for a different food.
+    """
+    if not terms:
+        return {}
+    prompt = (
+        "An Indian street-food app user typed these search words, possibly "
+        "misspelled or transliterated differently:\n"
+        f"{', '.join(terms)}\n\n"
+        "Here are dish names the app knows:\n"
+        f"{', '.join(sorted(known)[:200])}\n\n"
+        "For each typed word that is clearly a misspelling of a known dish, "
+        "give the known spelling. Reply with ONLY a JSON object, e.g.\n"
+        '{"chaomen": "chowmein", "gol gappay": "golgappe"}\n\n'
+        "Rules:\n"
+        "- Leave a word out entirely if you are not confident.\n"
+        "- Leave it out if it is already spelled correctly.\n"
+        "- Never invent a dish that is not in the list above.\n"
+        "- Reply {} if nothing needs correcting."
+    )
+    reply = call_text(prompt, db_default, max_tokens=300, model=model)
+    if not reply:
+        return {}
+    match = re.search(r"\{.*\}", reply, re.S)
+    if not match:
+        return {}
+    try:
+        data = json.loads(match.group(0))
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(data, dict):
+        return {}
+
+    lowered = {k.lower() for k in known}
+    out: dict[str, str] = {}
+    for typed, fixed in data.items():
+        typed, fixed = str(typed).strip().lower(), str(fixed).strip().lower()
+        # The model is only allowed to map onto dishes the app actually knows;
+        # anything else is a hallucinated dish and gets dropped.
+        if typed and fixed and typed != fixed and fixed in lowered:
+            out[typed] = fixed
+    return out
+
+
 def merge_boards(boards: list[dict]) -> dict:
     """Fold several photos of the same vendor into one listing.
 

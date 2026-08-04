@@ -434,7 +434,7 @@
 <main>
   <div class="tabs">
     <button class="active" onclick="showTab('dashboard', this)" title="Dashboard" aria-label="Dashboard"><svg class="ic" aria-hidden="true"><use href="#i-target"/></svg><span class="tab-text">Dashboard</span></button>
-    <button onclick="showTab('vendors', this)" title="Vendors" aria-label="Vendors"><svg class="ic" aria-hidden="true"><use href="#i-store"/></svg><span class="tab-text">Vendors</span></button>
+    <button onclick="showTab('vendors', this)" title="Thele" aria-label="Thele"><svg class="ic" aria-hidden="true"><use href="#i-store"/></svg><span class="tab-text">Thele</span></button>
     <button onclick="showTab('reports', this)" title="Reported listings" aria-label="Reported listings"><svg class="ic" aria-hidden="true"><use href="#i-alert"/></svg><span class="tab-text">Reports</span><span class="tab-pill" id="reportPill" hidden></span></button>
     <button onclick="showTab('settings', this)" title="AI settings" aria-label="AI settings"><svg class="ic" aria-hidden="true"><use href="#i-spark"/></svg><span class="tab-text">AI Settings</span></button>
   </div>
@@ -448,14 +448,14 @@
     <div class="card" style="margin-top:16px">
       <h3>All pages</h3>
       <div class="pagelinks">
-        <a href="/" target="_blank"><b>🍜 Food app</b><span>Paas me kya mil raha hai — the customer app</span></a>
+        <a href="/" target="_blank"><b>🍜 Thela app</b><span>Paas me kya mil raha hai — the customer app</span></a>
         <a href="/admin"><b>⚙️ Owner panel</b><span>You are here</span></a>
         <a href="/docs" target="_blank"><b>📖 API docs</b><span>Every endpoint, try them live</span></a>
       </div>
     </div>
 
     <div class="card" style="margin-top:16px">
-      <h3>Recently registered shops</h3>
+      <h3>Naye add hue thele</h3>
       <div class="table-scroll">
         <table>
           <thead><tr><th>ID</th><th>Name</th><th>Registered</th></tr></thead>
@@ -469,7 +469,7 @@
     <div class="card danger-zone" style="margin-top:16px">
       <h3>Clear all data</h3>
       <p class="count" style="margin:6px 0 14px">
-        Deletes every shop, item, round and report. AI settings are kept.
+        Deletes every thela, dish, round and report. AI settings are kept.
         This cannot be undone.
       </p>
       <button class="ghost danger-btn" style="width:auto; padding:10px 22px" onclick="clearAllData()">
@@ -487,13 +487,13 @@
   <div id="tab-vendors" style="display:none">
     <div class="card">
       <div class="toolbar">
-        <input id="vendorSearch" type="text" placeholder="Search by name or address…" onkeydown="if(event.key==='Enter')loadVendors()">
+        <input id="vendorSearch" type="text" placeholder="Naam ya address se dhoondho…" onkeydown="if(event.key==='Enter')loadVendors()">
         <select id="vendorKind" onchange="loadVendors()"><option value="">All kinds</option></select>
         <button onclick="loadVendors()">Search</button>
       </div>
       <div class="table-scroll">
         <table>
-          <thead><tr><th>ID</th><th>Vendor</th><th>Kind</th><th>Menu</th><th>Rounds</th><th>Confirmed</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>ID</th><th>Thela</th><th>Kind</th><th>Menu</th><th>Rounds</th><th>Confirmed</th><th>Status</th><th></th></tr></thead>
           <tbody id="vendorTable"></tbody>
         </table>
       </div>
@@ -504,13 +504,13 @@
   <!-- ==================== REPORTS ====================
        The review queue behind the food app's flag button. Three strangers
        tapping ⚑ hides a listing, which is fast enough for obvious junk and
-       therefore also fast enough to catch a real vendor by mistake — so
+       therefore also fast enough to catch a real thela by mistake — so
        hiding never deletes, and this screen is where that gets undone. -->
   <div id="tab-reports" style="display:none">
     <div class="card">
       <div class="toolbar">
         <label class="checkbox" style="display:inline-flex; align-items:center; gap:6px; font-size:.85rem">
-          <input type="checkbox" id="reportHiddenOnly" onchange="loadReports()"> Only listings already hidden
+          <input type="checkbox" id="reportHiddenOnly" onchange="loadReports()"> Sirf hidden thele
         </label>
         <button class="ghost" onclick="loadReports()" style="width:auto; padding:8px 16px"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg> Refresh</button>
       </div>
@@ -527,7 +527,7 @@
         <span class="setting-ico"><svg class="ic" aria-hidden="true"><use href="#i-camera"/></svg></span>
         <div>
           <h3>Reading photos (OCR)</h3>
-          <p class="setting-why">Used when someone photographs a vendor&rsquo;s board — the model reads the name, the menu and the rates off it.</p>
+          <p class="setting-why">Used when someone photographs a thela&rsquo;s board — the model reads the name, the menu and the rates off it.</p>
         </div>
       </div>
       <div id="visionWarn"></div>
@@ -731,8 +731,8 @@ async function loadReports() {
     updateReportPill(rows.length);
     if (!rows.length) {
       box.innerHTML = `<p class="msg" style="padding:8px 0">${hiddenOnly
-        ? 'Nothing is hidden right now.'
-        : 'No reported listings. Nothing to review.'}</p>`;
+        ? 'Abhi koi thela hidden nahi hai.'
+        : 'Koi reported thela nahi. Kuch review karne ko nahi hai.'}</p>`;
       return;
     }
     box.innerHTML = rows.map(reportCard).join('');
@@ -754,7 +754,7 @@ function reportCard(r) {
   // real, flagged by three others, is very different from one nobody has ever
   // confirmed. Deleting without that on screen is guesswork.
   const evidence = [
-    r.seen_yes ? `${r.seen_yes}× confirmed as real` : 'never confirmed by anyone',
+    r.seen_yes ? `${r.seen_yes}× confirmed as real` : 'kisi ne confirm nahi kiya',
     r.shutdown_count ? `${r.shutdown_count}× reported shut for good` : '',
     r.added_by ? `added by ${esc(r.added_by.slice(0, 10))}…` : 'added anonymously',
   ].filter(Boolean).join(' · ');
@@ -764,8 +764,8 @@ function reportCard(r) {
     <div style="display:flex; gap:10px; align-items:flex-start; flex-wrap:wrap">
       <div style="min-width:0; flex:1">
         <h3 style="margin:0">${esc(r.name)}
-          ${r.hidden ? '<span class="badge off" style="margin-left:8px">Hidden from search</span>'
-                     : '<span class="badge on" style="margin-left:8px">Still visible</span>'}
+          ${r.hidden ? '<span class="badge off" style="margin-left:8px">Search se hidden</span>'
+                     : '<span class="badge on" style="margin-left:8px">Abhi bhi visible</span>'}
         </h3>
         <p class="count" style="margin:4px 0 0">
           #${r.shop_id} · ${esc(r.kind_label)}${r.address ? ' · ' + esc(r.address) : ''}
@@ -808,14 +808,14 @@ async function deleteReported(id) {
 // Two confirms, because this is unrecoverable and the button sits one tab away
 // from everything else you do all day.
 async function clearAllData() {
-  if (!confirm('Delete ALL shops, items, rounds and reports?\n\nThis cannot be undone.')) return;
+  if (!confirm('Delete ALL thele, dishes, rounds and reports?\n\nThis cannot be undone.')) return;
   if (!confirm('Really clear everything? Last chance.')) return;
   const out = document.getElementById('clearResult');
   out.textContent = 'Clearing…';
   try {
     const res = await fetch(API + '/api/admin/data/clear', { method: 'POST' });
     const data = await res.json();
-    out.textContent = `Cleared ${data.shops} shops, ${data.items} items, ${data.stops} rounds, ${data.reports} reports.`;
+    out.textContent = `Cleared ${data.shops} thele, ${data.items} dishes, ${data.stops} rounds, ${data.reports} reports.`;
     loadStats();
   } catch (e) {
     out.textContent = 'Clear failed — try again.';
@@ -842,7 +842,7 @@ async function loadStats() {
   const data = await res.json();
   const reported = data.reported_shops || 0;
   document.getElementById('statsGrid').innerHTML = `
-    <div class="stat-card"><div class="num">${data.total_shops}</div><div class="label">Shops</div></div>
+    <div class="stat-card"><div class="num">${data.total_shops}</div><div class="label">Thele</div></div>
     <div class="stat-card"><div class="num">${data.total_items}</div><div class="label">Items</div></div>
     ${reported ? `<div class="stat-card alert clickable" onclick="gotoReports()" title="Open the review queue">
       <div class="num">${reported}</div>
@@ -852,7 +852,7 @@ async function loadStats() {
   updateReportPill(reported);
   document.getElementById('recentShops').innerHTML = data.recent_shops.map(s =>
     `<tr><td>${s.shop_id}</td><td>${esc(s.name)}</td><td>${new Date(s.created_at).toLocaleString()}</td></tr>`
-  ).join('') || '<tr><td colspan="3" class="msg">No shops yet.</td></tr>';
+  ).join('') || '<tr><td colspan="3" class="msg">Abhi koi thela nahi.</td></tr>';
 }
 
 // ---------------------------------------------------------------------------
@@ -864,7 +864,7 @@ async function loadVendors() {
   const res = await fetch(API + '/api/admin/vendors?q=' + encodeURIComponent(q)
     + '&kind=' + encodeURIComponent(kind));
   const vendors = await res.json();
-  document.getElementById('vendorCount').textContent = `${vendors.length} vendor(s)`;
+  document.getElementById('vendorCount').textContent = `${vendors.length} thele`;
   document.getElementById('vendorTable').innerHTML = vendors.map(v => `
     <tr>
       <td>${v.shop_id}</td>
@@ -880,15 +880,15 @@ async function loadVendors() {
             : '<span class="badge on">Live</span>')}</td>
       <td>
         <button class="btn-icon" onclick="renameVendor(${v.shop_id}, '${esc(v.name).replace(/'/g, "\\'")}')" title="Rename" aria-label="Rename"><svg class="ic" aria-hidden="true"><use href="#i-edit"/></svg></button>
-        <button class="del btn-icon" onclick="deleteVendor(${v.shop_id})" title="Delete vendor" aria-label="Delete vendor"><svg class="ic" aria-hidden="true"><use href="#i-trash"/></svg></button>
+        <button class="del btn-icon" onclick="deleteVendor(${v.shop_id})" title="Thela delete karo" aria-label="Thela delete karo"><svg class="ic" aria-hidden="true"><use href="#i-trash"/></svg></button>
       </td>
-    </tr>`).join('') || '<tr><td colspan="8" class="msg">No vendors yet.</td></tr>';
+    </tr>`).join('') || '<tr><td colspan="8" class="msg">Abhi koi thela list nahi hai.</td></tr>';
 }
 
 // A misread signboard is the common fix, so renaming is one prompt rather than
 // a whole edit form.
 async function renameVendor(id, current) {
-  const name = prompt('Vendor name:', current);
+  const name = prompt('Thele ka naam:', current);
   if (name === null || !name.trim()) return;
   await fetch(`${API}/api/admin/shops/${id}`, {
     method: 'PATCH',
@@ -899,7 +899,7 @@ async function renameVendor(id, current) {
 }
 
 async function deleteVendor(id) {
-  if (!confirm('Delete vendor #' + id + ' and its whole menu?')) return;
+  if (!confirm('Ye thela aur iska poora menu delete karein?')) return;
   await fetch(`${API}/api/admin/shops/${id}`, { method: 'DELETE' });
   loadVendors();
   loadStats();
@@ -998,7 +998,7 @@ function renderVisionWarning() {
   const meta = llmModels.find(m => m.label === label);
   const box = document.getElementById('visionWarn');
   if (!llmModels.length) {
-    box.innerHTML = '<div class="note info"><b>No AI provider connected</b>Photo reading is off — vendors can still be added by typing a name.</div>';
+    box.innerHTML = '<div class="note info"><b>No AI provider connected</b>Photo reading is off — thele can still be added by typing a name.</div>';
     return;
   }
   if (!label) { box.innerHTML = ''; return; }

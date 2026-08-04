@@ -66,6 +66,22 @@ def enabled() -> bool:
     return True
 
 
+def semantic_ready(db=None) -> bool:
+    """Whether the active backend produces vectors that actually mean something.
+
+    The hashing-trick fallback does not. Its vectors encode literal token
+    overlap and nothing else, so cosine similarity between two of them is
+    noise — in practice it scored "tea" against a vendor called "Raju Momos"
+    above the match threshold. A confident wrong answer is worse than no
+    semantic layer at all, so search skips it and relies on substring plus
+    spelling correction until a real model is available.
+    """
+    model = _effective_model(db)
+    if _is_gemini(model):
+        return bool(GEMINI_API_KEY) and _gemini_ok
+    return active_local_model() != HASH_MODEL
+
+
 def _mark_gemini_failed() -> None:
     global _gemini_ok
     _gemini_ok = False

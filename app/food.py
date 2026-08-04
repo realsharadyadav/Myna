@@ -20,7 +20,10 @@ types into the search box.
 
 KINDS: dict[str, dict] = {
     "thela": {
-        "label": "Thela",
+        # "Thela" is the app's umbrella word for every listing, so the kind that
+        # means specifically "a cart that moves around" needs its own name —
+        # otherwise the word means two things on the same screen.
+        "label": "Chalta thela",
         "emoji": "🛒",
         "mobile": True,
         "hints": ["thela", "cart", "rehri", "pheri", "khomcha"],
@@ -88,7 +91,7 @@ KINDS: dict[str, dict] = {
         "hints": ["restaurant", "cafe", "family", "hotel", "diner", "kitchen"],
     },
     "other": {
-        "label": "Khaane ki dukaan",
+        "label": "Aur koi thela",
         "emoji": "🍴",
         "mobile": False,
         "hints": [],
@@ -299,6 +302,93 @@ def normalise_report_reason(value: str | None) -> str:
 
 def report_reason_list() -> list[dict]:
     return [{"reason": r, "label": label} for r, label in REPORT_REASONS.items()]
+
+
+# ---------------------------------------------------------------------------
+# Query terms
+# ---------------------------------------------------------------------------
+
+# Words that join a list rather than name a dish. "momos aur chowmein" is two
+# things wanted, not three.
+JOINERS = {"aur", "and", "or", "ya", "plus", "with", "ke", "ka", "ki", "wala",
+           "wale", "chahiye", "chaiye", "milega", "milta", "hai", "near", "me",
+           "mein", "kuch", "koi"}
+
+
+def split_query(text: str) -> list[str]:
+    """"momos aur chawmin" -> ["momos", "chawmin"].
+
+    Multi-word dishes survive: a phrase that matches the vocabulary as a whole
+    ("chole bhature", "pav bhaji") is kept together rather than split into two
+    words that each mean something else on their own.
+    """
+    cleaned = (text or "").lower().replace(",", " ").replace("+", " ")
+    words = [w for w in cleaned.split() if w and w not in JOINERS]
+    if not words:
+        return []
+
+    known = vocabulary()
+    terms: list[str] = []
+    i = 0
+    while i < len(words):
+        pair = f"{words[i]} {words[i + 1]}" if i + 1 < len(words) else ""
+        if pair and pair in known:
+            terms.append(pair)
+            i += 2
+        else:
+            terms.append(words[i])
+            i += 1
+    # Preserve order but drop repeats — "chai chai" is one thing wanted.
+    seen: set[str] = set()
+    return [t for t in terms if len(t) > 1 and not (t in seen or seen.add(t))]
+
+
+def vocabulary(extra: set[str] | None = None) -> set[str]:
+    """Every dish word the app knows, for spelling correction to aim at.
+
+    `extra` is for dish names actually on menus nearby — a vendor selling
+    something the built-in list never heard of should still be findable when
+    the customer misspells it.
+    """
+    words: set[str] = set()
+    for hints in CATEGORIES.values():
+        words.update(hints)
+    for chip in POPULAR:
+        words.add(chip.lower())
+    for kind in KINDS.values():
+        words.update(kind["hints"])
+    if extra:
+        words.update(w for w in extra if w)
+    return words
+
+
+# 0.72 is deliberately loose enough for the transliteration spread these names
+# get — "chawmin"/"chow mein"/"chowmin" are all the same food — and tight
+# enough that "chai" doesn't quietly become "chaat".
+_FUZZY_CUTOFF = 0.72
+
+
+def correct_term(term: str, known: set[str] | None = None) -> str:
+    """Fix an obvious misspelling against the dish vocabulary.
+
+    Returns the term unchanged when it's already known or nothing is close —
+    guessing wrong is worse than not guessing, because a wrong correction
+    silently searches for a different food.
+    """
+    from difflib import get_close_matches
+
+    word = (term or "").strip().lower()
+    if not word:
+        return term
+    words = known if known is not None else vocabulary()
+    if word in words:
+        return word
+    # A known dish containing the term ("momo" inside "momos") is a prefix
+    # match, not a misspelling — leave it for substring matching to handle.
+    if any(word in candidate for candidate in words):
+        return word
+    hit = get_close_matches(word, words, n=1, cutoff=_FUZZY_CUTOFF)
+    return hit[0] if hit else word
 
 
 # Chips on the home screen — what people actually walk out to buy.

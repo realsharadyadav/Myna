@@ -21,6 +21,7 @@ Phone numbers are deliberately never captured by the add flow: someone can list
 a cart they walked past, but they can't publish that vendor's number without
 them. A vendor claiming their own listing later is what unlocks that field.
 """
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -28,7 +29,12 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from .. import ai, embeddings, food, models, schedule, schemas
-from ..database import get_db, get_default_vision_model, get_retain_uploaded_images
+from ..database import (
+    get_db,
+    get_default_search_model,
+    get_default_vision_model,
+    get_retain_uploaded_images,
+)
 from ..geo import haversine_km, reverse_geocode
 from ..storage import save_upload
 
@@ -385,20 +391,128 @@ def quick_add(
 # Browse / search: "paas me kya mil raha hai"
 # ---------------------------------------------------------------------------
 
-def _matches(shop: models.Shop, terms: list[str]) -> list[str]:
-    """Which of the searched words this vendor answers.
+def term_in(term: str, haystack: str) -> bool:
+    """Word-aware substring match.
 
-    Matched against the menu, the vendor's name and its kind together, so
-    "momos" finds both a cart with Momos on the board and one called Momo
-    Point that never listed an item.
+    A plain `in` check is wrong here in a way that is easy to miss: "tea"
+    appears inside "Steam Momos", so searching for tea returned a momos cart.
+    Anchoring to a word start keeps the useful case — "momo" still matches
+    "Momos", "samosa" matches "Samosas" — while refusing matches that begin
+    mid-word.
     """
-    if not terms:
-        return []
-    haystack = " ".join(
+    if not term:
+        return False
+    return re.search(r"\b" + re.escape(term), haystack) is not None
+
+
+def _haystack(shop: models.Shop) -> str:
+    """The text a search term is matched against.
+
+    Menu, vendor name and kind together, so "momos" finds both a cart with
+    Momos on the board and one called Momo Point that never listed an item.
+    """
+    return " ".join(
         [shop.name or "", food.kind_label(shop.food_kind)]
         + [f"{i.name} {i.category}" for i in shop.items]
     ).lower()
-    return [term for term in terms if term in haystack]
+
+
+def _menu_vocabulary(db: Session) -> set[str]:
+    """Dish words actually on menus, so spelling correction can aim at them.
+
+    A vendor selling something the built-in list never heard of should still
+    be findable when the customer misspells it.
+    """
+    words: set[str] = set()
+    for (name,) in db.query(models.Item.name).distinct():
+        cleaned = (name or "").lower().strip()
+        if cleaned:
+            words.add(cleaned)
+            words.update(w for w in cleaned.split() if len(w) > 3)
+    return words
+
+
+def resolve_terms(db: Session, terms: list[str]) -> dict[str, set[str]]:
+    """Each searched word → every spelling worth matching it on.
+
+    Three stages, cheapest first, because most searches never need the
+    expensive one:
+
+    1. The word itself, always.
+    2. Fuzzy correction against the dish vocabulary plus the menus actually
+       nearby — free, instant, and enough for "chawmin" → "chowmein".
+    3. An LLM, but *only* for words the first two couldn't place. Paying for a
+       model call on every search would be waste when "momos" needs no help.
+    """
+    if not terms:
+        return {}
+
+    known = food.vocabulary(_menu_vocabulary(db))
+    resolved = {term: {term} for term in terms}
+
+    unresolved = []
+    for term in terms:
+        fixed = food.correct_term(term, known)
+        if fixed != term:
+            resolved[term].add(fixed)
+        elif term not in known and not any(term in word for word in known):
+            unresolved.append(term)
+
+    if unresolved:
+        for typed, fixed in ai.correct_food_query(
+            unresolved, sorted(known), model=get_default_search_model(db)
+        ).items():
+            resolved.setdefault(typed, {typed}).add(fixed)
+    return resolved
+
+
+def semantic_hits(db: Session, terms: list[str]) -> dict[str, set[int]]:
+    """Each searched word → vendors whose menu *means* the same thing.
+
+    This is what the stored item embeddings are for. Substring matching can't
+    connect "momos" to a menu that only says "Dimsum", and no amount of
+    spelling correction will either — the words simply aren't alike. Cosine
+    similarity is.
+    """
+    hits: dict[str, set[int]] = {}
+    # Skipped entirely when the active backend is the hashing fallback — those
+    # vectors carry no meaning, and matching on them invents results.
+    if not terms or not embeddings.semantic_ready(db):
+        return hits
+    for term in terms:
+        try:
+            found = embeddings.similar_items(db, term)
+        except Exception:
+            # Semantic search is an enhancement, never a hard dependency — a
+            # broken embedding backend must not take the whole search down.
+            continue
+        if found:
+            hits[term] = {shop_id for _item_id, shop_id in found}
+    return hits
+
+
+def _matches(shop: models.Shop, terms: list[str],
+             resolved: dict[str, set[str]] | None = None,
+             semantic: dict[str, set[int]] | None = None) -> list[str]:
+    """Which of the searched words this vendor answers.
+
+    Reported per *original* word, so a two-dish search reads correctly: ask
+    for "momos aur chawmin" and the momos cart comes back matching "momos"
+    while the chowmein cart matches "chawmin", each shown for its own reason.
+    """
+    if not terms:
+        return []
+    resolved = resolved or {t: {t} for t in terms}
+    semantic = semantic or {}
+    haystack = _haystack(shop)
+    matched = []
+    for term in terms:
+        variants = resolved.get(term, {term})
+        if any(term_in(variant, haystack) for variant in variants):
+            matched.append(term)
+        elif shop.shop_id in semantic.get(term, ()):
+            matched.append(term)
+    return matched
 
 
 @router.get("/near", response_model=schemas.NearResponse)
@@ -420,7 +534,9 @@ def near(
     corner, which is the wrong answer to the only question being asked.
     """
     radius = max(0.1, min(radius_km or DEFAULT_RADIUS_KM, MAX_RADIUS_KM))
-    terms = [t for t in (q or "").lower().replace(",", " ").split() if len(t) > 1]
+    terms = food.split_query(q)
+    resolved = resolve_terms(db, terms)
+    semantic = semantic_hits(db, terms)
     wanted_kind = food.normalise_kind(kind) if kind else ""
 
     cards = []
@@ -431,7 +547,7 @@ def near(
             continue
         if wanted_kind and food.normalise_kind(shop.food_kind) != wanted_kind:
             continue
-        matched = _matches(shop, terms)
+        matched = _matches(shop, terms, resolved, semantic)
         if terms and not matched:
             continue
         card = vendor_view(shop, lat, long, matched)
@@ -453,7 +569,12 @@ def near(
         -len(c["matched"]),
         c["distance_km"],
     ))
-    return {"query": q, "count": len(cards), "vendors": cards[:limit]}
+    corrections = {
+        term: sorted(variants - {term})[0]
+        for term, variants in resolved.items() if variants - {term}
+    }
+    return {"query": q, "count": len(cards), "corrections": corrections,
+            "vendors": cards[:limit]}
 
 
 @router.get("/{shop_id}", response_model=schemas.FoodVendorOut)

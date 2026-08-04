@@ -120,6 +120,10 @@
   .btn.wide { width: 100%; text-align: center; padding: .95rem; font-size: 1.05rem; }
   .btn:disabled { opacity: .5; }
   .btn.tiny { padding: .4rem .7rem; font-size: .82rem; font-weight: 500; }
+  /* Inline icon that inherits text colour and size — an emoji compass points
+     at magnetic north, which is not what "directions to here" means. */
+  .ic { width: 1em; height: 1em; fill: currentColor; vertical-align: -0.12em;
+        margin-right: .15rem; }
 
   .fab {
     position: fixed; left: 50%; transform: translateX(-50%); bottom: 1.25rem;
@@ -159,6 +163,7 @@
 
   .note { font-size: .85rem; color: var(--muted); margin: .7rem 0 0; }
   .err { color: var(--bad); font-size: .9rem; margin: .7rem 0 0; }
+  .fixnote { font-size: .82rem; color: var(--muted); margin: 0 0 .6rem; }
   .empty { text-align: center; color: var(--muted); padding: 3rem 1rem; }
   .spinner { display: inline-block; width: 1rem; height: 1rem; border: 2px solid var(--line);
              border-top-color: var(--brand); border-radius: 50%; animation: spin .7s linear infinite;
@@ -200,6 +205,7 @@
     <button class="chip" id="radius" data-km="3">3 km ke andar</button>
   </div>
 
+  <p class="fixnote" id="fixnote" hidden></p>
   <div id="list"></div>
 </div>
 
@@ -209,7 +215,7 @@
 <section class="sheet" id="addSheet" hidden>
   <div class="wrap">
     <div class="sheet-head">
-      <h2>Photo se add karo 📸</h2>
+      <h2>Thela add karo 📸</h2>
       <button class="x" id="closeAdd" aria-label="Band karo">&times;</button>
     </div>
 
@@ -223,8 +229,8 @@
         Ya gallery se choose karo
       </div>
       <p class="note" id="gps">📍 Location le rahe hain…</p>
-      <p class="note">📵 Vendor ka phone number mat daalo — unki marzi ke bina number
-        public nahi karte. Wo khud apni dukaan claim karke daal sakte hain.</p>
+      <p class="note">📵 Thele wale ka phone number mat daalo — unki marzi ke bina number
+        public nahi karte. Wo khud apna thela claim karke daal sakte hain.</p>
       <p class="err" id="addErr" hidden></p>
     </div>
 
@@ -300,6 +306,7 @@ let openOnly = false;
 let radiusKm = 3;
 let activeChip = "";
 let files = [];
+let CORRECTIONS = {};   // {typed: spelling actually searched}
 
 // ── Location ────────────────────────────────────────────────────────────────
 function getLocation() {
@@ -324,7 +331,11 @@ async function ensureLocation() {
 
 // ── Home: list vendors ──────────────────────────────────────────────────────
 function dishHtml(dish, matched) {
-  const hit = matched.some((m) => dish.name.toLowerCase().includes(m));
+  // Highlight against the spellings actually searched, not only what was
+  // typed — otherwise a corrected term finds the vendor but its dish looks
+  // unrelated on the card.
+  const terms = matched.flatMap((m) => [m, CORRECTIONS[m]].filter(Boolean));
+  const hit = terms.some((m) => dish.name.toLowerCase().includes(m));
   const price = dish.price > 0 ? ` <span class="rs">₹${Math.round(dish.price)}</span>` : "";
   return `<span class="dish${hit ? " hit" : ""}">${esc(dish.name)}${price}</span>`;
 }
@@ -358,14 +369,16 @@ function cardHtml(v) {
       </div>
       <div class="dist-col">
         <div class="dist">${v.distance_km} km</div>
-        <button class="flag" title="Galat listing report karo" aria-label="Report karo">⚑</button>
+        <button class="flag" title="Galat thela report karo" aria-label="Report karo">⚑</button>
       </div>
     </div>
     ${v.closed_today ? `<div><span class="badge">Aaj band bataya gaya</span></div>` : open}
     ${menu.length ? `<div class="menu">${shown}${extra}</div>` : ""}
     <p class="seen">${esc(v.seen_text)}${v.moved_count > 0 ? ` · ${v.moved_count} ne kaha yahan se hat gaya` : ""}</p>
     <div class="row">
-      <a class="btn brand tiny" href="${maps}" target="_blank" rel="noopener">Raasta 🧭</a>
+      <a class="btn brand tiny" href="${maps}" target="_blank" rel="noopener">
+        <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21.7 11.3 12.7 2.3a1 1 0 0 0-1.4 0l-9 9a1 1 0 0 0 0 1.4l9 9a1 1 0 0 0 1.4 0l9-9a1 1 0 0 0 0-1.4ZM13 15v-2.5h-3V15H8v-3.5a1 1 0 0 1 1-1h4V8l3.2 3.2L13 15Z"/></svg>
+        Raasta</a>
       <button class="btn tiny seen-yes">Abhi hai ✓</button>
       <button class="btn tiny seen-no">Nahi mila ✕</button>
     </div>
@@ -388,6 +401,12 @@ async function load() {
   try {
     const res = await fetch(`${API}/api/food/near?${params}`);
     const data = await res.json();
+    CORRECTIONS = data.corrections || {};
+    const fixes = Object.entries(CORRECTIONS)
+      .map(([typed, used]) => `<b>${esc(used)}</b> dikha rahe hain "${esc(typed)}" ke liye`)
+      .join(" · ");
+    $("fixnote").innerHTML = fixes;
+    $("fixnote").hidden = !fixes;
     if (!data.vendors.length) {
       $("list").innerHTML = `<div class="empty">
         ${query ? `"${esc(query)}" paas me nahi mila.` : "Yahan abhi kuch list nahi hai."}<br>
@@ -614,7 +633,7 @@ $("submitAdd").addEventListener("click", async () => {
       (data.item_count
         ? `<p class="note">${data.photo_count} photo se ${data.item_count} cheezein
              padh li. Galat ho to card pe tap karke theek kar sakte ho.</p>`
-        : `<p class="note">Menu nahi padha ja saka — dukaan list ho gayi hai, dishes
+        : `<p class="note">Menu nahi padha ja saka — thela list ho gaya hai, dishes
              baad me add kar sakte ho.</p>`);
     showStep(3);
   } catch {
