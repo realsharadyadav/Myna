@@ -20,10 +20,10 @@ types into the search box.
 
 KINDS: dict[str, dict] = {
     "thela": {
-        # "Thela" is the app's umbrella word for every listing, so the kind that
-        # means specifically "a cart that moves around" needs its own name —
-        # otherwise the word means two things on the same screen.
-        "label": "Chalta thela",
+        # Free to mean just a cart again: the app's umbrella word is "jagah",
+        # so "thela" isn't doing double duty as both the general term and one
+        # specific kind.
+        "label": "Thela",
         "emoji": "🛒",
         "mobile": True,
         "hints": ["thela", "cart", "rehri", "pheri", "khomcha"],
@@ -91,7 +91,7 @@ KINDS: dict[str, dict] = {
         "hints": ["restaurant", "cafe", "family", "hotel", "diner", "kitchen"],
     },
     "other": {
-        "label": "Aur koi thela",
+        "label": "Aur koi jagah",
         "emoji": "🍴",
         "mobile": False,
         "hints": [],
@@ -347,6 +347,98 @@ def split_query(text: str) -> list[str]:
     return [t for t in terms if len(t) > 1 and not (t in seen or seen.add(t))]
 
 
+# ---------------------------------------------------------------------------
+# Synonyms
+# ---------------------------------------------------------------------------
+# The same food goes by different names in different mouths — regionally
+# ("golgappe" in Delhi, "puchka" in Kolkata, "gupchup" in Odisha), across
+# languages ("anda"/"egg", "machli"/"fish"), and between what a customer types
+# and what a board writes ("dumpling" vs "Momos").
+#
+# Spelling correction can't help here: these words aren't misspellings of each
+# other, they share no letters. Embeddings can, but they need a model that has
+# to download first and may not be available at all. A curated list needs
+# neither, is instant, and — for a vocabulary this small and this well known —
+# is more reliable than either. Each line is one food; every word on it matches
+# every other.
+
+SYNONYM_GROUPS: list[list[str]] = [
+    ["momos", "momo", "dimsum", "dumpling", "dumplings", "momoz"],
+    ["chowmein", "chow mein", "noodles", "chaumin", "hakka noodles"],
+    ["golgappe", "golgappa", "pani puri", "panipuri", "puchka", "phuchka",
+     "gupchup", "batasha", "paani puri"],
+    ["samosa", "samose", "singhara"],
+    ["pakora", "pakode", "bhajiya", "bhaji", "fritters"],
+    ["chai", "tea"],
+    ["coffee", "kaapi"],
+    ["lassi", "chaach", "chaas", "buttermilk", "matha"],
+    ["ganne ka ras", "sugarcane juice", "sugarcane", "ganna"],
+    ["nariyal pani", "coconut water", "nariyal"],
+    ["shikanji", "nimbu pani", "lemonade", "nimboo pani", "lemon soda"],
+    ["anda", "egg", "omelette", "omlet", "bhurji"],
+    ["roti", "chapati", "chapatti", "phulka"],
+    ["paratha", "parantha", "parotha"],
+    ["chole bhature", "chhole bhature", "chana bhatura", "bhature"],
+    ["pav bhaji", "pao bhaji", "pavbhaji"],
+    ["vada pav", "wada pav", "vadapav"],
+    ["aloo tikki", "tikki", "potato patty"],
+    ["biryani", "biriyani", "biryani rice"],
+    ["jalebi", "jilebi", "imarti"],
+    ["gulab jamun", "gulabjamun"],
+    ["mithai", "sweets", "sweet", "dessert", "misthan"],
+    ["ice cream", "icecream", "kulfi"],
+    ["dosa", "dosai", "masala dosa"],
+    ["idli", "idly"],
+    ["roll", "kathi roll", "frankie", "wrap"],
+    ["shawarma", "shawarama", "shwarma"],
+    ["maggi", "instant noodles"],
+    ["paneer", "cottage cheese"],
+    ["chicken", "murgh", "murga", "non veg", "nonveg"],
+    ["mutton", "gosht", "bakra"],
+    ["fish", "machli", "machhli"],
+    ["thali", "full meal", "meal", "khana", "khaana"],
+    ["kachori", "kachauri"],
+    ["burger", "bugger"],
+    ["sandwich", "sandwitch"],
+    ["juice", "sharbat"],
+    ["halwa", "halva"],
+    ["poha", "pohe"],
+    ["upma", "uppuma"],
+    ["rajma chawal", "rajma rice", "rajma"],
+]
+
+# word -> every word meaning the same food, built once at import.
+SYNONYMS: dict[str, set[str]] = {}
+for _group in SYNONYM_GROUPS:
+    for _word in _group:
+        SYNONYMS.setdefault(_word, set()).update(_group)
+
+
+# Matching is prefix-friendly so "momo" finds "Momos", which makes a very short
+# synonym actively dangerous: "cha" for chai matched every *Chaat* stall, and
+# "ras" for juice matched Rasgulla and Rasam. Four characters is the floor.
+MIN_SYNONYM_LENGTH = 4
+
+
+def canonical(term: str) -> str:
+    """The name a food is best known by, for showing back to the user.
+
+    Each group's first word is the canonical one, so a correction that lands on
+    "chaumin" is reported as "chowmein" — the spelling someone recognises.
+    """
+    word = (term or "").strip().lower()
+    for group in SYNONYM_GROUPS:
+        if word in group:
+            return group[0]
+    return word
+
+
+def synonyms_of(term: str) -> set[str]:
+    """Every other name for the same food. Empty when the word isn't in a group."""
+    group = SYNONYMS.get((term or "").strip().lower(), set())
+    return {word for word in group if len(word) >= MIN_SYNONYM_LENGTH}
+
+
 def vocabulary(extra: set[str] | None = None) -> set[str]:
     """Every dish word the app knows, for spelling correction to aim at.
 
@@ -361,6 +453,7 @@ def vocabulary(extra: set[str] | None = None) -> set[str]:
         words.add(chip.lower())
     for kind in KINDS.values():
         words.update(kind["hints"])
+    words.update(SYNONYMS)
     if extra:
         words.update(w for w in extra if w)
     return words

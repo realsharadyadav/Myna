@@ -223,8 +223,23 @@ def embeddings_status(db: Session = Depends(get_db)):
         )
         .scalar()
     ) or 0
+    # `enabled` only says a backend exists; `semantic_ready` says it produces
+    # vectors that mean something. The hashing fallback satisfies the first and
+    # fails the second, and without surfacing that difference "semantic search
+    # is on" is a claim nobody can check.
+    ready = embeddings.semantic_ready(db)
+    active = embeddings.active_local_model()
     return {
         "enabled": embeddings.enabled(),
+        "semantic_ready": ready,
+        "active_model": active,
+        "reason": "" if ready else (
+            "Embedding model not loaded yet — it downloads on first use. "
+            "Until then search runs on names, spelling correction and synonyms, "
+            "which is most of the way there. Setting GEMINI_API_KEY and picking "
+            "the Gemini embedding model turns semantic search on immediately, "
+            "with no download."
+        ),
         "total_items": total,
         "embedded_items": embedded,
         "pending_items": total - embedded,

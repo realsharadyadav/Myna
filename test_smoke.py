@@ -223,17 +223,23 @@ assert _food.split_query("chai chai") == ["chai"]            # repeats folded
 assert _food.split_query("  ") == []
 assert "aur" not in _food.split_query("momos aur chai")      # joiners aren't dishes
 
-assert _food.correct_term("chawmin") == "chowmein"
-# Lands on a momo word — which of "momo"/"momos" wins is edit-distance
-# trivia, and either one finds a Momos menu through prefix matching.
-assert _food.correct_term("momoz") in ("momo", "momos")
+# Which exact spelling a typo lands on is edit-distance trivia once synonyms
+# are in the vocabulary too ("chaumin", "momoz" are known words now). What has
+# to hold is that it lands on a word meaning the dish that was wanted.
+def _means(typed, dish):
+    fixed = _food.correct_term(typed)
+    return fixed == dish or dish in _food.synonyms_of(fixed)
+
+assert _means("chawmin", "chowmein")
+assert _means("momoz", "momos")
 assert _food.correct_term("momos") == "momos"                # already right
 assert _food.correct_term("chai") == "chai"                  # never becomes "chaat"
 assert _food.correct_term("zzzznotafood") == "zzzznotafood"  # no wild guess
 assert _food.correct_term("momo") == "momo"                  # prefix, not a typo
 # Menu words found nearby widen the target, so a dish the built-in list never
 # heard of is still reachable through a misspelling.
-assert _food.correct_term("shwarma", _food.vocabulary({"shawarma"})) == "shawarma"
+_menu_fixed = _food.correct_term("shwrma", _food.vocabulary({"shawarma"}))
+assert _menu_fixed == "shawarma" or "shawarma" in _food.synonyms_of(_menu_fixed), _menu_fixed
 print("PASS query splitting + spelling correction")
 
 from app.routers.food import term_in
@@ -253,6 +259,32 @@ for _bucket in _food.CATEGORY_NAMES:
               if d in _bucket.lower()]
     assert not _clash, f"category {_bucket!r} is named after dish(es) {_clash}"
 print("PASS category names don't claim a dish")
+
+# 47a-3. Synonyms — the same food under a different name. This is what carries
+# meaning-based search when no embedding model is available, and for a
+# vocabulary this small it's more reliable than one anyway.
+assert "momos" in _food.synonyms_of("dumpling")
+assert "chowmein" in _food.synonyms_of("noodles")
+assert "golgappe" in _food.synonyms_of("puchka")
+assert "golgappe" in _food.synonyms_of("gupchup")
+assert "chai" in _food.synonyms_of("tea")
+assert _food.synonyms_of("zzzznotafood") == set()
+# Matching is prefix-friendly, which makes short synonyms landmines: "cha" for
+# chai matched every *Chaat* stall, "ras" for juice matched Rasgulla. Anything
+# a synonym expands to must not be a prefix of a dish in another group.
+_groups = {}
+for _i, _g in enumerate(_food.SYNONYM_GROUPS):
+    for _w in _g:
+        _groups.setdefault(_w, set()).add(_i)
+_collisions = [
+    (w, other) for w, idx in _groups.items() if len(w) >= _food.MIN_SYNONYM_LENGTH
+    for other, oidx in _groups.items()
+    if not (idx & oidx) and other != w and other.startswith(w)
+]
+assert not _collisions, f"synonym prefix collisions: {_collisions}"
+assert all(len(w) >= _food.MIN_SYNONYM_LENGTH
+           for word in _groups for w in _food.synonyms_of(word))
+print("PASS synonyms (cross-name search, no short-word landmines)")
 
 # 47b. Board parsing — the object shape, a fenced reply, and the array fallback.
 board = _ai._parse_board(
@@ -398,11 +430,16 @@ assert by_id[cm_id] == ["chawmin"]        # the chowmein cart, for the typo
 # Reported per original word, so the card can say why it's there.
 assert client.get("/api/food/near", params={
     "lat": 19.0760, "long": 72.8777, "q": "momoz"}).json()["vendors"][0]["shop_id"] == food_id
-# Semantic search never runs on hashed vectors — they'd invent matches.
-from app import embeddings as _emb
-if not _emb.semantic_ready():
-    assert client.get("/api/food/near", params={
-        "lat": 19.0760, "long": 72.8777, "q": "tea"}).json()["count"] == 0
+# "tea" now legitimately reaches chai through synonyms, so the thing worth
+# asserting is that every hit actually has it — not that there are none.
+for _v in client.get("/api/food/near", params={
+        "lat": 19.0760, "long": 72.8777, "q": "tea"}).json()["vendors"]:
+    _text = (_v["name"] + " " + _v["kind_label"] + " "
+             + " ".join(m["name"] for m in _v["menu"])).lower()
+    assert "chai" in _text or "tea" in _text, _v["name"]
+# And a word with no menu, synonym or spelling path still finds nothing.
+assert client.get("/api/food/near", params={
+    "lat": 19.0760, "long": 72.8777, "q": "zzzznotafood"}).json()["count"] == 0
 # Corrections are reported, not applied silently — the UI says what it
 # actually searched for, and highlights dishes on that spelling.
 assert both["corrections"].get("chawmin") == "chowmein", both["corrections"]
@@ -411,6 +448,56 @@ assert client.get("/api/food/near", params={
 page = client.get("/").text
 assert 'id="fixnote"' in page and "CORRECTIONS" in page
 print("PASS two dishes -> two vendors, each matched on its own word")
+
+# 4f-3. Synonyms end to end: a word that shares no letters with the menu.
+syn = client.get("/api/food/near", params={
+    "lat": 19.0760, "long": 72.8777, "q": "dumpling"}).json()
+assert food_id in [v["shop_id"] for v in syn["vendors"]], syn
+assert client.get("/api/food/near", params={
+    "lat": 19.0760, "long": 72.8777, "q": "noodles"}).json()["count"] >= 1
+# "tea" must not reach a Chaat stall via the old three-letter "cha" synonym.
+for v in client.get("/api/food/near", params={
+        "lat": 19.0760, "long": 72.8777, "q": "tea"}).json()["vendors"]:
+    assert "chaat" not in v["name"].lower(), v["name"]
+print("PASS synonym search end to end")
+
+# 4f-4. The semantic stage itself. The local model downloads on first use and
+# may be unavailable, so the wiring is proven against a stub embedder instead —
+# otherwise this whole path would be untested until it reached production.
+from app import embeddings as _emb2
+from app.routers.food import semantic_hits as _sem
+
+_saved = (_emb2.semantic_ready, _emb2.similar_items)
+try:
+    _emb2.semantic_ready = lambda db=None: True
+    _emb2.similar_items = lambda db, term, **kw: (
+        [(1, food_id)] if term == "khaane" else []
+    )
+    hits = _sem(client.app.state.__dict__.get("_db") or None, [])   # empty terms short-circuit
+    assert hits == {}
+    from app.database import SessionLocal as _S2
+    _d2 = _S2()
+    try:
+        assert _sem(_d2, ["khaane"]) == {"khaane": {food_id}}
+        assert _sem(_d2, ["nothing"]) == {}
+        # A broken backend must degrade to no semantic hits, never a 500.
+        _emb2.similar_items = lambda db, term, **kw: (_ for _ in ()).throw(RuntimeError("boom"))
+        assert _sem(_d2, ["khaane"]) == {}
+    finally:
+        _d2.close()
+finally:
+    _emb2.semantic_ready, _emb2.similar_items = _saved
+print("PASS semantic stage wiring (stubbed model, failure degrades quietly)")
+
+# Status says plainly whether meaning-based search is actually running —
+# `enabled` was true even on the hashing fallback, which made it uncheckable.
+st = client.get("/api/admin/embeddings/status").json()
+assert "semantic_ready" in st and "active_model" in st
+assert st["semantic_ready"] is _emb2.semantic_ready()
+if not st["semantic_ready"]:
+    assert "GEMINI_API_KEY" in st["reason"]
+assert 'Semantic search ON' in client.get("/admin").text
+print("PASS semantic readiness is reported, not assumed")
 
 # 47g. Freshness votes. An unexplained "nahi mila" outvoting "haan hai" marks a
 # listing doubtful, which sinks it below everything else nearby.
@@ -582,7 +669,7 @@ assert listing["count"] >= 1, listing["count"]
 client.post("/api/admin/data/sample", json={"lat": 19.076, "long": 72.8777, "count": 5})
 assert client.get("/api/admin/stats").json()["total_shops"] == 17
 assert client.post("/api/admin/data/sample", json={"lat": "abc"}).status_code == 422
-assert 'loadSampleData' in panel and 'Load 50 sample thele' in panel
+assert 'loadSampleData' in panel and 'Load 50 sample jagah' in panel
 client.post("/api/admin/data/clear")
 print("PASS sample thele (placed near you, varied, wipe-first option)")
 
@@ -640,6 +727,11 @@ finally:
     _d.close()
 assert client.delete("/api/admin/shops/999999").status_code == 404
 assert 'id="tab-vendors"' in panel and "loadVendors()" in panel
+# One umbrella word, and it isn't "thela" — a dhaba or restaurant is not a
+# cart. "Thela" survives only as the name of the kind that actually is one.
+assert '<span class="tab-text">Jagah</span>' in panel
+assert '<th>Jagah</th>' in panel
+assert "koi thela list" not in panel and "sample thele" not in panel
 assert 'id="tab-items"' not in panel and 'id="tab-import"' not in panel
 print("PASS vendors tab: list, filter, rename, delete with cascade")
 

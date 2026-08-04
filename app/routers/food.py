@@ -432,8 +432,9 @@ def _menu_vocabulary(db: Session) -> set[str]:
     return words
 
 
-def resolve_terms(db: Session, terms: list[str]) -> dict[str, set[str]]:
-    """Each searched word → every spelling worth matching it on.
+def resolve_terms(db: Session, terms: list[str]) -> tuple[dict[str, set[str]], dict[str, str]]:
+    """Each searched word → every spelling worth matching it on, plus the
+    spelling corrections worth telling the user about.
 
     Three stages, cheapest first, because most searches never need the
     expensive one:
@@ -441,29 +442,43 @@ def resolve_terms(db: Session, terms: list[str]) -> dict[str, set[str]]:
     1. The word itself, always.
     2. Fuzzy correction against the dish vocabulary plus the menus actually
        nearby — free, instant, and enough for "chawmin" → "chowmein".
-    3. An LLM, but *only* for words the first two couldn't place. Paying for a
-       model call on every search would be waste when "momos" needs no help.
+    3. Known other names for the same food (food.SYNONYMS), which is what makes
+       "dumpling" find a Momos board. Spelling correction can't do this — those
+       words aren't misspellings of each other, they share no letters.
+    4. An LLM, but *only* for words the first three couldn't place. Paying for
+       a model call on every search would be waste when "momos" needs no help.
     """
     if not terms:
-        return {}
+        return {}, {}
 
     known = food.vocabulary(_menu_vocabulary(db))
     resolved = {term: {term} for term in terms}
+    # Only *spelling* fixes go here. Synonyms widen the search silently and on
+    # purpose: telling someone "dimsum dikha rahe hain momos ke liye" when they
+    # spelled momos perfectly is noise, not transparency.
+    corrections: dict[str, str] = {}
 
     unresolved = []
     for term in terms:
         fixed = food.correct_term(term, known)
         if fixed != term:
             resolved[term].add(fixed)
+            corrections[term] = food.canonical(fixed)
         elif term not in known and not any(term in word for word in known):
             unresolved.append(term)
+        # Other names for the same food, for the term and its corrected form
+        # alike — "dumpling" and "momoz" should both reach a Momos board.
+        for variant in list(resolved[term]):
+            resolved[term].update(food.synonyms_of(variant))
 
     if unresolved:
         for typed, fixed in ai.correct_food_query(
             unresolved, sorted(known), model=get_default_search_model(db)
         ).items():
             resolved.setdefault(typed, {typed}).add(fixed)
-    return resolved
+            resolved[typed].update(food.synonyms_of(fixed))
+            corrections[typed] = food.canonical(fixed)
+    return resolved, corrections
 
 
 def semantic_hits(db: Session, terms: list[str]) -> dict[str, set[int]]:
@@ -535,7 +550,7 @@ def near(
     """
     radius = max(0.1, min(radius_km or DEFAULT_RADIUS_KM, MAX_RADIUS_KM))
     terms = food.split_query(q)
-    resolved = resolve_terms(db, terms)
+    resolved, corrections = resolve_terms(db, terms)
     semantic = semantic_hits(db, terms)
     wanted_kind = food.normalise_kind(kind) if kind else ""
 
@@ -569,10 +584,6 @@ def near(
         -len(c["matched"]),
         c["distance_km"],
     ))
-    corrections = {
-        term: sorted(variants - {term})[0]
-        for term, variants in resolved.items() if variants - {term}
-    }
     return {"query": q, "count": len(cards), "corrections": corrections,
             "vendors": cards[:limit]}
 

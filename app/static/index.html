@@ -209,13 +209,13 @@
   <div id="list"></div>
 </div>
 
-<button class="fab" id="fab">+ Thela add karo</button>
+<button class="fab" id="fab">+ Nayi jagah add karo</button>
 
 <!-- ── Add sheet: photo → GPS → ho gaya ───────────────────────────────── -->
 <section class="sheet" id="addSheet" hidden>
   <div class="wrap">
     <div class="sheet-head">
-      <h2>Thela add karo 📸</h2>
+      <h2>Nayi jagah add karo 📸</h2>
       <button class="x" id="closeAdd" aria-label="Band karo">&times;</button>
     </div>
 
@@ -229,8 +229,8 @@
         Ya gallery se choose karo
       </div>
       <p class="note" id="gps">📍 Location le rahe hain…</p>
-      <p class="note">📵 Thele wale ka phone number mat daalo — unki marzi ke bina number
-        public nahi karte. Wo khud apna thela claim karke daal sakte hain.</p>
+      <p class="note">📵 Dukaandaar ka phone number mat daalo — unki marzi ke bina number
+        public nahi karte. Wo khud apni jagah claim karke daal sakte hain.</p>
       <p class="err" id="addErr" hidden></p>
     </div>
 
@@ -369,7 +369,7 @@ function cardHtml(v) {
       </div>
       <div class="dist-col">
         <div class="dist">${v.distance_km} km</div>
-        <button class="flag" title="Galat thela report karo" aria-label="Report karo">⚑</button>
+        <button class="flag" title="Galat jagah report karo" aria-label="Report karo">⚑</button>
       </div>
     </div>
     ${v.closed_today ? `<div><span class="badge">Aaj band bataya gaya</span></div>` : open}
@@ -410,7 +410,7 @@ async function load() {
     if (!data.vendors.length) {
       $("list").innerHTML = `<div class="empty">
         ${query ? `"${esc(query)}" paas me nahi mila.` : "Yahan abhi kuch list nahi hai."}<br>
-        Koi thela dikhe to neeche wale button se add kar do 👇</div>`;
+        Koi thela, tapri ya dhaba dikhe to neeche wale button se add kar do 👇</div>`;
       return;
     }
     $("list").innerHTML = data.vendors.map(cardHtml).join("");
@@ -633,7 +633,7 @@ $("submitAdd").addEventListener("click", async () => {
       (data.item_count
         ? `<p class="note">${data.photo_count} photo se ${data.item_count} cheezein
              padh li. Galat ho to card pe tap karke theek kar sakte ho.</p>`
-        : `<p class="note">Menu nahi padha ja saka — thela list ho gaya hai, dishes
+        : `<p class="note">Menu nahi padha ja saka — jagah list ho gayi hai, dishes
              baad me add kar sakte ho.</p>`);
     showStep(3);
   } catch {

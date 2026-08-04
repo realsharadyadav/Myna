@@ -29,10 +29,10 @@ Then open:
 
 ### Home — "Kya khaana hai?"
 
-GPS, a search box, and cards. Each card is a vendor: kind icon, distance, what's on the menu with prices, when it's there, how recently someone confirmed it, and one tap to Directions.
+GPS, a search box, and cards. Each card is a jagah: kind icon, distance, what's on the menu with prices, when it's there, how recently someone confirmed it, and one tap to Directions.
 
-- **Search a dish** — "momos", "chai", "chole bhature". Matches the menu, the thela's name and its kind together, so a cart called *Momo Point* that never listed an item still turns up.
-- **Several dishes at once** — "momos aur chawmin" returns two thele, each shown for its own word: the momos cart for "momos", the chowmein cart for "chawmin". Matches are reported per *typed* word, so a card can say why it's there.
+- **Search a dish** — "momos", "chai", "chole bhature". Matches the menu, the jagah's name and its kind together, so a cart called *Momo Point* that never listed an item still turns up.
+- **Several dishes at once** — "momos aur chawmin" returns two jagah, each shown for its own word: the momos cart for "momos", the chowmein cart for "chawmin". Matches are reported per *typed* word, so a card can say why it's there.
 - **Ranking is "what can I eat right now"** — open beats closed, a doubtful listing sinks, and only then does distance decide. Sorting purely by distance would put a Sunday-only cart above one standing at the corner.
 - **Filters** — "Abhi khula 🔥" and a radius that cycles 3 → 10 → 1 km. A thela is a walk, not a drive.
 - Hinglish in Roman script throughout — it's how the food is named out loud, it needs no font support on a cheap phone, and it's what people type.
@@ -54,19 +54,22 @@ Everything else is optional and behind a disclosure on the review screen: a type
 
 ### Search — spelling, word boundaries, meaning
 
-Three stages, cheapest first, because most searches never need the expensive one (`resolve_terms` in `routers/food.py`):
+Four stages, cheapest first, because most searches never need the expensive one (`resolve_terms` in `routers/food.py`):
 
 1. **The word itself.** Matched with `term_in`, which anchors to a word start rather than doing a plain substring check. That check was wrong in a way that's easy to miss: "tea" sits inside "S**tea**m Momos", so searching for tea returned a momos cart. Prefixes still work — "momo" finds "Momos", "samosa" finds "Samosas".
-2. **Fuzzy correction** against the dish vocabulary *plus the dish names actually on menus nearby*, so a thela selling something the built-in list never heard of is still reachable through a misspelling. Free, instant, and enough for "chawmin" → "chowmein". A term that's already known, or is a prefix of one, is left alone — guessing wrong silently searches for a different food.
-A category is a bucket, never a dish. "Chai & drinks" used to be a category name, which meant every juice stall matched a search for "chai" — search reads the category too, so the bucket claimed a dish it didn't sell. The buckets are now `Drinks`, `Fast food`, `Main course` and so on, and a test asserts none of them is named after a dish.
+2. **Fuzzy correction** against the dish vocabulary *plus the dish names actually on menus nearby*, so a jagah selling something the built-in list never heard of is still reachable through a misspelling. Free, instant, and enough for "chawmin" → "chowmein". A term that's already known, or is a prefix of one, is left alone — guessing wrong silently searches for a different food.
+3. **Synonyms** (`food.SYNONYM_GROUPS`) — the same food under a different name: *momos / dimsum / dumpling*, *golgappe / puchka / gupchup*, *anda / egg*, *machli / fish*. Spelling correction cannot do this; those words aren't misspellings of each other, they share no letters. For a vocabulary this small and this well known, a curated list is more reliable than a model — and it needs nothing to download. Matching is prefix-friendly, which makes short synonyms landmines: "cha" for chai matched every *Chaat* stall, "ras" for juice matched Rasgulla. Four characters is the floor, and a test asserts no synonym is a prefix of a dish in another group.
+4. **An LLM**, but *only* for words the first three couldn't place ("chaomen", "gol gappay"). Paying for a model call on every search would be waste when "momos" needs no help. The model may only map onto dishes the app already knows; anything else is a hallucinated dish and gets dropped.
 
-3. **An LLM**, but *only* for words the first two couldn't place ("chaomen", "gol gappay"). Paying for a model call on every search would be waste when "momos" needs no help. The model may only map onto dishes the app already knows; anything else is a hallucinated dish and gets dropped.
+A category is a bucket, never a dish. "Chai & drinks" used to be a category name, which meant every juice stall matched a search for "chai" — search reads the category too, so the bucket claimed a dish it didn't sell. The buckets are `Drinks`, `Fast food`, `Main course` and so on now, and a test asserts none is named after a dish.
 
-Corrections come back in the response as `{typed: used}` and the app says so on screen — *"chowmein dikha rahe hain "chawmin" ke liye"*. A search that quietly looks for a different word than the one you typed is how people stop trusting results they can't explain.
+Only *spelling* corrections come back in the response as `{typed: used}` — synonyms widen the search silently and on purpose, because telling someone *"dimsum dikha rahe hain momos ke liye"* when they spelled momos perfectly is noise, not transparency. A correction is reported under the food's canonical name, so landing on "chaumin" is shown as "chowmein". The app says so on screen — *"chowmein dikha rahe hain "chawmin" ke liye"*. A search that quietly looks for a different word than the one you typed is how people stop trusting results they can't explain.
 
 **Semantic search** uses the item embeddings (`embeddings.similar_items`) to bridge words that share no letters at all — "dumpling" to a menu that only says Momos. It is skipped entirely when the embedding backend has fallen back to hashing: those vectors encode literal token overlap and nothing else, so cosine similarity between them is noise. In practice it scored "tea" against a vendor called "Raju Momos" above the match threshold. A confident wrong answer is worse than no semantic layer, so `embeddings.semantic_ready()` gates it.
 
-> The local model (`BAAI/bge-small-en-v1.5`, via fastembed) downloads on first use. Until it does — or if the download is blocked — semantic search is off and search runs on substring plus spelling correction alone.
+The owner panel says plainly whether it's running: **Semantic search ON/OFF** in AI Settings, from `semantic_ready` on `/api/admin/embeddings/status`. `enabled` was always true even on the hashing fallback, which made it a claim nobody could check.
+
+> The local model (`BAAI/bge-small-en-v1.5`, via fastembed) downloads on first use. Until it does — or if the download is blocked — semantic search stays off and search runs on names, spelling correction and synonyms, which covers most of the same ground. **Setting `GEMINI_API_KEY` and picking the Gemini embedding model turns it on immediately, with no download.**
 
 ### Freshness — the loop that keeps it alive
 
@@ -205,6 +208,12 @@ Now `/`, `/admin`, `/api/*` and `/docs` are all the same host. The pages still r
 
 An uncalled module is one that rots silently, so its result-shaping is covered in `test_smoke.py` against faked Exa and DuckDuckGo backends — no network, no API key needed. Both features are still unbuilt; the plumbing is just ready for them.
 
+## One word: jagah
+
+Everything a listing can be — a moving cart, a chai tapri, a dhaba, a restaurant — is a **jagah** in the UI. It was "thela" for a while, which was wrong in two ways at once: a dhaba is not a cart, and "Thela" was simultaneously the name of one specific kind, so the word meant two things on the same screen. "Jagah" is true of all of them and collides with nothing, which frees *thela* to mean just a cart again.
+
+The code and API say `vendor` throughout — same concept, English word, and `shop_id` survives in the schema because renaming a primary key is a migration with no user-visible payoff.
+
 ## Known limitations
 
 - **The board read is untested against real photos.** Everything here rests on the AI getting a name and a menu off a real signboard — blurry, angled, at night, spelled "chowmin". Without an API key only the failure paths have been exercised. This is the first thing to find out.
@@ -212,9 +221,8 @@ An uncalled module is one that rots silently, so its result-shaping is covered i
 - `device_id` is an anonymous localStorage string. It stops accidental double-voting and one-person report floods, but clearing storage mints a new id, so it isn't real abuse resistance — that needs a server-side signal.
 - "Aaj band hai" is a single flag, not a history, so a vendor shut every Monday looks the same as one shut once. Repeated closures on the same weekday should eventually become a schedule.
 - Reports aren't weighted by reporter — three throwaway devices hide a listing as effectively as three real ones.
-- Rounds can only be set when a vendor is added. There's no edit-a-round UI now that the shopkeeper page is gone.
 - Semantic search needs the local embedding model to download on first use. Until then search is substring plus spelling correction, which handles typos but not synonyms.
-- One word, one meaning: everything a listing can be is a **thela** in the UI (the code and API say `vendor`, which is the same word in English). That's a stretch for a sit-down dhaba or restaurant — they're thele here because consistency was worth more than precision. The kind that means specifically "a cart that moves" is labelled *Chalta thela* so the word isn't overloaded.
+- Rounds can only be set when a listing is added; there's no edit-a-round screen.
 - Nominatim is rate-limited (~1 req/s) — fine at pilot volume.
 
 ## History

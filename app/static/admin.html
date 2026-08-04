@@ -433,7 +433,7 @@
 <main>
   <div class="tabs">
     <button class="active" onclick="showTab('dashboard', this)" title="Dashboard" aria-label="Dashboard"><svg class="ic" aria-hidden="true"><use href="#i-target"/></svg><span class="tab-text">Dashboard</span></button>
-    <button onclick="showTab('vendors', this)" title="Thele" aria-label="Thele"><svg class="ic" aria-hidden="true"><use href="#i-store"/></svg><span class="tab-text">Thele</span></button>
+    <button onclick="showTab('vendors', this)" title="Jagah" aria-label="Jagah"><svg class="ic" aria-hidden="true"><use href="#i-store"/></svg><span class="tab-text">Jagah</span></button>
     <button onclick="showTab('reports', this)" title="Reported listings" aria-label="Reported listings"><svg class="ic" aria-hidden="true"><use href="#i-alert"/></svg><span class="tab-text">Reports</span><span class="tab-pill" id="reportPill" hidden></span></button>
     <button onclick="showTab('settings', this)" title="AI settings" aria-label="AI settings"><svg class="ic" aria-hidden="true"><use href="#i-spark"/></svg><span class="tab-text">AI Settings</span></button>
   </div>
@@ -447,13 +447,13 @@
     <div class="card" style="margin-top:16px">
       <h3>All pages</h3>
       <div class="pagelinks">
-        <a href="/" target="_blank"><b>🍜 Thela app</b><span>Paas me kya mil raha hai — the customer app</span></a>
+        <a href="/" target="_blank"><b>🍜 Khaane ka app</b><span>Paas me kya mil raha hai — the customer app</span></a>
         <a href="/admin"><b>⚙️ Owner panel</b><span>You are here</span></a>
       </div>
     </div>
 
     <div class="card" style="margin-top:16px">
-      <h3>Naye add hue thele</h3>
+      <h3>Nayi add hui jagah</h3>
       <div class="table-scroll">
         <table>
           <thead><tr><th>ID</th><th>Name</th><th>Registered</th></tr></thead>
@@ -465,9 +465,9 @@
     <!-- Wiping test data is a routine thing to want while piloting, and doing
          it by hand meant deleting shops one at a time. -->
     <div class="card" style="margin-top:16px">
-      <h3>Load sample thele</h3>
+      <h3>Load sample jagah</h3>
       <p class="count" style="margin:6px 0 14px">
-        Generates 50 demo thele around <b>your current location</b>, with menus,
+        Generates 50 demo jagah around <b>your current location</b>, with menus,
         prices, rounds and a spread of freshness — so search, ranking and the
         reports queue all have something real-shaped to work on.
         Sample data far from you would tell you nothing about &ldquo;paas me kya
@@ -475,7 +475,7 @@
       </p>
       <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center">
         <button class="ghost" style="width:auto; padding:10px 22px" onclick="loadSampleData(false)">
-          <svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg> Load 50 sample thele
+          <svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg> Load 50 sample jagah
         </button>
         <button class="ghost" style="width:auto; padding:10px 22px" onclick="loadSampleData(true)">
           <svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg> Wipe first, then load 50
@@ -487,7 +487,7 @@
     <div class="card danger-zone" style="margin-top:16px">
       <h3>Clear all data</h3>
       <p class="count" style="margin:6px 0 14px">
-        Deletes every thela, dish, round and report. AI settings are kept.
+        Deletes every jagah, dish, round and report. AI settings are kept.
         This cannot be undone.
       </p>
       <button class="ghost danger-btn" style="width:auto; padding:10px 22px" onclick="clearAllData()">
@@ -511,7 +511,7 @@
       </div>
       <div class="table-scroll">
         <table>
-          <thead><tr><th>ID</th><th>Thela</th><th>Kind</th><th>Menu</th><th>Rounds</th><th>Confirmed</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>ID</th><th>Jagah</th><th>Kind</th><th>Menu</th><th>Rounds</th><th>Confirmed</th><th>Status</th><th></th></tr></thead>
           <tbody id="vendorTable"></tbody>
         </table>
       </div>
@@ -522,13 +522,13 @@
   <!-- ==================== REPORTS ====================
        The review queue behind the food app's flag button. Three strangers
        tapping ⚑ hides a listing, which is fast enough for obvious junk and
-       therefore also fast enough to catch a real thela by mistake — so
+       therefore also fast enough to catch a real jagah by mistake — so
        hiding never deletes, and this screen is where that gets undone. -->
   <div id="tab-reports" style="display:none">
     <div class="card">
       <div class="toolbar">
         <label class="checkbox" style="display:inline-flex; align-items:center; gap:6px; font-size:.85rem">
-          <input type="checkbox" id="reportHiddenOnly" onchange="loadReports()"> Sirf hidden thele
+          <input type="checkbox" id="reportHiddenOnly" onchange="loadReports()"> Sirf hidden jagah
         </label>
         <button class="ghost" onclick="loadReports()" style="width:auto; padding:8px 16px"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg> Refresh</button>
       </div>
@@ -545,7 +545,7 @@
         <span class="setting-ico"><svg class="ic" aria-hidden="true"><use href="#i-camera"/></svg></span>
         <div>
           <h3>Reading photos (OCR)</h3>
-          <p class="setting-why">Used when someone photographs a thela&rsquo;s board — the model reads the name, the menu and the rates off it.</p>
+          <p class="setting-why">Used when someone photographs a jagah&rsquo;s board — the model reads the name, the menu and the rates off it.</p>
         </div>
       </div>
       <div id="visionWarn"></div>
@@ -562,7 +562,7 @@
         <span class="setting-ico"><svg class="ic" aria-hidden="true"><use href="#i-search"/></svg></span>
         <div>
           <h3>Understanding searches</h3>
-          <p class="setting-why">Splits what a customer types into separate items, and turns a dish name into its ingredients. Text only — no photos.</p>
+          <p class="setting-why">Last resort for a misspelling nothing local could place — "chaomen", "gol gappay". Spelling correction and synonyms run first and free, so this is rarely called. Text only — no photos.</p>
         </div>
       </div>
       <label class="field-label" for="searchModelSelect">Model</label>
@@ -574,7 +574,7 @@
         <span class="setting-ico"><svg class="ic" aria-hidden="true"><use href="#i-spark"/></svg></span>
         <div>
           <h3>Matching similar words</h3>
-          <p class="setting-why">Lets "milk" find items listed as "dairy". Runs locally by default — no API key needed.</p>
+          <p class="setting-why">Lets "dumpling" find a board that says Momos. A curated synonym list already covers the common cases; this catches the rest. Runs locally by default — no API key needed.</p>
         </div>
       </div>
       <label class="field-label" for="embeddingModelSelect">Model</label>
@@ -749,8 +749,8 @@ async function loadReports() {
     updateReportPill(rows.length);
     if (!rows.length) {
       box.innerHTML = `<p class="msg" style="padding:8px 0">${hiddenOnly
-        ? 'Abhi koi thela hidden nahi hai.'
-        : 'Koi reported thela nahi. Kuch review karne ko nahi hai.'}</p>`;
+        ? 'Abhi koi jagah hidden nahi hai.'
+        : 'Koi reported jagah nahi. Kuch review karne ko nahi hai.'}</p>`;
       return;
     }
     box.innerHTML = rows.map(reportCard).join('');
@@ -837,7 +837,7 @@ function browserLocation() {
 }
 
 async function loadSampleData(replace) {
-  if (replace && !confirm('Delete everything first, then load 50 sample thele?')) return;
+  if (replace && !confirm('Delete everything first, then load 50 sample jagah?')) return;
   const out = document.getElementById('sampleResult');
   out.textContent = 'Location le rahe hain…';
   const pos = await browserLocation();
@@ -849,7 +849,7 @@ async function loadSampleData(replace) {
       body: JSON.stringify({ count: 50, replace, ...(pos || {}) }),
     });
     const data = await res.json();
-    out.textContent = `${data.created} thele, ${data.items} dishes, ${data.rounds} rounds`
+    out.textContent = `${data.created} jagah, ${data.items} dishes, ${data.rounds} rounds`
       + (pos ? ' around you.' : ' around Mumbai (location nahi mili).');
     loadStats();
   } catch (e) {
@@ -860,14 +860,14 @@ async function loadSampleData(replace) {
 // Two confirms, because this is unrecoverable and the button sits one tab away
 // from everything else you do all day.
 async function clearAllData() {
-  if (!confirm('Delete ALL thele, dishes, rounds and reports?\n\nThis cannot be undone.')) return;
+  if (!confirm('Delete ALL jagah, dishes, rounds and reports?\n\nThis cannot be undone.')) return;
   if (!confirm('Really clear everything? Last chance.')) return;
   const out = document.getElementById('clearResult');
   out.textContent = 'Clearing…';
   try {
     const res = await fetch(API + '/api/admin/data/clear', { method: 'POST' });
     const data = await res.json();
-    out.textContent = `Cleared ${data.shops} thele, ${data.items} dishes, ${data.stops} rounds, ${data.reports} reports.`;
+    out.textContent = `Cleared ${data.shops} jagah, ${data.items} dishes, ${data.stops} rounds, ${data.reports} reports.`;
     loadStats();
   } catch (e) {
     out.textContent = 'Clear failed — try again.';
@@ -894,7 +894,7 @@ async function loadStats() {
   const data = await res.json();
   const reported = data.reported_shops || 0;
   document.getElementById('statsGrid').innerHTML = `
-    <div class="stat-card"><div class="num">${data.total_shops}</div><div class="label">Thele</div></div>
+    <div class="stat-card"><div class="num">${data.total_shops}</div><div class="label">Jagah</div></div>
     <div class="stat-card"><div class="num">${data.total_items}</div><div class="label">Items</div></div>
     ${reported ? `<div class="stat-card alert clickable" onclick="gotoReports()" title="Open the review queue">
       <div class="num">${reported}</div>
@@ -904,7 +904,7 @@ async function loadStats() {
   updateReportPill(reported);
   document.getElementById('recentShops').innerHTML = data.recent_shops.map(s =>
     `<tr><td>${s.shop_id}</td><td>${esc(s.name)}</td><td>${new Date(s.created_at).toLocaleString()}</td></tr>`
-  ).join('') || '<tr><td colspan="3" class="msg">Abhi koi thela nahi.</td></tr>';
+  ).join('') || '<tr><td colspan="3" class="msg">Abhi koi jagah nahi.</td></tr>';
 }
 
 // ---------------------------------------------------------------------------
@@ -916,7 +916,7 @@ async function loadVendors() {
   const res = await fetch(API + '/api/admin/vendors?q=' + encodeURIComponent(q)
     + '&kind=' + encodeURIComponent(kind));
   const vendors = await res.json();
-  document.getElementById('vendorCount').textContent = `${vendors.length} thele`;
+  document.getElementById('vendorCount').textContent = `${vendors.length} jagah`;
   document.getElementById('vendorTable').innerHTML = vendors.map(v => `
     <tr>
       <td>${v.shop_id}</td>
@@ -932,15 +932,15 @@ async function loadVendors() {
             : '<span class="badge on">Live</span>')}</td>
       <td>
         <button class="btn-icon" onclick="renameVendor(${v.shop_id}, '${esc(v.name).replace(/'/g, "\\'")}')" title="Rename" aria-label="Rename"><svg class="ic" aria-hidden="true"><use href="#i-edit"/></svg></button>
-        <button class="del btn-icon" onclick="deleteVendor(${v.shop_id})" title="Thela delete karo" aria-label="Thela delete karo"><svg class="ic" aria-hidden="true"><use href="#i-trash"/></svg></button>
+        <button class="del btn-icon" onclick="deleteVendor(${v.shop_id})" title="Jagah delete karo" aria-label="Jagah delete karo"><svg class="ic" aria-hidden="true"><use href="#i-trash"/></svg></button>
       </td>
-    </tr>`).join('') || '<tr><td colspan="8" class="msg">Abhi koi thela list nahi hai.</td></tr>';
+    </tr>`).join('') || '<tr><td colspan="8" class="msg">Abhi koi jagah list nahi hai.</td></tr>';
 }
 
 // A misread signboard is the common fix, so renaming is one prompt rather than
 // a whole edit form.
 async function renameVendor(id, current) {
-  const name = prompt('Thele ka naam:', current);
+  const name = prompt('Jagah ka naam:', current);
   if (name === null || !name.trim()) return;
   await fetch(`${API}/api/admin/shops/${id}`, {
     method: 'PATCH',
@@ -951,7 +951,7 @@ async function renameVendor(id, current) {
 }
 
 async function deleteVendor(id) {
-  if (!confirm('Ye thela aur iska poora menu delete karein?')) return;
+  if (!confirm('Ye jagah aur iska poora menu delete karein?')) return;
   await fetch(`${API}/api/admin/shops/${id}`, { method: 'DELETE' });
   loadVendors();
   loadStats();
@@ -1050,7 +1050,7 @@ function renderVisionWarning() {
   const meta = llmModels.find(m => m.label === label);
   const box = document.getElementById('visionWarn');
   if (!llmModels.length) {
-    box.innerHTML = '<div class="note info"><b>No AI provider connected</b>Photo reading is off — thele can still be added by typing a name.</div>';
+    box.innerHTML = '<div class="note info"><b>No AI provider connected</b>Photo reading is off — jagah can still be added by typing a name.</div>';
     return;
   }
   if (!label) { box.innerHTML = ''; return; }
@@ -1064,10 +1064,19 @@ async function loadEmbedStatus() {
     const res = await fetch(API + '/api/admin/embeddings/status');
     const d = await res.json();
     const total = d.total_items || 0, done = d.embedded_items || 0;
-    document.getElementById('embedStatus').textContent = total
-      ? `${done} of ${total} items indexed` +
+    const indexed = total
+      ? `${done} of ${total} dishes indexed` +
         (d.stale_items ? ` · ${d.stale_items} need re-indexing after a model change` : '')
-      : 'No items yet.';
+      : 'No dishes yet.';
+    // Say plainly whether meaning-based search is actually running. "Enabled"
+    // was always true even when the backend had fallen back to hashing, which
+    // made it a claim nobody could check.
+    const badge = d.semantic_ready
+      ? '<span class="badge on">Semantic search ON</span>'
+      : '<span class="badge off">Semantic search OFF</span>';
+    document.getElementById('embedStatus').innerHTML =
+      `${badge} <span class="count" style="margin-left:8px">${esc(indexed)}</span>` +
+      (d.reason ? `<div class="note info" style="margin-top:10px">${esc(d.reason)}</div>` : '');
   } catch (e) { /* status is a nicety; the setting still works without it */ }
 }
 
