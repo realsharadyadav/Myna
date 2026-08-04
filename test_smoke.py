@@ -488,6 +488,12 @@ for path in ('href="/"', 'href="/admin"', 'href="/docs"'):
 # The removed pages must not be linked from anywhere either.
 assert "/classic" not in panel and "/shopkeeper" not in panel
 assert 'class="ownerlink"' in client.get("/").text
+# The food app is served by the Render static site too, which has no API of its
+# own — so it must read the backend URL from config.js rather than assume
+# same-origin. Getting this wrong breaks every fetch in production only.
+home_page = client.get("/").text
+assert 'src="/config.js"' in home_page
+assert 'window.MYNA_API_BASE' in home_page
 print("PASS page navigation")
 
 # 4k-4. Vendors tab: the one management surface, in the food app's terms.

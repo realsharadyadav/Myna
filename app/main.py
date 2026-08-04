@@ -121,8 +121,12 @@ app.mount("/static", StaticFiles(directory=BASE_DIR / "app" / "static"), name="s
 
 @app.get("/", include_in_schema=False)
 def home():
-    """The food app — two screens, no login. See app/static/khana.html."""
-    return FileResponse(BASE_DIR / "app" / "static" / "khana.html")
+    """The food app — two screens, no login. See app/static/index.html.
+
+    Named index.html so the Render static site serves it at / with no
+    rewrite rule: a static host looks for index.html and nothing else.
+    """
+    return FileResponse(BASE_DIR / "app" / "static" / "index.html")
 
 
 @app.get("/admin", include_in_schema=False)

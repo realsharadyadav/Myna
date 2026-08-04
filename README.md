@@ -165,7 +165,19 @@ One-click deploy using the included `render.yaml` blueprint:
 1. Push this repo to GitHub, then in Render: **New → Blueprint** → select the repo.
 2. Render creates the web service and a **free PostgreSQL DB** automatically.
 3. After deploy, go to the service's **Environment** tab and add your API keys (`ANTHROPIC_API_KEY` / `GROQ_API_KEY` / `GEMINI_API_KEY`) — they're marked `sync: false` in the blueprint.
-4. Open `https://<your-service>.onrender.com/admin` to pick the default model, and use **AI Settings → Test with a sample photo** to prove it can actually read one.
+4. Open `https://<backend>.onrender.com/admin` to pick the default model, and use **AI Settings → Test with a sample photo** to prove it can actually read one.
+
+**Two services, two URLs — this trips people up:**
+
+| | `myna` (backend) | `myna-app` (static site) |
+|---|---|---|
+| Serves | the API, `/docs`, and the pages | the pages only |
+| `/api/*` | ✅ | ❌ 404 |
+| `/docs` | ✅ | ❌ 404 |
+
+The static site exists so the browser isn't stuck behind the free backend's ~30 s cold start. It has no API of its own, so both pages read the backend URL from `config.js`, which the blueprint's `buildCommand` writes from `MYNA_BACKEND_URL`. If that variable points at the wrong service, every request fails with a network error and the page looks broken while the backend is perfectly healthy.
+
+The static site serves `app/static/index.html` at `/` — which is why the food app is named `index.html` rather than something more descriptive. A static host looks for that filename and nothing else.
 
 > **Free-tier notes:**
 > - Uploads go to the app's local `uploads/` folder, which **resets on every redeploy** (no persistent disk on free plan). Fine for a pilot; attach a disk or switch to Cloudinary/Supabase when you need permanence.

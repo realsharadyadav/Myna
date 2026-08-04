@@ -4,10 +4,14 @@
 #
 # Two services, same pattern as Locus:
 #   - myna       : the FastAPI backend (API only, in practice — see below)
-#   - myna-app   : a static site serving app/static (index/shopkeeper/admin),
-#                  so the browser hits an always-on static host directly
-#                  instead of Render's cold-start splash screen on the free
-#                  backend service.
+#   - myna-app   : a static site serving app/static (index = the food app,
+#                  plus admin), so the browser hits an always-on static host
+#                  directly instead of Render's cold-start splash screen on
+#                  the free backend service.
+#
+# Only the backend has /docs and /api/* — the static site is HTML only. The
+# food app reaches the API through window.MYNA_API_BASE, which the build step
+# below bakes into config.js.
 #
 # The backend still serves these same pages itself too (app/main.py) — handy
 # for local dev with a single `uvicorn` process — but production traffic
@@ -58,9 +62,6 @@ services:
       - type: rewrite
         source: /admin
         destination: /admin.html
-      - type: rewrite
-        source: /shopkeeper
-        destination: /shopkeeper.html
 
 databases:
   - name: myna-db

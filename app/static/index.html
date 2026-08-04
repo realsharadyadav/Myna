@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#FFC400">
 <title>Myna — Paas me kya mil raha hai</title>
+<script src="/config.js"></script>
 <style>
   /* One screen at a time, thumb-reachable controls, and text big enough to
      read standing on a footpath. Everything is sized in rem off a 16px root so
@@ -274,7 +275,11 @@
 </section>
 
 <script>
-const API = "";
+// Empty when the API is same-origin (local dev, or the backend serving this
+// page itself). On the Render static site config.js sets this to the
+// backend's URL — without it every fetch would hit the static host, which
+// has no API, and the whole app would fail with a network error.
+const API = window.MYNA_API_BASE || "";
 const $ = (id) => document.getElementById(id);
 
 // Anonymous, per-device. Enough to attribute a listing and rate-limit votes;

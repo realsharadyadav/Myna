@@ -252,6 +252,16 @@
   details.setting > summary::before { content: "▸"; color: var(--text-faint); transition: transform .2s ease; }
   details.setting[open] > summary::before { transform: rotate(90deg); }
   .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; margin-top: 12px; }
+  /* Without a min-width the table just squeezes columns to nothing instead of
+     scrolling — "Chinese thela" wrapping to three lines is what a squeeze looks
+     like, not a fix. */
+  .table-scroll table { min-width: 620px; }
+  .table-scroll td, .table-scroll th { white-space: nowrap; }
+  /* The address is truncated rather than wrapped: now that the table scrolls,
+     a three-line address only makes every row tall for no gain. */
+  .table-scroll td .count {
+    display: block; max-width: 260px; overflow: hidden; text-overflow: ellipsis;
+  }
   .cap { font-size: .72rem; font-weight: 800; padding: 3px 8px; border-radius: 999px; white-space: nowrap; }
   .cap.yes { background: color-mix(in srgb, #17914f 14%, transparent); color: #17914f; }
   .cap.no { background: var(--row-hover); color: var(--text-faint); }
@@ -446,10 +456,12 @@
 
     <div class="card" style="margin-top:16px">
       <h3>Recently registered shops</h3>
-      <table>
-        <thead><tr><th>ID</th><th>Name</th><th>Registered</th></tr></thead>
-        <tbody id="recentShops"></tbody>
-      </table>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>ID</th><th>Name</th><th>Registered</th></tr></thead>
+          <tbody id="recentShops"></tbody>
+        </table>
+      </div>
     </div>
 
     <!-- Wiping test data is a routine thing to want while piloting, and doing
@@ -479,10 +491,12 @@
         <select id="vendorKind" onchange="loadVendors()"><option value="">All kinds</option></select>
         <button onclick="loadVendors()">Search</button>
       </div>
-      <table>
-        <thead><tr><th>ID</th><th>Vendor</th><th>Kind</th><th>Menu</th><th>Rounds</th><th>Confirmed</th><th>Status</th><th></th></tr></thead>
-        <tbody id="vendorTable"></tbody>
-      </table>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>ID</th><th>Vendor</th><th>Kind</th><th>Menu</th><th>Rounds</th><th>Confirmed</th><th>Status</th><th></th></tr></thead>
+          <tbody id="vendorTable"></tbody>
+        </table>
+      </div>
       <div class="count" style="margin-top:10px" id="vendorCount"></div>
     </div>
   </div>
