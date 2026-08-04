@@ -27,6 +27,11 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
+# Web search grounding (app/web_search.py) — kept for trending and
+# weather-based suggestions, which aren't built yet. Exa when configured,
+# free/keyless DuckDuckGo otherwise.
+EXA_API_KEY = os.getenv("EXA_API_KEY", "")
+
 # Local timezone for mobile-vendor rounds (app/schedule.py). Cart timings are
 # typed and read locally ("har mangal 10 se 12"), so they're stored as local
 # clock times and compared against this zone.

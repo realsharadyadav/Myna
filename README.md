@@ -122,6 +122,7 @@ Vendor kinds and food categories live in `app/food.py` — thela, chaat, chinese
 | `GEMINI_API_KEY` | _(empty)_ | Gemini Vision (e.g. 2.5 Flash). |
 | `MYNA_DATABASE_URL` | _(falls back to `DATABASE_URL`, then SQLite)_ | Postgres URL. Checked first; `DATABASE_URL` (auto-set by Render/Heroku) is the fallback. |
 | `DATABASE_URL` | `sqlite:///./myna.db` | Postgres URL supplied by hosting platform, or a manual override. |
+| `EXA_API_KEY` | _(empty)_ | Web search grounding (`app/web_search.py`) — for trending / weather suggestions later. Falls back to keyless DuckDuckGo. |
 | `MYNA_TIMEZONE` | `Asia/Kolkata` | Timezone that thela round timings are read in. |
 | `UPLOAD_DIR` | `./uploads` | Where photos are stored. Swap for Cloudinary/Supabase in production. |
 
@@ -143,6 +144,8 @@ app/
                      + read_food_board / read_food_boards / merge_boards
   embeddings.py      Local (or Gemini) embeddings for menu items
   vision_check.py    Generates a test board and checks a model really reads it
+  web_search.py      Exa/DuckDuckGo grounding — unused today, kept for planned
+                     trending + weather-based suggestions (tested, not dead)
   storage.py         Image upload saving
   routers/
     food.py          Add, near, seen votes, reports, menu items, reference data
@@ -168,6 +171,15 @@ One-click deploy using the included `render.yaml` blueprint:
 > - Uploads go to the app's local `uploads/` folder, which **resets on every redeploy** (no persistent disk on free plan). Fine for a pilot; attach a disk or switch to Cloudinary/Supabase when you need permanence.
 > - The free Postgres DB expires after **90 days** — upgrade to a paid tier to keep it.
 > - Service **sleeps after ~15 min idle**; first request takes ~30 s to wake up.
+
+## Planned, not built
+
+`app/web_search.py` is in the tree with nothing calling it yet. It's kept deliberately for two features the model can't do from its own knowledge:
+
+- **Trending** — what people are actually eating this week, so the home screen leads with that instead of a fixed chip list.
+- **Weather-based suggestions** — barish me pakode aur chai, garmi me shikanji aur lassi.
+
+An uncalled module is one that rots silently, so its result-shaping is covered in `test_smoke.py` against faked Exa and DuckDuckGo backends — no network, no API key needed. Both features are still unbuilt; the plumbing is just ready for them.
 
 ## Known limitations
 

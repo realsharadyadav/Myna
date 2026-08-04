@@ -124,6 +124,73 @@ print("PASS vision reply parsing (json, fenced json, bullet lines, dedupe)")
 
 
 # ---------------------------------------------------------------------------
+# 3b. Web search grounding — kept for trending / weather suggestions
+# ---------------------------------------------------------------------------
+# Nothing calls this yet, which is exactly why it's tested: an unused module
+# with no coverage is one that silently stops working. Both backends are faked,
+# so this needs no network and no API key.
+from app import web_search as _ws
+
+
+class _FakeResp:
+    def __init__(self, payload): self._payload = payload
+    def raise_for_status(self): pass
+    def json(self): return self._payload
+
+
+class _FakeDDGS:
+    results = []
+    def __enter__(self): return self
+    def __exit__(self, *a): return False
+    def text(self, query, max_results=5): return self.results[:max_results]
+
+
+# Exa path: response shaped into {title, snippet, url}, whitespace kept as-is.
+_ws.EXA_API_KEY = "test-key"
+_orig_post = _ws.httpx.post
+_ws.httpx.post = lambda *a, **k: _FakeResp({"results": [
+    {"title": "Monsoon street food", "text": "  pakode aur chai  ", "url": "http://x/1"},
+    {"title": "No text field", "url": "http://x/2"},
+]})
+out = _ws.search("what is trending")
+assert [r["title"] for r in out] == ["Monsoon street food", "No text field"]
+assert out[0]["snippet"] == "pakode aur chai"      # stripped
+assert out[1]["snippet"] == ""                     # missing field, not a crash
+
+# A prompt block collapses whitespace, truncates, and drops empty snippets.
+_ws.httpx.post = lambda *a, **k: _FakeResp({"results": [
+    {"title": "t", "text": "garmi\n\n  me   lassi", "url": "u"},
+    {"title": "empty", "text": "   ", "url": "u"},
+    {"title": "long", "text": "x" * 900, "url": "u"},
+]})
+block_text = _ws.context_block("weather food")
+lines = block_text.split("\n")
+assert lines[0] == "- garmi me lassi", lines[0]     # whitespace collapsed
+assert len(lines) == 2                              # blank snippet dropped
+assert len(lines[1]) == 2 + _ws._SNIPPET_CHARS      # truncated
+
+# Exa failing falls through to DuckDuckGo rather than surfacing an error.
+_ws.httpx.post = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("exa down"))
+_FakeDDGS.results = [{"title": "ddg hit", "body": "momos", "href": "http://d/1"}]
+_ws_ddgs_module = type("m", (), {"DDGS": _FakeDDGS})
+import sys as _sys
+_sys.modules["ddgs"] = _ws_ddgs_module
+assert _ws.search("anything") == [
+    {"title": "ddg hit", "snippet": "momos", "url": "http://d/1"}]
+
+# Both backends dead: [] and no exception — callers treat this as optional.
+_FakeDDGS.results = []
+assert _ws.search("anything") == []
+assert _ws.context_block("anything") == ""
+# No key at all skips Exa entirely.
+_ws.EXA_API_KEY = ""
+assert _ws.search("anything") == []
+_ws.httpx.post = _orig_post
+del _sys.modules["ddgs"]
+print("PASS web search grounding (exa, ddg fallback, prompt block, failure)")
+
+
+# ---------------------------------------------------------------------------
 # 4. Food app: one-photo add, "paas me kya hai", freshness votes
 # ---------------------------------------------------------------------------
 from app import ai as _ai, food as _food
