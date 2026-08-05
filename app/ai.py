@@ -1,11 +1,11 @@
 import base64
-import io
 import json
 import re
 from pathlib import Path
 
 import httpx
 
+from . import images
 from .config import (
     ANTHROPIC_API_KEY,
     GROQ_API_KEY,
@@ -45,15 +45,6 @@ _ITEMS_PROMPT = (
     "- If the photo has no products at all, reply with []."
 )
 
-# Phone photos run 2-5 MB, and Anthropic rejects a request whose base64 image
-# is over 5 MB outright — which used to surface as a bare "no suggestion".
-# Nothing is gained above ~1568px on the long edge for any of these models
-# either, so every image is re-encoded down before it goes out: fewer failures,
-# faster replies, smaller bills.
-_MAX_EDGE = 1568
-_JPEG_QUALITY = 82
-
-
 def _image_to_b64(image_path: str) -> tuple[str, str]:
     suffix = Path(image_path).suffix.lower()
     media_type = {
@@ -64,34 +55,13 @@ def _image_to_b64(image_path: str) -> tuple[str, str]:
         ".gif": "image/gif",
     }.get(suffix, "image/jpeg")
     raw = Path(image_path).read_bytes()
-    shrunk = _downscale(raw)
+    # Phone photos run 2-5 MB and Anthropic rejects a base64 image over 5 MB
+    # outright, which used to surface as a bare "no suggestion". See
+    # app/images.py for why the size cap is what it is.
+    shrunk = images.for_ai(raw)
     if shrunk is not None:
         raw, media_type = shrunk, "image/jpeg"
     return base64.standard_b64encode(raw).decode("utf-8"), media_type
-
-
-def _downscale(raw: bytes) -> bytes | None:
-    """Re-encode an image down to _MAX_EDGE as JPEG. None if it can't be read.
-
-    Also strips EXIF while honouring its orientation flag, so a portrait phone
-    photo doesn't reach the model rotated 90°.
-    """
-    try:
-        from PIL import Image, ImageOps
-    except ImportError:
-        return None
-    try:
-        img = Image.open(io.BytesIO(raw))
-        img = ImageOps.exif_transpose(img)
-        if img.mode not in ("RGB", "L"):
-            img = img.convert("RGB")
-        if max(img.size) > _MAX_EDGE:
-            img.thumbnail((_MAX_EDGE, _MAX_EDGE), Image.LANCZOS)
-        buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=_JPEG_QUALITY, optimize=True)
-        return buf.getvalue()
-    except Exception:
-        return None
 
 
 # Model families that are known to accept images. Anything not matched here is

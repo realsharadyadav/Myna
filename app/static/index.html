@@ -130,6 +130,8 @@
   .btn.wide { width: 100%; text-align: center; padding: .95rem; font-size: 1.05rem; }
   .btn:disabled { opacity: .5; }
   .btn.tiny { padding: .4rem .7rem; font-size: .82rem; font-weight: 500; }
+  .addmore { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin-bottom: .5rem; }
+  .addmore .btn { width: 100%; text-align: center; }
   /* Inline icon that inherits text colour and size — an emoji compass points
      at magnetic north, which is not what "directions to here" means. */
   .ic { width: 1em; height: 1em; fill: currentColor; vertical-align: -0.12em;
@@ -236,11 +238,19 @@
       <p class="sub"><b>Pehli photo board ki lo</b> — naam wahin se aata hai. Uske baad
         jitni chaaho: menu ka rate list, tawa, jo bhi ban raha hai. Sabko mila ke
         ek listing banayenge.</p>
+      <!-- Two inputs, not one. `capture` is what opens the camera directly on a
+           phone, and there is no way to say "camera, but let them pick the
+           gallery too" — the attribute skips the picker entirely. This screen
+           used to have it set and still told people they could choose from the
+           gallery, which was simply untrue on a phone. Someone who photographed
+           a thela on the way home has to be able to add it later. -->
       <input type="file" id="file" accept="image/*" capture="environment" multiple hidden>
+      <input type="file" id="pick" accept="image/*" multiple hidden>
       <div class="drop" id="drop">
         <b>📷 Photo kheencho</b>
-        Ya gallery se choose karo
+        Board saamne se, taaki naam padha ja sake
       </div>
+      <button class="btn wide" id="gallery" style="margin-top:.5rem">🖼️ Gallery se choose karo</button>
       <p class="note" id="gps">📍 Location le rahe hain…</p>
       <p class="note">📵 Dukaandaar ka phone number mat daalo — unki marzi ke bina number
         public nahi karte. Wo khud apni jagah claim karke daal sakte hain.</p>
@@ -250,7 +260,10 @@
     <div id="addStep2" hidden>
       <div class="shots" id="shots"></div>
       <p class="note" id="shotHint"></p>
-      <button class="btn wide" id="morePhotos" style="margin-bottom:.5rem">+ Ek aur photo</button>
+      <div class="addmore">
+        <button class="btn" id="morePhotos">📷 Ek aur photo</button>
+        <button class="btn" id="moreGallery">🖼️ Gallery se</button>
+      </div>
 
       <!-- These live here, not on the photo screen: you only find out the board
            was unreadable after submitting from here, and the error tells you to
@@ -609,18 +622,65 @@ $("closeAdd").addEventListener("click", () => { $("addSheet").hidden = true; });
 $("doneAdd").addEventListener("click", () => { $("addSheet").hidden = true; load(); });
 $("drop").addEventListener("click", () => $("file").click());
 $("morePhotos").addEventListener("click", () => $("file").click());
+$("gallery").addEventListener("click", () => $("pick").click());
+$("moreGallery").addEventListener("click", () => $("pick").click());
 
 // Every extra photo is another vision call, so this matches the server's cap.
 const MAX_PHOTOS = 5;
 
+// Shrink before uploading, not after. A phone camera produces 3-5 MB per shot
+// and five of those on a 4G uplink is the slowest part of adding a jagah by a
+// wide margin — long enough that people assume it hung and close the sheet.
+// 1600px is past what the vision model uses (see app/images.py), so nothing is
+// lost by not sending the rest. The server shrinks again regardless; this is
+// about the wait, not about trusting the client.
+const UPLOAD_MAX_EDGE = 1600;
+const UPLOAD_QUALITY = 0.82;
+
+async function shrink(file) {
+  if (!file.type.startsWith("image/")) return file;
+  try {
+    // from-image applies the EXIF rotation flag rather than dropping it — a
+    // portrait phone photo is stored sideways with a "turn me" note attached,
+    // and a canvas that ignores the note bakes in the wrong orientation.
+    const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
+    const scale = Math.min(1, UPLOAD_MAX_EDGE / Math.max(bmp.width, bmp.height));
+    if (scale === 1 && file.size < 900 * 1024) { bmp.close(); return file; }
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bmp.width * scale);
+    canvas.height = Math.round(bmp.height * scale);
+    canvas.getContext("2d").drawImage(bmp, 0, 0, canvas.width, canvas.height);
+    bmp.close();
+    const blob = await new Promise((r) => canvas.toBlob(r, "image/jpeg", UPLOAD_QUALITY));
+    // Only take the re-encode if it actually helped. A small or already-
+    // compressed photo can come out bigger, and shipping the larger one to
+    // save a step would be the opposite of the point.
+    if (!blob || blob.size >= file.size) return file;
+    return new File([blob], file.name.replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" });
+  } catch {
+    // Old browser, odd codec, out of memory on a big HEIC — upload the
+    // original. Slower, but it still works, and the server shrinks it anyway.
+    return file;
+  }
+}
+
+// Object URLs are held until the document unloads, and shrinking re-renders
+// the strip a second time — so release the previous batch on every render
+// rather than leaking a few MB per jagah added.
+let shotUrls = [];
+
 function renderShots() {
+  shotUrls.forEach(URL.revokeObjectURL);
+  shotUrls = files.map((f) => URL.createObjectURL(f));
   $("shots").innerHTML = files.map((f, i) => `
     <div class="shot">
-      <img src="${URL.createObjectURL(f)}" alt="">
+      <img src="${shotUrls[i]}" alt="">
       <button class="rm" data-i="${i}" aria-label="Hatao">&times;</button>
       <span class="tag">${i === 0 ? "Board" : `Photo ${i + 1}`}</span>
     </div>`).join("");
-  $("morePhotos").hidden = files.length >= MAX_PHOTOS;
+  const full = files.length >= MAX_PHOTOS;
+  $("morePhotos").hidden = full;
+  $("moreGallery").hidden = full;
   $("shotHint").textContent = files.length === 1
     ? "Menu ka rate list ya tawa ki ek aur photo lo to zyada info mil jayegi."
     : `${files.length} photos — sabko mila ke ek listing banegi.`;
@@ -634,16 +694,34 @@ $("shots").addEventListener("click", (e) => {
   renderShots();
 });
 
-$("file").addEventListener("change", (e) => {
-  files = [...files, ...e.target.files].slice(0, MAX_PHOTOS);
+async function onPicked(e) {
+  const picked = [...e.target.files].slice(0, MAX_PHOTOS - files.length);
   // Clear the input, otherwise picking the same file twice fires no change
   // event and the "+ ek aur photo" button silently does nothing.
   e.target.value = "";
-  if (!files.length) return;
+  if (!picked.length) return;
+
+  // Shrinking a 12 MP photo takes a moment on a cheap phone, and doing it to
+  // five in a row is long enough to look frozen. Move to the review screen
+  // first so there is something on screen while it happens.
   $("addErr2").hidden = true;
-  renderShots();
   showStep(2);
-});
+  files = [...files, ...picked].slice(0, MAX_PHOTOS);
+  renderShots();
+  $("shotHint").textContent = "Photo taiyaar kar rahe hain…";
+
+  const ready = await Promise.all(picked.map(shrink));
+  // Splice the shrunk versions in place. Someone may have removed a photo
+  // while this ran, so match by identity rather than by index.
+  picked.forEach((original, i) => {
+    const at = files.indexOf(original);
+    if (at !== -1) files[at] = ready[i];
+  });
+  renderShots();
+}
+
+$("file").addEventListener("change", onPicked);
+$("pick").addEventListener("change", onPicked);
 
 $("submitAdd").addEventListener("click", async () => {
   const p = await ensureLocation();

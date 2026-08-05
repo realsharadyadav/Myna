@@ -24,6 +24,7 @@ from pathlib import Path
 import httpx
 from fastapi import UploadFile
 
+from . import images
 from .config import (
     CLOUDINARY_API_KEY,
     CLOUDINARY_API_SECRET,
@@ -74,30 +75,43 @@ def discard(path: str) -> None:
 
 
 def publish(path: str) -> str:
-    """Copy a temp photo to permanent storage and return its public URL.
+    """Store a temp photo permanently and return its public URL.
 
-    Returns "" if it couldn't be stored anywhere — the caller then saves a
+    Shrunk on the way in. The browser already does this before uploading, but
+    a client that skips it — an old phone, a direct API call — must not be able
+    to put a 5 MB original into storage: it would be paid for on every list
+    view, on the viewer's mobile data.
+
+    Returns "" if it couldn't be stored anywhere. The caller then saves a
     listing with no photo, which is a much better outcome than a card pointing
     at a URL that 404s.
     """
     source = Path(path)
     if not source.exists():
         return ""
+    try:
+        raw = source.read_bytes()
+    except OSError:
+        return ""
+    # None means the bytes wouldn't decode — store what we were given rather
+    # than dropping the photo over it.
+    raw = images.for_storage(raw) or raw
+
     if remote_configured():
-        url = _upload_to_cloudinary(source)
+        url = _upload_to_cloudinary(raw)
         if url:
             return url
         # Falling through to local disk would produce a URL that works today
         # and 404s after the next deploy. No photo is the honest answer.
         return ""
-    return _copy_to_upload_dir(source)
+    return _write_to_upload_dir(raw)
 
 
-def _copy_to_upload_dir(source: Path) -> str:
+def _write_to_upload_dir(raw: bytes) -> str:
     """Dev fallback: keep it on local disk, served by the /uploads mount."""
     try:
-        dest = UPLOAD_DIR / f"{uuid.uuid4().hex}{source.suffix}"
-        dest.write_bytes(source.read_bytes())
+        dest = UPLOAD_DIR / f"{uuid.uuid4().hex}.jpg"
+        dest.write_bytes(raw)
         return f"/uploads/{dest.name}"
     except OSError:
         return ""
@@ -109,7 +123,7 @@ def _signature(params: dict[str, str]) -> str:
     return hashlib.sha1((payload + CLOUDINARY_API_SECRET).encode()).hexdigest()
 
 
-def _upload_to_cloudinary(source: Path) -> str:
+def _upload_to_cloudinary(raw: bytes) -> str:
     signed = {"folder": CLOUDINARY_FOLDER, "timestamp": str(int(time.time()))}
     data = {
         **signed,
@@ -118,13 +132,12 @@ def _upload_to_cloudinary(source: Path) -> str:
     }
     url = f"https://api.cloudinary.com/v1_1/{CLOUDINARY_CLOUD_NAME}/image/upload"
     try:
-        with source.open("rb") as handle:
-            response = httpx.post(
-                url,
-                data=data,
-                files={"file": (source.name, handle)},
-                timeout=_UPLOAD_TIMEOUT,
-            )
+        response = httpx.post(
+            url,
+            data=data,
+            files={"file": (f"{uuid.uuid4().hex}.jpg", raw, "image/jpeg")},
+            timeout=_UPLOAD_TIMEOUT,
+        )
         response.raise_for_status()
         return response.json().get("secure_url", "")
     except (httpx.HTTPError, ValueError, KeyError):

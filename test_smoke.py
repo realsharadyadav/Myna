@@ -794,6 +794,23 @@ page = INDEX_HTML
 assert 'id="fab"' in page and "/api/food/near" in page and "/api/food/add" in page
 assert "Kya khaana hai?" in page and "Abhi hai ✓" in page
 assert "/report" in page and 'class="flag"' in page and "Kyun nahi mila?" in page
+
+# Adding a jagah must work from the gallery, not only from the live camera.
+# `capture` skips the picker entirely on a phone, so a single input carrying it
+# makes the gallery unreachable — which it was, while the screen said otherwise.
+# Someone who photographed a thela on the way home has to be able to add it.
+assert 'id="pick"' in page and 'id="gallery"' in page and 'id="moreGallery"' in page
+_cam = page[page.index('id="file"') - 60:page.index('id="file"') + 80]
+assert 'capture="environment"' in _cam, _cam
+_pick = page[page.index('id="pick"') - 30:page.index('id="pick"') + 80]
+assert "capture" not in _pick, _pick
+# Both routes feed the same handler, so a gallery photo goes through the same
+# shrink and the same review screen as a camera one.
+assert page.count('addEventListener("change", onPicked)') == 2
+# Shrunk in the browser before upload: five 4 MB photos over a 4G uplink is
+# long enough that people assume the app hung.
+assert "createImageBitmap" in page and 'imageOrientation: "from-image"' in page
+assert "UPLOAD_MAX_EDGE" in page and "toBlob" in page
 print("PASS food reference data + UI")
 
 # ---------------------------------------------------------------------------
@@ -922,6 +939,73 @@ finally:
 
 _store.CLOUDINARY_CLOUD_NAME = _store.CLOUDINARY_API_KEY = _store.CLOUDINARY_API_SECRET = ""
 print("PASS photos: temp files stay private, kept photos go to object storage")
+
+# 48f-1. Shrinking. A phone hands over 3-5 MB; the card shows it a few hundred
+# pixels wide, so storing the original is bandwidth nobody asked for — paid on
+# the viewer's mobile data, every time the list loads.
+from PIL import Image as _PILImage
+from app import images as _images
+
+
+def _photo(w, h, fmt="JPEG", exif=None):
+    buf = io.BytesIO()
+    img = _PILImage.new("RGB", (w, h), (200, 120, 60))
+    # Some texture, otherwise a flat image compresses to almost nothing and the
+    # size comparisons below stop meaning anything.
+    for x in range(0, w, 7):
+        for y in range(0, h, 11):
+            img.putpixel((x, y), ((x * 7) % 255, (y * 3) % 255, (x + y) % 255))
+    img.save(buf, format=fmt, quality=100, **({"exif": exif} if exif else {}))
+    return buf.getvalue()
+
+
+big = _photo(3000, 2000)
+for_ai = _images.for_ai(big)
+assert _PILImage.open(io.BytesIO(for_ai)).size == (1568, 1045), _PILImage.open(io.BytesIO(for_ai)).size
+for_store = _images.for_storage(big)
+assert max(_PILImage.open(io.BytesIO(for_store)).size) == 1280
+assert len(for_store) < len(big) / 4, (len(for_store), len(big))
+# The stored copy is the smaller of the two — it's for display, not for reading
+# text off a signboard.
+assert len(for_store) < len(for_ai)
+
+# A photo already under the cap keeps its dimensions; only the encoding changes.
+small = _photo(640, 480)
+assert _PILImage.open(io.BytesIO(_images.for_storage(small))).size == (640, 480)
+
+# PNG and other modes come out as JPEG, so what's stored is predictable.
+assert _images.for_storage(_photo(900, 700, fmt="PNG"))[:2] == b"\xff\xd8"
+
+# Garbage in, None out — the caller stores the original rather than dropping a
+# photo because a decoder was fussy.
+assert _images.for_storage(b"not an image at all") is None
+assert _images.for_ai(b"") is None
+
+# EXIF orientation is applied, not discarded. A portrait phone photo is stored
+# landscape with a "rotate me" flag; re-encoding without honouring it delivers
+# a sideways board — harder for the model to read and wrong on the card.
+_exif = _PILImage.Exif()
+_exif[274] = 6                       # Orientation: rotate 90° CW
+rotated = _images.for_storage(_photo(800, 400, exif=_exif.tobytes()))
+assert _PILImage.open(io.BytesIO(rotated)).size == (400, 800), "EXIF rotation not applied"
+# And the flag itself is gone afterwards, along with any GPS tags the phone
+# embedded — those aren't ours to publish.
+assert not _PILImage.open(io.BytesIO(rotated)).getexif().get(274)
+
+# 48f-1b. publish() shrinks on the way in, so a client that skips its own
+# resize still can't put an original into storage.
+huge_src = _store.save_temp(_FakeUpload("huge.jpg", big))
+huge_url = _store.publish(huge_src)
+stored_bytes = (_UPLOAD_DIR / _Path(huge_url).name).read_bytes()
+assert max(_PILImage.open(io.BytesIO(stored_bytes)).size) == 1280
+assert len(stored_bytes) < len(big) / 4
+_store.discard(huge_src)
+# But the temp file the vision model reads is untouched at this stage — ai.py
+# shrinks it for the request; storage must not pre-degrade what gets read.
+untouched = _store.save_temp(_FakeUpload("board.jpg", big))
+assert _Path(untouched).read_bytes() == big
+_store.discard(untouched)
+print("PASS photos are shrunk before storing, EXIF rotation applied and stripped")
 
 # 48f-2. The add flow end to end with retention on. Five photos in, one photo
 # kept, four temp files gone — the earlier bug was the opposite of every part

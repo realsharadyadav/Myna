@@ -52,6 +52,10 @@ Photos → GPS → listed. `ai.read_food_board` gets `{name, kind, items:[{name,
 - **items** — the union, deduped by name. A duplicate dish keeps whichever copy carries a price, so the close-up's ₹40 survives the wide shot's priceless entry.
 - One unreadable shot among several isn't a failure — it's the reason someone took more than one. An error comes back only when *nothing* was read from *any* photo.
 
+**Camera or gallery.** Both buttons are on the add screen and both feed the same review step. They need separate `<input>`s: `capture="environment"` is what opens the camera directly, and it *skips the picker entirely* — so a single input carrying it makes the gallery unreachable, which is what used to happen while the screen said "ya gallery se choose karo". Someone who photographed a thela on the way home has to be able to add it when they get there.
+
+**Photos are shrunk twice, for two different reasons.** The browser re-encodes to 1600px before uploading — five 4 MB photos over a 4G uplink is the slowest part of adding a jagah, long enough that people assume it hung and close the sheet. The server shrinks again in `app/images.py`: 1568px for the model (past which it reads nothing extra, and Anthropic rejects a base64 image over 5 MB outright) and 1280px for the copy that gets stored, since the card shows it a few hundred pixels wide and the rest is bandwidth on the viewer's mobile data. A real 3000×2000 phone photo lands at **55 KB stored, from 2.8 MB** — and the client-side pass alone cuts the upload 15×. EXIF orientation is applied and then stripped: a portrait photo carries its rotation as a flag rather than in the pixels, so re-encoding without honouring it delivers a sideways board. Stripping the rest also drops the GPS tags phones embed, which aren't ours to publish.
+
 Capped at **5 photos** (`MAX_PHOTOS`): every extra one is another vision call, and five is well past the point where a thela has anything new to show. Only the first photo is kept when image retention is on — it's the one shown on the card; the rest were read for their text and have done their job.
 
 Everything else is optional and behind a disclosure on the review screen: a typed name if the board was unreadable, the vendor kind, and timings for a cart that moves (`day + start + end`, which creates a round via the existing stops model). Those fields sit on the review screen and not the camera screen deliberately — you only find out the board was unreadable *after* submitting, and the error tells you to type a name, so the name field has to be reachable from where the error appears. A partial read still lists the vendor — throwing away a read menu to demand a retake is exactly the friction this flow removes.
@@ -178,6 +182,7 @@ app/
   vision_check.py    Generates a test board and checks a model really reads it
   web_search.py      Exa/DuckDuckGo grounding — unused today, kept for planned
                      trending + weather-based suggestions (tested, not dead)
+  images.py          Downscaling: one size for the model, a smaller one to store
   storage.py         Temp files for the vision read; Cloudinary for kept photos
   routers/
     food.py          Add, near, seen votes, reports, menu items, reference data
