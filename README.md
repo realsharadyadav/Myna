@@ -4,6 +4,8 @@
 
 Myna answers one question: **what street food can I get near me, right now?** Zomato and Swiggy list restaurants. Nobody lists the momos cart outside the market gate, the chai tapri by the station, or the golgappe wala who parks in Gali 4 every evening — which is most of what India actually eats.
 
+**Nothing gets delivered, and that is the product.** A thela has no kitchen to pack from and no rider to hand to; the food is worth eating because you eat it standing there, hot, five minutes from where you were. So the app says it out loud on the home screen rather than looking like a delivery app with a broken cart — *"Delivery nahi hai — aur wahi baat hai."* Every screen is built around walking there: the primary button on a card is **Raasta dekho**, and the number that replaces "30 min delivery" is how long it takes on foot.
+
 Three decisions hold the app together, and each one exists to kill a specific reason hyperlocal directories die:
 
 | Decision | The failure it avoids |
@@ -32,12 +34,25 @@ The backend serves no HTML. That's deliberate: it means there is exactly one way
 
 ### Home — "Kya khaana hai?"
 
-GPS, a search box, and cards. Each card is a jagah: kind icon, distance, what's on the menu with prices, when it's there, how recently someone confirmed it, and one tap to Directions.
+GPS, a search box, and cards. Each card is a jagah: photo, name, what's on the menu with prices, how far it is, when it's there, how recently someone confirmed it, and one tap to Directions.
+
+**The card borrows a grammar people already know** — photo on top, name and score on one line, cost and distance under it — and that is the point rather than a shortcut. Everyone opening this has used a delivery app; spending the familiar layout on the familiar parts means the one thing that *is* different has the screen to itself:
+
+| Delivery app | Myna | Why |
+|---|---|---|
+| ⭐ 4.2 rating | 👍 **12** | Stars would be invented. The only real signal a thela has is how many people standing in front of it said it was there — so the card shows that number and calls it nothing else. A listing nobody has confirmed says **Naya**, not three stars. |
+| ₹400 for two | **₹20–60** | Read off the board, never guessed. A thela's real question is how much change to carry. |
+| 30 min delivery | 🚶 **7 min paidal** | The same promise in the unit this app deals in. Walking pace below 2 km, city traffic beyond it. |
+| **Order now** | **Raasta dekho** | There is nothing to order. The primary button is the walk, and the line under it says so: *khud jaake lena hai*. |
+
+Most listings have no photo — image retention is off by default — so the fallback had to be designed rather than left to fail. A photo-less card gets a warm tinted panel with the vendor kind's emoji, no scrim, and its label in normal ink; a grey box with a broken-image icon reads as a bug, and a scrim over nothing just draws a grey band. It's also shorter than a real photo: a 16:9 slab of empty pushes the name and the price — the parts anyone is actually reading — off the first screen.
 
 - **Search a dish** — "momos", "chai", "chole bhature". Matches the menu, the jagah's name and its kind together, so a cart called *Momo Point* that never listed an item still turns up.
 - **Several dishes at once** — "momos aur chawmin" returns two jagah, each shown for its own word: the momos cart for "momos", the chowmein cart for "chawmin". Matches are reported per *typed* word, so a card can say why it's there.
 - **Ranking is "what can I eat right now"** — open beats closed, a doubtful listing sinks, and only then does distance decide. Sorting purely by distance would put a Sunday-only cart above one standing at the corner.
-- **Filters** — "Abhi khula 🔥" and a radius that cycles 3 → 10 → 1 km. A thela is a walk, not a drive.
+- **A rail of dishes before the search box has been touched** — most people don't arrive with a dish in mind, they arrive hungry. A row of tappable food beats an empty field that asks you to already know what you want.
+- **Filters** — "Abhi khula 🔥", "₹50 se kam", "Aaj dekha ✓". The last two narrow client-side over fields the card already carries, so they cost no round-trip and leave the server's ranking — which decides the order — untouched.
+- **The radius widens by itself.** It used to be a three-state button cycling 3 → 10 → 1 km, which asked people to guess how far away food is *before* they had seen any. Now the search climbs 2 → 6 → 15 km until something turns up and then says how far it went. The answer to "kuch nahi mila" is almost always "look further", and there is no reason to charge a tap for it. The common case is still one request: the loop stops at the first rung with results.
 - **Theme** — follows the phone, with a toggle that overrides it, shared with the owner panel through one `myna_theme` key. The override needs its own CSS rule rather than only a media query: an attribute set later can't beat `@media (prefers-color-scheme: dark)`, so a phone in dark mode ignored an explicit "light" entirely.
 - Hinglish in Roman script throughout — it's how the food is named out loud, it needs no font support on a cheap phone, and it's what people type.
 
@@ -52,7 +67,9 @@ Photos → GPS → listed. `ai.read_food_board` gets `{name, kind, items:[{name,
 - **items** — the union, deduped by name. A duplicate dish keeps whichever copy carries a price, so the close-up's ₹40 survives the wide shot's priceless entry.
 - One unreadable shot among several isn't a failure — it's the reason someone took more than one. An error comes back only when *nothing* was read from *any* photo.
 
-**Camera or gallery.** Both buttons are on the add screen and both feed the same review step. They need separate `<input>`s: `capture="environment"` is what opens the camera directly, and it *skips the picker entirely* — so a single input carrying it makes the gallery unreachable, which is what used to happen while the screen said "ya gallery se choose karo". Someone who photographed a thela on the way home has to be able to add it when they get there.
+**Camera or gallery.** Both feed the same review step, and they need separate `<input>`s: `capture="environment"` is what opens the camera directly, and it *skips the picker entirely* — so a single input carrying it makes the gallery unreachable, which is what used to happen while the screen said "ya gallery se choose karo". Someone who photographed a thela on the way home has to be able to add it when they get there.
+
+Two inputs, but not two equal buttons. The camera is a full-width tile and the gallery is a plain underlined line beneath it, because the camera is the path almost everyone takes and the gallery matters to the one person who shot the thela an hour ago. On the review screen they collapse into a single **+ Ek aur photo** that opens the picker: whether the next shot comes from the camera or the roll is the phone's question to ask, not a choice worth a second button.
 
 **Photos are shrunk twice, for two different reasons.** The browser re-encodes to 1600px before uploading — five 4 MB photos over a 4G uplink is the slowest part of adding a jagah, long enough that people assume it hung and close the sheet. The server shrinks again in `app/images.py`: 1568px for the model (past which it reads nothing extra, and Anthropic rejects a base64 image over 5 MB outright) and 1280px for the copy that gets stored, since the card shows it a few hundred pixels wide and the rest is bandwidth on the viewer's mobile data. A real 3000×2000 phone photo lands at **55 KB stored, from 2.8 MB** — and the client-side pass alone cuts the upload 15×. EXIF orientation is applied and then stripped: a portrait photo carries its rotation as a flag rather than in the pixels, so re-encoding without honouring it delivers a sideways board. Stripping the rest also drops the GPS tags phones embed, which aren't ours to publish.
 
@@ -128,7 +145,7 @@ Hiding is reversible and **never deletes**. Flagged listings go to the **Reports
 
 ## Pages
 
-Four screens, and the owner panel's dashboard links to all of them. The food app carries a small **Owner panel** link in its header.
+Four screens, and the owner panel's dashboard links to all of them. The food app carries a small **Owner panel** link in its footer — it used to sit in the header, next to the search box, where a hundred percent of customers had to look past a control none of them would ever use.
 
 | Path | Where | What it is |
 |---|---|---|

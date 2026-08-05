@@ -811,7 +811,61 @@ assert page.count('addEventListener("change", onPicked)') == 2
 # long enough that people assume the app hung.
 assert "createImageBitmap" in page and 'imageOrientation: "from-image"' in page
 assert "UPLOAD_MAX_EDGE" in page and "toBlob" in page
-print("PASS food reference data + UI")
+
+# The whole app is one inline <script>, so a single syntax error takes the page
+# down to a blank screen with nothing in the UI to hint at it. A stray unquoted
+# key in an object literal ("Pav bhaji: …") did exactly that, and no assertion
+# about the page's text could have caught it — only parsing the script can.
+import shutil as _shutil
+import subprocess as _subprocess
+
+_node = _shutil.which("node")
+if _node:
+    _script = page[page.rindex("<script>") + len("<script>"):page.rindex("</script>")]
+    _syntax = _subprocess.run([_node, "--check", "-"], input=_script,
+                              capture_output=True, text=True)
+    assert _syntax.returncode == 0, _syntax.stderr
+    _admin_script = ADMIN_HTML[ADMIN_HTML.rindex("<script>") + len("<script>"):
+                               ADMIN_HTML.rindex("</script>")]
+    _syntax = _subprocess.run([_node, "--check", "-"], input=_admin_script,
+                              capture_output=True, text=True)
+    assert _syntax.returncode == 0, _syntax.stderr
+print("PASS food reference data + UI (script parses)")
+
+# ---------------------------------------------------------------------------
+# 47b. The listing card: shaped like a food app, minus the order button
+# ---------------------------------------------------------------------------
+# The layout borrows a grammar people already know — photo, name, score,
+# cost, distance — precisely so the one thing that *is* different stands out.
+# There is no delivery, so the primary action is the walk.
+assert "Raasta dekho" in page and "khud jaake lena hai" in page
+# Stated as the reason the app exists, not as a missing feature.
+assert "Delivery nahi hai" in page
+# A delivery app's headline number is minutes to your door; the honest version
+# here is minutes on your feet. Walking below 2 km, city traffic beyond it.
+assert "travelText" in page and "min paidal" in page and "min gaadi se" in page
+# Stars would be invented. The only real signal is how many people standing in
+# front of the cart said it was there.
+assert "scoreHtml" in page and "seen_yes" in page and "★" not in page
+# Photos are served by the API host, which on the split deploy is a different
+# origin — a bare "/uploads/x.jpg" resolves against the static site and 404s.
+assert "photoSrc" in page and "API + url" in page
+# Retention is off by default, so most cards have no photo. The fallback has to
+# read as a chosen style, which means no scrim to darken and no white text.
+assert ".hero.noimg" in page and "noimg" in page
+
+# The radius used to be a three-state button cycling 3 → 10 → 1, which asked
+# people to guess how far away food is before they had seen any. It widens by
+# itself now and reports how far it went.
+assert "RADIUS_LADDER" in page and 'id="radius"' not in page
+
+# A generic `.field` wrapper around the search box collided with the add form's
+# `.field input` rule — same specificity, later rule won, and the search input
+# silently lost its left padding so the icon sat under the placeholder.
+assert 'class="sfield"' in page
+_search_block = page[page.index('<div class="searchbar">'):page.index("</header>")]
+assert 'class="field"' not in _search_block
+print("PASS card layout, walk time, auto-radius, search box")
 
 # ---------------------------------------------------------------------------
 # 48. Photo storage: a kept photo has to outlive the deploy that made it

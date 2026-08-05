@@ -9,19 +9,27 @@
 <style>
   /* One screen at a time, thumb-reachable controls, and text big enough to
      read standing on a footpath. Everything is sized in rem off a 16px root so
-     it scales with the phone's own font setting. */
+     it scales with the phone's own font setting.
+
+     The card is deliberately shaped like the food apps people already use —
+     photo on top, name and score on one line, cost and distance under it. That
+     grammar is already learned; spending it on a familiar layout means the one
+     thing that *is* different lands harder: there is no order button, because
+     there is no delivery. You walk. */
   :root {
     --bg: #ffffff;
     --card: #ffffff;
     --ink: #1a1a1a;
     --muted: #6b6b6b;
     --line: #ececec;
+    --sunk: #f6f6f6;
     --brand: #FFC400;
     --brand-ink: #1a1a1a;
     --ok: #1a8f4a;
     --warn: #c96a00;
     --bad: #c62828;
     --shadow: 0 1px 3px rgba(0,0,0,.08), 0 8px 24px rgba(0,0,0,.06);
+    --lift: 0 2px 6px rgba(0,0,0,.09), 0 14px 36px rgba(0,0,0,.09);
   }
   /* The OS preference is the default, but an explicit choice has to beat it in
      *both* directions — a phone in dark mode was ignoring "light" entirely,
@@ -29,137 +37,266 @@
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       --bg: #121212; --card: #1e1e1e; --ink: #f2f2f2; --muted: #a0a0a0;
-      --line: #2e2e2e; --shadow: 0 1px 3px rgba(0,0,0,.4);
+      --line: #2e2e2e; --sunk: #262626;
+      --shadow: 0 1px 3px rgba(0,0,0,.4); --lift: 0 8px 28px rgba(0,0,0,.5);
     }
   }
   :root[data-theme="dark"] {
     --bg: #121212; --card: #1e1e1e; --ink: #f2f2f2; --muted: #a0a0a0;
-    --line: #2e2e2e; --shadow: 0 1px 3px rgba(0,0,0,.4);
+    --line: #2e2e2e; --sunk: #262626;
+    --shadow: 0 1px 3px rgba(0,0,0,.4); --lift: 0 8px 28px rgba(0,0,0,.5);
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   body {
     margin: 0; background: var(--bg); color: var(--ink);
     font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    padding-bottom: 6rem;
+    padding-bottom: 6.5rem;
   }
   .wrap { max-width: 34rem; margin: 0 auto; padding: 0 1rem; }
 
-  header { padding: 1rem 0 .5rem; position: relative; }
-  /* Small and out of the way — customers never need it, but during a pilot
-     you're switching between the two constantly. */
-  .headlinks { position: absolute; top: .9rem; right: 0; display: flex; gap: .6rem;
-               align-items: center; }
-  .ownerlink { font-size: .78rem; color: var(--muted); text-decoration: none; }
-  .themebtn { background: none; border: none; padding: 0; cursor: pointer;
-              font-size: 1rem; line-height: 1; }
-  h1 { font-size: 1.35rem; margin: 0 0 .15rem; letter-spacing: -.02em; }
-  .sub { color: var(--muted); font-size: .9rem; margin: 0; }
+  /* ── App bar ──────────────────────────────────────────────────────────────
+     Location and search stay pinned. On a food app you re-search constantly —
+     scrolling back to the top to type is the single most annoying thing a
+     listing page can do. */
+  .appbar {
+    position: sticky; top: 0; z-index: 15; background: var(--bg);
+    border-bottom: 1px solid transparent; transition: border-color .2s;
+  }
+  .appbar.stuck { border-bottom-color: var(--line); box-shadow: 0 2px 12px rgba(0,0,0,.05); }
+  .barrow { display: flex; align-items: center; gap: .6rem; padding: .8rem 0 .2rem; }
+  .loc { min-width: 0; }
+  .loc .lbl { font-size: .72rem; color: var(--muted); text-transform: uppercase;
+              letter-spacing: .06em; font-weight: 700; }
+  .loc .val { font-size: 1.02rem; font-weight: 700; letter-spacing: -.01em;
+              white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .themebtn { margin-left: auto; background: var(--sunk); border: none; cursor: pointer;
+              font-size: 1rem; line-height: 1; width: 2.3rem; height: 2.3rem;
+              border-radius: 50%; flex: 0 0 auto; }
 
-  .searchbar { display: flex; gap: .5rem; margin: .85rem 0 .6rem; }
+  .searchbar { display: flex; gap: .5rem; padding: .5rem 0 .6rem; }
+  .searchbar .sfield { position: relative; flex: 1; }
+  /* An SVG rather than 🔍: an emoji's advance width is up to the platform font,
+     and on Android it rendered wide enough to sit under the placeholder. */
+  .searchbar .sfield svg {
+    position: absolute; left: 1rem; top: 50%; transform: translateY(-50%);
+    width: 1.05rem; height: 1.05rem; fill: var(--muted); opacity: .8;
+    pointer-events: none;
+  }
   .searchbar input {
-    flex: 1; padding: .85rem 1rem; font-size: 1rem; color: var(--ink);
+    width: 100%; padding: .9rem 1rem .9rem 2.85rem; font-size: 1rem; color: var(--ink);
     background: var(--card); border: 1.5px solid var(--line); border-radius: 999px;
+    box-shadow: var(--shadow);
   }
   .searchbar input:focus { outline: none; border-color: var(--brand); }
 
-  .chips { display: flex; gap: .45rem; overflow-x: auto; padding: .25rem 0 .6rem;
+  /* ── The one-line pitch ───────────────────────────────────────────────────
+     Not an apology for missing delivery — the reason the app exists. Everything
+     on a delivery app is 40 minutes away and packed in a box; this is the stuff
+     you eat standing up, hot, five minutes from here. */
+  .usp {
+    display: flex; align-items: center; gap: .55rem; margin: .1rem 0 .9rem;
+    padding: .6rem .85rem; border-radius: .85rem; font-size: .85rem;
+    background: linear-gradient(100deg, rgba(255,196,0,.22), rgba(255,196,0,.07));
+    border: 1px solid rgba(255,196,0,.35);
+  }
+  .usp b { font-weight: 700; }
+
+  /* ── Category rail ───────────────────────────────────────────────────────
+     Most people don't arrive with a dish in mind — they arrive hungry. A row of
+     things you can tap beats an empty search box that asks you to know. */
+  .sech { font-size: 1.05rem; font-weight: 750; letter-spacing: -.01em; margin: .2rem 0 .7rem; }
+  .rail { display: flex; gap: .9rem; overflow-x: auto; padding: .1rem .1rem 1rem;
+          scrollbar-width: none; scroll-snap-type: x proximity; }
+  .rail::-webkit-scrollbar { display: none; }
+  .tile {
+    flex: 0 0 auto; width: 4.1rem; background: none; border: none; padding: 0;
+    cursor: pointer; color: var(--ink); scroll-snap-align: start;
+  }
+  .tile .disc {
+    width: 3.5rem; height: 3.5rem; margin: 0 auto .35rem; border-radius: 50%;
+    display: grid; place-items: center; font-size: 1.6rem; background: var(--sunk);
+    border: 2px solid transparent; transition: transform .12s, border-color .12s;
+  }
+  .tile:active .disc { transform: scale(.93); }
+  .tile .cap { display: block; font-size: .72rem; line-height: 1.2; text-align: center;
+               color: var(--muted); overflow: hidden; text-overflow: ellipsis;
+               white-space: nowrap; }
+  .tile[aria-pressed="true"] .disc { border-color: var(--brand); background: rgba(255,196,0,.18); }
+  .tile[aria-pressed="true"] .cap { color: var(--ink); font-weight: 700; }
+
+  .chips { display: flex; gap: .45rem; overflow-x: auto; padding: 0 0 .5rem;
            scrollbar-width: none; }
   .chips::-webkit-scrollbar { display: none; }
   .chip {
-    flex: 0 0 auto; padding: .45rem .85rem; border-radius: 999px; font-size: .88rem;
+    flex: 0 0 auto; padding: .45rem .9rem; border-radius: 999px; font-size: .87rem;
     background: var(--card); border: 1.5px solid var(--line); color: var(--ink);
-    cursor: pointer;
+    cursor: pointer; font-weight: 600;
   }
   .chip[aria-pressed="true"] { background: var(--brand); border-color: var(--brand);
-                               color: var(--brand-ink); font-weight: 600; }
+                               color: var(--brand-ink); }
 
+  .count { font-size: .85rem; color: var(--muted); margin: .1rem 0 .7rem; }
+  .count b { color: var(--ink); }
+
+  /* ── Card ─────────────────────────────────────────────────────────────── */
   .card {
-    background: var(--card); border: 1px solid var(--line); border-radius: 1rem;
-    padding: .9rem 1rem; margin-bottom: .75rem; box-shadow: var(--shadow);
+    background: var(--card); border: 1px solid var(--line); border-radius: 1.1rem;
+    margin-bottom: 1rem; box-shadow: var(--shadow); overflow: hidden;
+    transition: box-shadow .18s, transform .18s;
   }
-  .card.doubtful { opacity: .6; }
-  .card-top { display: flex; gap: .7rem; align-items: flex-start; }
-  .emoji { font-size: 1.7rem; line-height: 1; }
-  .name { font-weight: 650; font-size: 1.05rem; margin: 0; }
-  .meta { color: var(--muted); font-size: .85rem; margin: .1rem 0 0; }
-  .dist-col { margin-left: auto; text-align: right; }
-  .dist { font-size: .85rem; color: var(--muted); white-space: nowrap; }
-  /* Reporting sits above the card, quiet and small — it should never compete
-     with the two vote buttons, which are what most people came to tap. */
-  .flag { background: none; border: none; color: var(--muted); cursor: pointer;
-          font-size: .95rem; padding: .3rem 0 0; line-height: 1; }
+  .card:hover { box-shadow: var(--lift); }
+  .card.doubtful { opacity: .55; }
 
-  .open { display: inline-block; font-size: .8rem; font-weight: 650; padding: .2rem .55rem;
-          border-radius: 999px; margin-top: .5rem; }
-  .open.now  { background: rgba(26,143,74,.14); color: var(--ok); }
-  .open.soon { background: rgba(201,106,0,.14); color: var(--warn); }
+  /* Retention is off by default, so most listings have no photo — the fallback
+     has to look intentional rather than broken. A warm tinted panel with the
+     kind's emoji reads as a chosen style; a grey box reads as a failed image.
+     The photo-less hero is also shorter: a 16:9 slab of nothing pushes the name
+     and the price — the parts someone is actually reading — off the screen. */
+  .hero { position: relative; aspect-ratio: 16/9; background: var(--sunk); }
+  .hero.noimg { aspect-ratio: 5/2;
+                background: linear-gradient(140deg, rgba(255,196,0,.20), rgba(255,196,0,.05)); }
+  .hero img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .hero .ph { width: 100%; height: 100%; display: grid; place-items: center;
+              font-size: 3rem; }
+  /* The scrim exists to keep white text readable over a photo. Over the tinted
+     panel there is nothing to darken, and it just draws a grey band — so the
+     label switches to normal ink instead. */
+  .hero .scrim { position: absolute; inset: auto 0 0 0; height: 55%;
+                 background: linear-gradient(transparent, rgba(0,0,0,.55)); }
+  .hero.noimg .scrim { display: none; }
+  .hero.noimg .bl { color: var(--ink); text-shadow: none; }
+  .hero.noimg .flag { background: rgba(127,127,127,.28); color: var(--ink); }
+  .hero .tl { position: absolute; top: .65rem; left: .65rem; display: flex; gap: .35rem; }
+  .hero .tr { position: absolute; top: .65rem; right: .65rem; }
+  .hero .bl { position: absolute; bottom: .6rem; left: .75rem; color: #fff;
+              font-weight: 700; font-size: .92rem; text-shadow: 0 1px 3px rgba(0,0,0,.5); }
+  .pill { display: inline-block; font-size: .74rem; font-weight: 700; padding: .28rem .6rem;
+          border-radius: 999px; backdrop-filter: blur(6px); }
+  .pill.open   { background: rgba(26,143,74,.92); color: #fff; }
+  .pill.shut   { background: rgba(0,0,0,.62); color: #fff; }
+  .pill.today  { background: rgba(198,40,40,.92); color: #fff; }
+  .flag { border: none; cursor: pointer; width: 1.9rem; height: 1.9rem; border-radius: 50%;
+             background: rgba(0,0,0,.42); color: #fff; font-size: .85rem; line-height: 1;
+             padding: 0; backdrop-filter: blur(6px); }
 
-  .menu { display: flex; flex-wrap: wrap; gap: .35rem; margin: .6rem 0 0; }
-  .dish { font-size: .82rem; padding: .28rem .6rem; border-radius: .55rem;
-          background: rgba(127,127,127,.1); }
-  .dish.hit { background: var(--brand); color: var(--brand-ink); font-weight: 600; }
+  .body { padding: .85rem 1rem 1rem; }
+  .titlerow { display: flex; align-items: flex-start; gap: .6rem; }
+  .name { font-weight: 700; font-size: 1.1rem; margin: 0; letter-spacing: -.01em;
+          min-width: 0; }
+  /* The delivery apps put a rating here. Myna has no stars — the honest
+     equivalent is how many people standing in front of it said it was there. */
+  .score { margin-left: auto; flex: 0 0 auto; font-size: .8rem; font-weight: 700;
+           padding: .25rem .5rem; border-radius: .45rem; white-space: nowrap; }
+  .score.good  { background: var(--ok); color: #fff; }
+  .score.newly { background: var(--sunk); color: var(--muted); }
+  .score.weak  { background: rgba(201,106,0,.16); color: var(--warn); }
+  .meta { color: var(--muted); font-size: .86rem; margin: .2rem 0 0; }
+  .dot { opacity: .5; margin: 0 .35rem; }
+
+  /* Delivery apps promise minutes to your door. The equivalent promise here is
+     minutes on your feet, which is the whole proposition stated as a number. */
+  .walk { display: flex; align-items: center; gap: .4rem; margin: .55rem 0 0;
+          font-size: .88rem; font-weight: 600; }
+  .walk .sep { color: var(--muted); font-weight: 400; }
+
+  .menu { display: flex; flex-wrap: wrap; gap: .35rem; margin: .7rem 0 0; }
+  .dish { font-size: .82rem; padding: .3rem .6rem; border-radius: .55rem;
+          background: var(--sunk); }
+  .dish.hit { background: var(--brand); color: var(--brand-ink); font-weight: 700; }
   .dish .rs { color: var(--muted); }
   .dish.hit .rs { color: var(--brand-ink); opacity: .75; }
 
-  .row { display: flex; gap: .5rem; align-items: center; margin-top: .75rem;
-         flex-wrap: wrap; }
-  .seen { font-size: .78rem; color: var(--muted); margin-top: .55rem; }
-  .badge { display: inline-block; font-size: .78rem; font-weight: 650; padding: .2rem .55rem;
-           border-radius: 999px; background: rgba(198,40,40,.13); color: var(--bad);
-           margin-top: .5rem; }
+  .seen { font-size: .79rem; color: var(--muted); margin: .7rem 0 0; }
+
+  /* One primary action, and it is not "order". */
+  .cta { display: flex; gap: .5rem; align-items: stretch; margin-top: .8rem; }
+  .cta .go { flex: 1; }
+  .votes { display: flex; gap: .4rem; margin-top: .5rem; }
+  .votes .btn { flex: 1; }
 
   /* Reason picker — opens inside the card rather than as a modal, so the
      vendor you're answering about stays on screen while you answer. */
-  .panel { margin-top: .7rem; border-top: 1px solid var(--line); padding-top: .7rem; }
+  .panel { margin-top: .8rem; border-top: 1px solid var(--line); padding-top: .8rem; }
   .panel[hidden] { display: none; }
-  .panel p { margin: 0 0 .5rem; font-size: .85rem; font-weight: 600; }
+  .panel p { margin: 0 0 .5rem; font-size: .85rem; font-weight: 700; }
   .reasons { display: flex; flex-direction: column; gap: .4rem; }
   .reason {
-    text-align: left; padding: .6rem .75rem; border-radius: .6rem; cursor: pointer;
+    text-align: left; padding: .65rem .8rem; border-radius: .65rem; cursor: pointer;
     border: 1.5px solid var(--line); background: var(--card); color: var(--ink);
-    font-size: .9rem;
+    font-size: .9rem; font-weight: 600;
   }
   .reason small { display: block; color: var(--muted); font-size: .78rem; font-weight: 400; }
   .reason:hover { border-color: var(--brand); }
+
   .btn {
-    padding: .6rem .9rem; border-radius: .7rem; border: 1.5px solid var(--line);
-    background: var(--card); color: var(--ink); font-size: .9rem; font-weight: 600;
-    cursor: pointer; text-decoration: none; display: inline-block;
+    padding: .65rem .9rem; border-radius: .75rem; border: 1.5px solid var(--line);
+    background: var(--card); color: var(--ink); font-size: .9rem; font-weight: 700;
+    cursor: pointer; text-decoration: none; display: inline-flex; align-items: center;
+    justify-content: center; gap: .3rem;
   }
   .btn.brand { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
-  .btn.wide { width: 100%; text-align: center; padding: .95rem; font-size: 1.05rem; }
+  .btn.wide { width: 100%; text-align: center; padding: 1rem; font-size: 1.05rem;
+              border-radius: .9rem; }
   .btn:disabled { opacity: .5; }
-  .btn.tiny { padding: .4rem .7rem; font-size: .82rem; font-weight: 500; }
-  .addmore { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin-bottom: .5rem; }
-  .addmore .btn { width: 100%; text-align: center; }
+  .btn.tiny { padding: .45rem .7rem; font-size: .82rem; font-weight: 600; }
+  .btn.ghost { background: none; }
   /* Inline icon that inherits text colour and size — an emoji compass points
      at magnetic north, which is not what "directions to here" means. */
-  .ic { width: 1em; height: 1em; fill: currentColor; vertical-align: -0.12em;
-        margin-right: .15rem; }
+  .ic { width: 1em; height: 1em; fill: currentColor; vertical-align: -0.12em; }
 
   .fab {
     position: fixed; left: 50%; transform: translateX(-50%); bottom: 1.25rem;
     z-index: 20; padding: .95rem 1.6rem; border-radius: 999px; border: none;
     background: var(--brand); color: var(--brand-ink); font-size: 1.05rem;
-    font-weight: 700; box-shadow: 0 6px 20px rgba(0,0,0,.22); cursor: pointer;
+    font-weight: 800; box-shadow: 0 6px 22px rgba(0,0,0,.25); cursor: pointer;
   }
+  .fab:active { transform: translateX(-50%) scale(.96); }
+
+  /* ── Skeletons ───────────────────────────────────────────────────────────
+     A spinner says "wait"; a skeleton says "cards are coming, this many, this
+     shape". On a 4G phone the difference is whether the screen looks broken. */
+  .skel { background: var(--card); border: 1px solid var(--line); border-radius: 1.1rem;
+          margin-bottom: 1rem; overflow: hidden; }
+  .sk { background: linear-gradient(90deg, var(--sunk) 25%, var(--line) 37%, var(--sunk) 63%);
+        background-size: 400% 100%; animation: sheen 1.3s ease-in-out infinite; }
+  .skel .sk.img { aspect-ratio: 16/9; }
+  .skel .lines { padding: .9rem 1rem 1.1rem; }
+  .skel .sk.ln { height: .8rem; border-radius: .4rem; margin-bottom: .55rem; }
+  @keyframes sheen { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 5.5rem; transform: translate(-50%, 1rem);
+    z-index: 40; background: var(--ink); color: var(--bg); padding: .7rem 1.1rem;
+    border-radius: 999px; font-size: .9rem; font-weight: 600; opacity: 0;
+    transition: opacity .2s, transform .2s; pointer-events: none;
+    box-shadow: 0 6px 24px rgba(0,0,0,.3); max-width: 90vw; text-align: center;
+  }
+  .toast.on { opacity: 1; transform: translate(-50%, 0); }
 
   .sheet {
     position: fixed; inset: 0; z-index: 30; background: var(--bg);
     overflow-y: auto; padding-bottom: 3rem;
   }
   .sheet[hidden] { display: none; }
-  .sheet-head { display: flex; align-items: center; gap: .6rem; padding: 1rem 0; }
-  .sheet-head h2 { font-size: 1.15rem; margin: 0; }
-  .x { margin-left: auto; background: none; border: none; font-size: 1.5rem;
-      color: var(--muted); cursor: pointer; line-height: 1; }
+  .sheet-head { display: flex; align-items: center; gap: .6rem; padding: 1rem 0 .4rem; }
+  .sheet-head h2 { font-size: 1.2rem; margin: 0; letter-spacing: -.01em; }
+  .x { margin-left: auto; background: var(--sunk); border: none; font-size: 1.3rem;
+      color: var(--muted); cursor: pointer; line-height: 1; width: 2.2rem; height: 2.2rem;
+      border-radius: 50%; }
 
   .drop {
-    border: 2px dashed var(--line); border-radius: 1rem; padding: 2.5rem 1rem;
+    border: 2px dashed var(--line); border-radius: 1.1rem; padding: 2.6rem 1rem;
     text-align: center; color: var(--muted); cursor: pointer; background: var(--card);
   }
-  .drop b { display: block; color: var(--ink); font-size: 1.05rem; margin-bottom: .3rem; }
-  .preview { width: 100%; border-radius: 1rem; margin-bottom: .8rem; display: block; }
+  .drop:active { border-color: var(--brand); }
+  .drop .big { font-size: 2.6rem; display: block; margin-bottom: .4rem; }
+  .drop b { display: block; color: var(--ink); font-size: 1.1rem; margin-bottom: .25rem; }
+  /* Secondary by design. The camera is the path almost everyone takes; the
+     gallery matters to the one person who shot the thela an hour ago, and it
+     should be reachable without competing for the main tap. */
+  .subtle { display: block; width: 100%; margin-top: .7rem; background: none;
+            border: none; color: var(--muted); font-size: .9rem; font-weight: 600;
+            text-decoration: underline; cursor: pointer; padding: .5rem; }
   /* Thumbnails of everything about to be sent. The first one is labelled,
      because which photo is the board decides where the name comes from. */
   .shots { display: grid; grid-template-columns: repeat(3, 1fr); gap: .5rem; margin-bottom: .6rem; }
@@ -167,7 +304,7 @@
           background: var(--card); border: 1px solid var(--line); }
   .shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .shot .tag { position: absolute; left: 0; bottom: 0; right: 0; padding: .2rem .35rem;
-               background: rgba(0,0,0,.6); color: #fff; font-size: .65rem; font-weight: 600;
+               background: rgba(0,0,0,.6); color: #fff; font-size: .65rem; font-weight: 700;
                text-align: center; }
   .shot .rm { position: absolute; top: .25rem; right: .25rem; width: 1.4rem; height: 1.4rem;
               border-radius: 50%; border: none; background: rgba(0,0,0,.6); color: #fff;
@@ -176,18 +313,21 @@
   .note { font-size: .85rem; color: var(--muted); margin: .7rem 0 0; }
   .err { color: var(--bad); font-size: .9rem; margin: .7rem 0 0; }
   .fixnote { font-size: .82rem; color: var(--muted); margin: 0 0 .6rem; }
-  .empty { text-align: center; color: var(--muted); padding: 3rem 1rem; }
+  .empty { text-align: center; color: var(--muted); padding: 2.5rem 1rem; }
+  .empty .big { font-size: 3rem; display: block; margin-bottom: .6rem; }
+  .empty b { display: block; color: var(--ink); font-size: 1.05rem; margin-bottom: .35rem; }
   .spinner { display: inline-block; width: 1rem; height: 1rem; border: 2px solid var(--line);
              border-top-color: var(--brand); border-radius: 50%; animation: spin .7s linear infinite;
              vertical-align: -2px; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  details.more { margin-top: .6rem; }
-  details.more summary { font-size: .85rem; color: var(--muted); cursor: pointer; }
+  details.more { margin-top: .8rem; }
+  details.more summary { font-size: .88rem; color: var(--muted); cursor: pointer;
+                         font-weight: 600; padding: .3rem 0; }
   .field { margin-top: .7rem; }
   .field label { display: block; font-size: .85rem; color: var(--muted); margin-bottom: .25rem; }
   .field input, .field select {
-    width: 100%; padding: .7rem .8rem; font-size: 1rem; color: var(--ink);
+    width: 100%; padding: .75rem .8rem; font-size: 1rem; color: var(--ink);
     background: var(--card); border: 1.5px solid var(--line); border-radius: .7rem;
   }
   .two { display: flex; gap: .5rem; }
@@ -195,49 +335,71 @@
   /* Day names are longer than a time field, and a squeezed <select> collapses
      to a bare caret on a narrow phone. */
   .two #mday { flex: 1.6; }
+
+  /* Customers never need the owner panel. It stays reachable — during a pilot
+     you switch between the two constantly — but at the bottom, not competing
+     with the search box. */
+  .foot { text-align: center; padding: 1.5rem 0 .5rem; }
+  .ownerlink { font-size: .8rem; color: var(--muted); text-decoration: none; }
 </style>
 </head>
 <body>
 
-<div class="wrap">
-  <header>
-    <h1>Kya khaana hai? 🍜</h1>
-    <p class="sub" id="locline">Location le rahe hain…</p>
-    <div class="headlinks">
+<header class="appbar" id="appbar">
+  <div class="wrap">
+    <div class="barrow">
+      <div class="loc">
+        <div class="lbl">Aap yahan ho</div>
+        <div class="val" id="locline">Location le rahe hain…</div>
+      </div>
       <button class="themebtn" id="themeBtn" aria-label="Theme badlo" title="Theme badlo"></button>
-      <a class="ownerlink" href="/admin.html">⚙️ Owner panel</a>
     </div>
-  </header>
-
-  <div class="searchbar">
-    <input id="q" type="search" placeholder="Momos, chai, chowmein…" autocomplete="off" enterkeyhint="search">
+    <div class="searchbar">
+      <div class="sfield">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 2a8 8 0 1 0 4.9 14.3l4.4 4.4 1.4-1.4-4.4-4.4A8 8 0 0 0 10 2Zm0 2a6 6 0 1 1 0 12 6 6 0 0 1 0-12Z"/></svg>
+        <input id="q" type="search" placeholder="Momos, chai, chowmein…" autocomplete="off" enterkeyhint="search">
+      </div>
+    </div>
   </div>
+</header>
 
-  <div class="chips" id="chips"></div>
+<div class="wrap">
+  <p class="usp">🔥 <span><b>Delivery nahi hai — aur wahi baat hai.</b>
+    Paas ka thela, 5 minute paidal, garam.</span></p>
+
+  <h2 class="sech">Kya khaana hai? 🍜</h2>
+  <div class="rail" id="chips"></div>
 
   <div class="chips">
     <button class="chip" id="openNow" aria-pressed="false">Abhi khula 🔥</button>
-    <button class="chip" id="radius" data-km="3">3 km ke andar</button>
+    <button class="chip" id="cheap" aria-pressed="false">₹50 se kam</button>
+    <button class="chip" id="fresh" aria-pressed="false">Aaj dekha ✓</button>
   </div>
 
   <p class="fixnote" id="fixnote" hidden></p>
+  <p class="count" id="count" hidden></p>
   <div id="list"></div>
+
+  <div class="foot">
+    <a class="ownerlink" href="/admin.html">⚙️ Owner panel</a>
+  </div>
 </div>
 
-<button class="fab" id="fab">+ Jagah add karo</button>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<!-- ── Add sheet: photo → GPS → ho gaya ───────────────────────────────── -->
+<button class="fab" id="fab">+ Thela add karo</button>
+
+<!-- ── Add sheet: photo → confirm → ho gaya ───────────────────────────────── -->
 <section class="sheet" id="addSheet" hidden>
   <div class="wrap">
     <div class="sheet-head">
-      <h2>Nayi jagah add karo 📸</h2>
+      <h2>Naya thela add karo 📸</h2>
       <button class="x" id="closeAdd" aria-label="Band karo">&times;</button>
     </div>
 
     <div id="addStep1">
-      <p class="sub"><b>Pehli photo board ki lo</b> — naam wahin se aata hai. Uske baad
-        jitni chaaho: menu ka rate list, tawa, jo bhi ban raha hai. Sabko mila ke
-        ek listing banayenge.</p>
+      <p class="note" style="margin-top:0"><b>Board ki photo lo</b> — naam, menu aur rate
+        sab wahin likhe hote hain. Bas itna hi karna hai.</p>
       <!-- Two inputs, not one. `capture` is what opens the camera directly on a
            phone, and there is no way to say "camera, but let them pick the
            gallery too" — the attribute skips the picker entirely. This screen
@@ -247,10 +409,11 @@
       <input type="file" id="file" accept="image/*" capture="environment" multiple hidden>
       <input type="file" id="pick" accept="image/*" multiple hidden>
       <div class="drop" id="drop">
-        <b>📷 Photo kheencho</b>
+        <span class="big">📷</span>
+        <b>Photo kheencho</b>
         Board saamne se, taaki naam padha ja sake
       </div>
-      <button class="btn wide" id="gallery" style="margin-top:.5rem">🖼️ Gallery se choose karo</button>
+      <button class="subtle" id="gallery">ya gallery se choose karo</button>
       <p class="note" id="gps">📍 Location le rahe hain…</p>
       <p class="note">📵 Dukaandaar ka phone number mat daalo — unki marzi ke bina number
         public nahi karte. Wo khud apni jagah claim karke daal sakte hain.</p>
@@ -259,17 +422,17 @@
 
     <div id="addStep2" hidden>
       <div class="shots" id="shots"></div>
-      <p class="note" id="shotHint"></p>
-      <div class="addmore">
-        <button class="btn" id="morePhotos">📷 Ek aur photo</button>
-        <button class="btn" id="moreGallery">🖼️ Gallery se</button>
-      </div>
+      <p class="note" id="shotHint" style="margin-top:0"></p>
+      <!-- One button, not two. Whether the next photo comes from the camera or
+           the roll is the phone's question to ask, not a choice worth spending
+           a second button on — the picker offers both. -->
+      <button class="btn wide ghost" id="moreGallery" style="margin-top:.5rem">+ Ek aur photo</button>
 
       <!-- These live here, not on the photo screen: you only find out the board
            was unreadable after submitting from here, and the error tells you to
            type a name — so the name field has to be reachable from here too. -->
       <details class="more" id="moreFields">
-        <summary>Zaroorat ho to ye bhi bharo (optional)</summary>
+        <summary>Naam ya timing khud bharni hai? (optional)</summary>
         <div class="field">
           <label for="mname">Naam (photo se na padhe to)</label>
           <input id="mname" type="text" placeholder="Sharma Chinese Corner">
@@ -294,12 +457,13 @@
         </div>
       </details>
 
-      <button class="btn brand wide" id="submitAdd" style="margin-top:.7rem">Add kar do ✓</button>
+      <button class="btn brand wide" id="submitAdd" style="margin-top:.9rem">Add kar do ✓</button>
       <p class="err" id="addErr2" hidden></p>
     </div>
 
     <div id="addStep3" hidden>
-      <p style="font-size:1.1rem;font-weight:650">Ho gaya! 🎉</p>
+      <p style="font-size:1.15rem;font-weight:750;margin:.2rem 0 .8rem">Ho gaya! 🎉
+        Ab ye sabko dikhega.</p>
       <div id="addResult"></div>
       <button class="btn brand wide" id="doneAdd" style="margin-top:1rem">Theek hai</button>
     </div>
@@ -347,10 +511,26 @@ const deviceId = (() => {
 let pos = null;          // {lat, long}
 let query = "";
 let openOnly = false;
-let radiusKm = 3;
+let cheapOnly = false;
+let freshOnly = false;
 let activeChip = "";
 let files = [];
 let CORRECTIONS = {};   // {typed: spelling actually searched}
+
+// The radius used to be a three-state button cycling 3 → 10 → 1, which asked
+// people to guess how far away food is before they'd seen any. Instead the
+// search widens by itself until it finds something and then says how far it
+// went — the answer to "kuch nahi mila" is almost always "look further", and
+// there is no reason to make someone tap for it.
+const RADIUS_LADDER = [2, 6, 15];
+
+function toast(msg) {
+  const el = $("toast");
+  el.textContent = msg;
+  el.classList.add("on");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => el.classList.remove("on"), 2600);
+}
 
 // ── Location ────────────────────────────────────────────────────────────────
 function getLocation() {
@@ -367,13 +547,52 @@ function getLocation() {
 async function ensureLocation() {
   if (pos) return pos;
   pos = await getLocation();
-  const text = pos ? "📍 Aapke aas-paas" : "📍 Location nahi mili — GPS on karo";
-  $("locline").textContent = text;
+  $("locline").textContent = pos ? "Aapke aas-paas 📍" : "Location nahi mili — GPS on karo";
   $("gps").textContent = pos ? "📍 Location mil gayi" : "📍 Location nahi mili — GPS on karo";
   return pos;
 }
 
-// ── Home: list vendors ──────────────────────────────────────────────────────
+// ── Card helpers ────────────────────────────────────────────────────────────
+// Photos are served by the API host, which on the split deploy is a different
+// origin from this page — a bare "/uploads/x.jpg" would resolve against the
+// static site and 404.
+function photoSrc(url) {
+  if (!url) return "";
+  return /^https?:\/\//.test(url) ? url : API + url;
+}
+
+// A delivery app's headline number is minutes to your door. The honest
+// equivalent here is minutes on your feet — same promise, stated in the unit
+// this app actually deals in. ~5 km/h walking, ~20 km/h through city traffic.
+function travelText(km) {
+  if (!(km > 0)) return "Yahin paas me";
+  if (km <= 2) return `${Math.max(1, Math.round(km * 12))} min paidal`;
+  return `${Math.max(1, Math.round(km * 3))} min gaadi se`;
+}
+
+// The "cost for two" line, except a thela's real question is "chhutta kitna
+// chahiye". Only priced dishes count — a board with no rates says nothing.
+function priceText(menu) {
+  const rates = menu.map((d) => d.price).filter((p) => p > 0);
+  if (!rates.length) return "";
+  const lo = Math.round(Math.min(...rates)), hi = Math.round(Math.max(...rates));
+  return lo === hi ? `₹${lo}` : `₹${lo}–${hi}`;
+}
+
+function cheapest(menu) {
+  const rates = menu.map((d) => d.price).filter((p) => p > 0);
+  return rates.length ? Math.min(...rates) : Infinity;
+}
+
+// Delivery apps show stars. There are no stars here and inventing them would be
+// a lie — the only real signal is how many people standing in front of the cart
+// said it was there.
+function scoreHtml(v) {
+  if (v.trust === "doubtful") return `<span class="score weak">Shaayad nahi hai</span>`;
+  if (v.seen_yes > 0) return `<span class="score good">👍 ${v.seen_yes}</span>`;
+  return `<span class="score newly">Naya</span>`;
+}
+
 function dishHtml(dish, matched) {
   // Highlight against the spellings actually searched, not only what was
   // typed — otherwise a corrected term finds the vendor but its dish looks
@@ -391,9 +610,6 @@ function esc(s) {
 
 function cardHtml(v) {
   const maps = `https://www.google.com/maps/dir/?api=1&destination=${v.lat},${v.long}`;
-  const openClass = v.is_open_now ? "now" : "soon";
-  const open = v.open_text
-    ? `<div><span class="open ${openClass}">${esc(v.open_text)}</span></div>` : "";
   // Menus run long on a dhaba board; six dishes is enough to recognise the
   // place, and the matched ones are pulled to the front so a search always
   // shows why this card is here.
@@ -403,32 +619,61 @@ function cardHtml(v) {
   });
   const shown = menu.slice(0, 6).map((d) => dishHtml(d, v.matched)).join("");
   const extra = menu.length > 6 ? `<span class="dish">+${menu.length - 6} aur</span>` : "";
+  const src = photoSrc(v.photo_url);
+  // onerror rather than trusting the URL: retention can be turned off after a
+  // photo was stored, and a broken <img> icon on every card is worse than the
+  // placeholder the card would have shown anyway. It swaps the <img> itself,
+  // not the hero — the scrim and the pills are siblings and have to survive —
+  // and marks the hero first, because after outerHTML the node is gone and
+  // closest() has nothing to walk up from.
+  const hero = src
+    ? `<img src="${esc(src)}" alt="" loading="lazy"
+            onerror="this.closest('.hero').classList.add('noimg');
+                     this.outerHTML='<div class=&quot;ph&quot;>${v.kind_emoji}</div>'">`
+    : `<div class="ph">${v.kind_emoji}</div>`;
+  const status = v.closed_today
+    ? `<span class="pill today">Aaj band bataya gaya</span>`
+    : (v.open_text
+        ? `<span class="pill ${v.is_open_now ? "open" : "shut"}">${esc(v.open_text)}</span>`
+        : "");
+  const price = priceText(menu);
   return `
   <article class="card ${v.trust === "doubtful" ? "doubtful" : ""}" data-id="${v.shop_id}">
-    <div class="card-top">
-      <div class="emoji">${v.kind_emoji}</div>
-      <div style="min-width:0">
-        <p class="name">${esc(v.name)}</p>
-        <p class="meta">${esc(v.kind_label)}${v.address ? " · " + esc(v.address.split(",").slice(0, 2).join(",")) : ""}</p>
-      </div>
-      <div class="dist-col">
-        <div class="dist">${v.distance_km} km</div>
+    <div class="hero${src ? "" : " noimg"}">
+      ${hero}
+      <div class="scrim"></div>
+      <div class="tl">${status}</div>
+      <div class="tr">
         <button class="flag" title="Galat jagah report karo" aria-label="Report karo">⚑</button>
       </div>
+      <div class="bl">${esc(v.kind_label)}${v.address ? " · " + esc(v.address.split(",").slice(0, 2).join(",")) : ""}</div>
     </div>
-    ${v.closed_today ? `<div><span class="badge">Aaj band bataya gaya</span></div>` : open}
-    ${menu.length ? `<div class="menu">${shown}${extra}</div>` : ""}
-    <p class="seen">${esc(v.seen_text)}${v.moved_count > 0 ? ` · ${v.moved_count} ne kaha yahan se hat gaya` : ""}</p>
-    <div class="row">
-      <a class="btn brand tiny" href="${maps}" target="_blank" rel="noopener">
-        <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21.7 11.3 12.7 2.3a1 1 0 0 0-1.4 0l-9 9a1 1 0 0 0 0 1.4l9 9a1 1 0 0 0 1.4 0l9-9a1 1 0 0 0 0-1.4ZM13 15v-2.5h-3V15H8v-3.5a1 1 0 0 1 1-1h4V8l3.2 3.2L13 15Z"/></svg>
-        Raasta</a>
-      <button class="btn tiny seen-yes">Abhi hai ✓</button>
-      <button class="btn tiny seen-no">Nahi mila ✕</button>
+    <div class="body">
+      <div class="titlerow">
+        <p class="name">${esc(v.name)}</p>
+        ${scoreHtml(v)}
+      </div>
+      <p class="meta">${price ? price + `<span class="dot">·</span>` : ""}${v.distance_km} km door</p>
+      <p class="walk">🚶 ${travelText(v.distance_km)}<span class="sep">· khud jaake lena hai</span></p>
+      ${menu.length ? `<div class="menu">${shown}${extra}</div>` : ""}
+      <p class="seen">${esc(v.seen_text)}${v.moved_count > 0 ? ` · ${v.moved_count} ne kaha yahan se hat gaya` : ""}</p>
+      <div class="cta">
+        <a class="btn brand go" href="${maps}" target="_blank" rel="noopener">
+          <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21.7 11.3 12.7 2.3a1 1 0 0 0-1.4 0l-9 9a1 1 0 0 0 0 1.4l9 9a1 1 0 0 0 1.4 0l9-9a1 1 0 0 0 0-1.4ZM13 15v-2.5h-3V15H8v-3.5a1 1 0 0 1 1-1h4V8l3.2 3.2L13 15Z"/></svg>
+          Raasta dekho</a>
+      </div>
+      <div class="votes">
+        <button class="btn tiny seen-yes">Abhi hai ✓</button>
+        <button class="btn tiny seen-no">Nahi mila ✕</button>
+      </div>
+      <div class="panel" hidden></div>
     </div>
-    <div class="panel" hidden></div>
   </article>`;
 }
+
+const SKELETON = `<div class="skel"><div class="sk img"></div><div class="lines">
+  <div class="sk ln" style="width:62%"></div><div class="sk ln" style="width:38%"></div>
+  <div class="sk ln" style="width:80%"></div></div></div>`.repeat(3);
 
 // Tell "your net is down" apart from "this page is pointed at a host with no
 // API". They look identical to a user and to a status page, and the second one
@@ -446,34 +691,64 @@ async function failureMessage() {
     : "Net nahi chal raha lagta hai. Connection check karke dobara try karo.";
 }
 
+// Client-side narrowing only. Both of these read fields the card already
+// carries, so filtering here costs nothing and keeps the API's ranking — which
+// is what decides the order — untouched.
+function applyFilters(vendors) {
+  let out = vendors;
+  if (cheapOnly) out = out.filter((v) => cheapest(v.menu) <= 50);
+  if (freshOnly) out = out.filter((v) => v.trust === "fresh" || /aaj/i.test(v.seen_text || ""));
+  return out;
+}
+
+async function fetchNear(p, km) {
+  const params = new URLSearchParams({
+    lat: p.lat, long: p.long, q: query, radius_km: km,
+    open_now: openOnly ? "true" : "false",
+  });
+  const res = await fetch(`${API}/api/food/near?${params}`);
+  return res.json();
+}
+
 async function load() {
   const p = await ensureLocation();
   if (!p) {
-    $("list").innerHTML = `<div class="empty">Location on karke page refresh karo —
-      paas ka khaana dikhane ke liye zaroori hai.</div>`;
+    $("count").hidden = true;
+    $("list").innerHTML = `<div class="empty"><span class="big">📍</span>
+      <b>Location on karo</b>
+      Paas ka khaana dikhane ke liye ye zaroori hai — phir page refresh kar do.</div>`;
     return;
   }
-  $("list").innerHTML = `<div class="empty"><span class="spinner"></span> Dhoondh rahe hain…</div>`;
-  const params = new URLSearchParams({
-    lat: p.lat, long: p.long, q: query, radius_km: radiusKm,
-    open_now: openOnly ? "true" : "false",
-  });
+  $("list").innerHTML = SKELETON;
+  $("count").hidden = true;
   try {
-    const res = await fetch(`${API}/api/food/near?${params}`);
-    const data = await res.json();
+    // Widen until something turns up. Each rung is a cheap query and the loop
+    // stops the moment it has results, so the common case is still one call.
+    let data = null, usedKm = RADIUS_LADDER[0], shown = [];
+    for (const km of RADIUS_LADDER) {
+      data = await fetchNear(p, km);
+      usedKm = km;
+      shown = applyFilters(data.vendors);
+      if (shown.length) break;
+    }
     CORRECTIONS = data.corrections || {};
     const fixes = Object.entries(CORRECTIONS)
       .map(([typed, used]) => `<b>${esc(used)}</b> dikha rahe hain "${esc(typed)}" ke liye`)
       .join(" · ");
     $("fixnote").innerHTML = fixes;
     $("fixnote").hidden = !fixes;
-    if (!data.vendors.length) {
-      $("list").innerHTML = `<div class="empty">
-        ${query ? `"${esc(query)}" paas me nahi mila.` : "Yahan abhi kuch list nahi hai."}<br>
-        Koi thela, tapri ya dhaba dikhe to neeche wale button se add kar do 👇</div>`;
+
+    if (!shown.length) {
+      $("list").innerHTML = `<div class="empty"><span class="big">🛵</span>
+        <b>${query ? `"${esc(query)}" ${usedKm} km me nahi mila` : `${usedKm} km me abhi kuch nahi hai`}</b>
+        Koi thela, tapri ya dhaba dikhe to photo kheench ke add kar do — agle bande ko
+        mil jayega.</div>`;
       return;
     }
-    $("list").innerHTML = data.vendors.map(cardHtml).join("");
+    $("count").innerHTML = `<b>${shown.length}</b> jagah · ${usedKm} km ke andar` +
+      (usedKm !== RADIUS_LADDER[0] ? ` · paas me kuch nahi mila to daayra badha diya` : "");
+    $("count").hidden = false;
+    $("list").innerHTML = shown.map(cardHtml).join("");
   } catch {
     $("list").innerHTML = `<div class="empty">${await failureMessage()}</div>`;
   }
@@ -504,13 +779,13 @@ async function sendSeen(card, yes, reason) {
     body: JSON.stringify({ yes, reason: reason || "", device_id: deviceId }),
   });
   const v = await res.json();
-  card.querySelector(".seen").textContent =
-    (yes ? "Shukriya! " : "Bata diya. ") + v.seen_text;
+  card.querySelector(".seen").textContent = v.seen_text;
+  toast(yes ? "Shukriya! Agle bande ko pata chal jayega 🙏" : "Bata diya, shukriya 🙏");
   // "Aaj band hai" is about today, so the card says so instead of quietly
   // sinking — the vendor keeps their listing.
   if (v.closed_today) {
-    const slot = card.querySelector(".open, .badge");
-    if (slot) slot.outerHTML = `<span class="badge">Aaj band bataya gaya</span>`;
+    const slot = card.querySelector(".hero .tl");
+    if (slot) slot.innerHTML = `<span class="pill today">Aaj band bataya gaya</span>`;
   }
 }
 
@@ -522,7 +797,7 @@ async function sendReport(card, reason) {
     body: JSON.stringify({ reason, device_id: deviceId }),
   });
   const data = await res.json();
-  card.querySelector(".seen").textContent = data.message;
+  toast(data.message);
   if (data.hidden) card.classList.add("doubtful");
 }
 
@@ -535,7 +810,7 @@ $("list").addEventListener("click", async (e) => {
   if (e.target.closest(".seen-yes")) {
     card.querySelectorAll(".seen-yes,.seen-no").forEach((b) => (b.disabled = true));
     try { await sendSeen(card, true, ""); }
-    catch { card.querySelector(".seen").textContent = "Vote nahi gaya, net check karo."; }
+    catch { toast("Vote nahi gaya, net check karo."); }
     return;
   }
   if (e.target.closest(".seen-no")) return openPanel(card, "seen");
@@ -550,7 +825,7 @@ $("list").addEventListener("click", async (e) => {
     else await sendReport(card, reason.dataset.reason);
     panel.hidden = true;
   } catch {
-    card.querySelector(".seen").textContent = "Nahi bheja ja saka, net check karo.";
+    toast("Nahi bheja ja saka, net check karo.");
     panel.hidden = true;
   }
 });
@@ -563,39 +838,65 @@ $("q").addEventListener("input", (e) => {
   // Clear immediately rather than only when the debounced fetch starts:
   // otherwise the previous results sit there for a third of a second looking
   // exactly like an answer to what was just typed.
-  $("list").innerHTML = `<div class="empty"><span class="spinner"></span> Dhoondh rahe hain…</div>`;
+  $("list").innerHTML = SKELETON;
+  $("count").hidden = true;
   $("fixnote").hidden = true;
+  // Typing is its own query — leave no rail tile looking like it's still on.
+  if (query !== activeChip) {
+    activeChip = "";
+    [...$("chips").children].forEach((c) => c.setAttribute("aria-pressed", "false"));
+  }
   timer = setTimeout(load, 350);
 });
 
-$("openNow").addEventListener("click", (e) => {
-  openOnly = !openOnly;
-  e.target.setAttribute("aria-pressed", String(openOnly));
-  load();
-});
-
-$("radius").addEventListener("click", (e) => {
-  radiusKm = { 1: 3, 3: 10, 10: 1 }[radiusKm] ?? 3;
-  e.target.textContent = `${radiusKm} km ke andar`;
-  load();
-});
+function toggleChip(id, get, set) {
+  $(id).addEventListener("click", () => {
+    set(!get());
+    $(id).setAttribute("aria-pressed", String(get()));
+    load();
+  });
+}
+toggleChip("openNow", () => openOnly, (v) => (openOnly = v));
+toggleChip("cheap", () => cheapOnly, (v) => (cheapOnly = v));
+toggleChip("fresh", () => freshOnly, (v) => (freshOnly = v));
 
 async function loadChips() {
   try {
     const data = await (await fetch(`${API}/api/food/kinds`)).json();
+    // The rail leads with a picture of the food, because that is what someone
+    // hungry is actually scanning for. Kind emoji by name where we know one,
+    // and a plate otherwise — an unmatched dish still gets a tile.
+    const icons = {
+      "momos": "🥟", "chai": "☕", "chowmein": "🍜", "chole bhature": "🍛",
+      "samosa": "🥟", "golgappe": "🫗", "pav bhaji": "🍲", "vada pav": "🍔",
+      "dosa": "🥞", "paratha": "🫓", "biryani": "🍚", "roll": "🌯", "juice": "🧃",
+      "idli": "🍥", "burger": "🍔", "sandwich": "🥪", "anda": "🥚", "egg": "🥚",
+      "chaat": "🥗", "lassi": "🥛", "poha": "🍚", "maggi": "🍜", "tikki": "🥔",
+      "kachori": "🥟", "jalebi": "🍥", "pakora": "🍤", "bhutta": "🌽",
+    };
+    const iconFor = (p) => {
+      const name = p.toLowerCase();
+      const keys = Object.keys(icons);
+      // Exact first, then contained — "Chole bhature" must not be claimed by a
+      // shorter key that happens to sit inside it.
+      const key = keys.find((k) => k === name) || keys.find((k) => name.includes(k));
+      return key ? icons[key] : "🍽️";
+    };
     $("chips").innerHTML = data.popular
-      .map((p) => `<button class="chip" data-q="${esc(p)}" aria-pressed="false">${esc(p)}</button>`)
+      .map((p) => `<button class="tile" data-q="${esc(p)}" aria-pressed="false">
+          <span class="disc">${iconFor(p)}</span><span class="cap">${esc(p)}</span>
+        </button>`)
       .join("");
     $("mkind").innerHTML = `<option value="">Photo se pata kar lo</option>` +
       data.kinds.map((k) => `<option value="${k.kind}">${k.emoji} ${esc(k.label)}</option>`).join("");
     REASONS = { seen: data.seen_reasons || [], report: data.report_reasons || [] };
-  } catch { /* chips are a nicety — the search box works without them */ }
+  } catch { /* the rail is a nicety — the search box works without it */ }
 }
 
 $("chips").addEventListener("click", (e) => {
-  const chip = e.target.closest(".chip");
-  if (!chip) return;
-  const value = chip.dataset.q;
+  const tile = e.target.closest(".tile");
+  if (!tile) return;
+  const value = tile.dataset.q;
   activeChip = activeChip === value ? "" : value;
   [...$("chips").children].forEach((c) =>
     c.setAttribute("aria-pressed", String(c.dataset.q === activeChip)));
@@ -603,6 +904,12 @@ $("chips").addEventListener("click", (e) => {
   $("q").value = activeChip;
   load();
 });
+
+// A hairline under the bar only once the page has actually moved — a border
+// sitting there over a page at rest just adds a line nobody asked for.
+addEventListener("scroll", () => {
+  $("appbar").classList.toggle("stuck", scrollY > 8);
+}, { passive: true });
 
 // ── Add flow ────────────────────────────────────────────────────────────────
 function showStep(n) {
@@ -621,8 +928,9 @@ $("fab").addEventListener("click", async () => {
 $("closeAdd").addEventListener("click", () => { $("addSheet").hidden = true; });
 $("doneAdd").addEventListener("click", () => { $("addSheet").hidden = true; load(); });
 $("drop").addEventListener("click", () => $("file").click());
-$("morePhotos").addEventListener("click", () => $("file").click());
 $("gallery").addEventListener("click", () => $("pick").click());
+// Adding a second photo goes through the picker, which offers the camera as
+// one of its options — so this one button covers both without asking.
 $("moreGallery").addEventListener("click", () => $("pick").click());
 
 // Every extra photo is another vision call, so this matches the server's cap.
@@ -678,11 +986,9 @@ function renderShots() {
       <button class="rm" data-i="${i}" aria-label="Hatao">&times;</button>
       <span class="tag">${i === 0 ? "Board" : `Photo ${i + 1}`}</span>
     </div>`).join("");
-  const full = files.length >= MAX_PHOTOS;
-  $("morePhotos").hidden = full;
-  $("moreGallery").hidden = full;
+  $("moreGallery").hidden = files.length >= MAX_PHOTOS;
   $("shotHint").textContent = files.length === 1
-    ? "Menu ka rate list ya tawa ki ek aur photo lo to zyada info mil jayegi."
+    ? "Rate list ya tawa ki ek aur photo lo to menu poora aa jayega."
     : `${files.length} photos — sabko mila ke ek listing banegi.`;
 }
 
