@@ -22,17 +22,21 @@
 #      looked un-deployed while the deploy had in fact succeeded.
 #      -> autoDeploy is explicit on both. One push, both services, same commit.
 #
-#   2. MYNA_BACKEND_URL pointed somewhere wrong, which breaks every request
+#   2. The backend URL pointed somewhere wrong, which breaks every request
 #      while both services still report healthy.
-#      -> the app probes /api/food/health on failure and names the address it
-#         is calling, instead of telling the user to check their connection.
+#      -> the front end no longer stores that URL at all: Render resolves it
+#         from the backend service. And if it is ever wrong anyway, the app
+#         probes /api/food/health on failure and names the address it is
+#         calling, instead of telling the user to check their connection.
 #
 #   3. /docs and /api/* 404 on the static host.
 #      -> expected, not a bug: a static host has neither. Both live on the
 #         backend URL, and the owner panel no longer links to /docs at all.
 #
-# Whenever the backend gets a new onrender.com URL, MYNA_BACKEND_URL below has
-# to follow it. That is the one piece of state kept in two places.
+# The backend's address is wired by Render itself (fromService below), not
+# typed in here. A hardcoded URL is the same value living in two places, and
+# it goes stale the first time a service is recreated and gets a new name —
+# which is exactly what a fresh blueprint apply does.
 services:
   - type: web
     name: myna
@@ -70,13 +74,17 @@ services:
     autoDeploy: true
     # No bundler — app/static is plain HTML/JS. This only bakes the backend's
     # origin into config.js, which is the single thing the pages need to know.
-    buildCommand: printf 'window.MYNA_API_BASE = "%s";' "$MYNA_BACKEND_URL" > app/static/config.js
+    buildCommand: printf 'window.MYNA_API_BASE = "https://%s";' "$MYNA_BACKEND_HOST" > app/static/config.js
     staticPublishPath: ./app/static
     envVars:
-      # Must match the "myna" service's URL above. If these drift, every
-      # request fails — the app will say so and name this value.
-      - key: MYNA_BACKEND_URL
-        value: https://myna-wzcq.onrender.com
+      # Resolved by Render from the backend service, so it cannot drift and
+      # survives the backend being recreated under a new name. `host` is the
+      # bare hostname; the scheme is added in the build command above.
+      - key: MYNA_BACKEND_HOST
+        fromService:
+          type: web
+          name: myna
+          property: host
     routes:
       - type: rewrite
         source: /admin
