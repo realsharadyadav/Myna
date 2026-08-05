@@ -21,6 +21,15 @@ elif DATABASE_URL.startswith("postgresql://"):
 UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", BASE_DIR / "uploads"))
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
+# Photo storage (app/storage.py). Render's free filesystem is ephemeral, so
+# UPLOAD_DIR above only survives until the next deploy — fine for the temp
+# files the vision model reads, useless for the photo shown on a card. Set
+# these three and published photos go to Cloudinary instead; leave them unset
+# and it falls back to local disk, which is a dev convenience only.
+CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME", "")
+CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY", "")
+CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET", "")
+
 # AI vision providers. Set whichever keys you have; the first configured
 # provider becomes the default unless overridden in the DB (admin panel).
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")

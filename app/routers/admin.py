@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from .. import ai, embeddings, food, models, sample_food, schemas, vision_check
+from .. import ai, embeddings, food, models, sample_food, schemas, storage, vision_check
 from ..database import (
     get_db,
     get_default_embedding_model,
@@ -183,6 +183,10 @@ def llm_embedding_models():
 def get_settings(db: Session = Depends(get_db)):
     return {
         "retain_uploaded_images": get_retain_uploaded_images(db),
+        # Where a kept photo actually lands. "local-disk" on a host with an
+        # ephemeral filesystem means every photo dies at the next deploy, and
+        # the toggle above is worse than useless — so the panel says so.
+        "photo_storage": storage.backend_name(),
         "default_vision_model": get_default_vision_model(db),
         "default_search_model": get_default_search_model(db),
         "default_embedding_model": get_default_embedding_model(db),

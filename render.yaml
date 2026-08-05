@@ -2,15 +2,15 @@
 # Free-plan friendly: no persistent disk needed.
 # Docs: https://render.com/docs/blueprint-spec
 #
-#   myna       FastAPI. The API (/api/*), the docs (/docs), and the pages too —
-#              so one `uvicorn` is a complete local dev environment.
+#   myna       FastAPI. JSON only — /api/* and /docs. It serves no HTML and no
+#              assets; hitting / returns a small JSON pointer, not a page.
 #   myna-app   The web front end: app/static published to a static host, so the
 #              browser isn't stuck behind the free backend's ~30 s cold start.
 #
-# The backend is a plain JSON API with no coupling to any client. The web app,
-# a future mobile app, and anything else all talk to the same endpoints over
-# HTTP; nothing is server-rendered. Which host happens to serve the HTML is a
-# deployment choice and changes none of that.
+# The split is the architecture, not a deployment detail. The backend has no
+# idea what a client looks like; the web app, a future mobile app, and anything
+# else all reach it the same way, over REST. Nothing is server-rendered and
+# nothing is shared between the two but the endpoint contract.
 #
 # ---------------------------------------------------------------------------
 # What went wrong last time, and what stops it now
@@ -66,6 +66,15 @@ services:
       # Optional — web search grounding for trending / weather suggestions.
       # Falls back to free/keyless DuckDuckGo without it.
       - key: EXA_API_KEY
+        sync: false
+      # Photo storage. Without these, a kept photo is written to this
+      # instance's disk — which Render wipes on every deploy, so the picture on
+      # the card 404s a day later. Cloudinary's free tier is enough.
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
         sync: false
 
   - type: web

@@ -23,12 +23,11 @@ them. A vendor claiming their own listing later is what unlocks that field.
 """
 import re
 from datetime import datetime, timezone
-from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
-from .. import ai, embeddings, food, models, schedule, schemas
+from .. import ai, embeddings, food, models, schedule, schemas, storage
 from ..database import (
     get_db,
     get_default_search_model,
@@ -36,7 +35,6 @@ from ..database import (
     get_retain_uploaded_images,
 )
 from ..geo import haversine_km, reverse_geocode
-from ..storage import save_upload
 
 router = APIRouter(prefix="/api/food", tags=["food"])
 
@@ -304,23 +302,19 @@ def quick_add(
     uploads = uploads[:MAX_PHOTOS]
 
     retain = get_retain_uploaded_images(db)
-    saved = [save_upload(f, retain=retain) for f in uploads]
-    local_paths = [path for path, _ in saved]
-    # The first photo is the one shown on the card, so it's the one kept.
-    public_url = saved[0][1]
+    local_paths = [storage.save_temp(f) for f in uploads]
     vision_model = get_default_vision_model(db)
+    public_url = ""
     try:
         board, error = ai.read_food_boards(local_paths, model=vision_model)
+        # Only the first photo is worth keeping even when retention is on: it's
+        # the one shown on the card. The rest were read for their text and have
+        # done their job. publish() copies, so the cleanup below still applies.
+        if retain:
+            public_url = storage.publish(local_paths[0])
     finally:
-        # Only the card's photo is worth keeping even when retention is on —
-        # the rest were read for their text and have done their job.
-        for index, path in enumerate(local_paths):
-            if retain and index == 0:
-                continue
-            try:
-                Path(path).unlink(missing_ok=True)
-            except OSError:
-                pass
+        for path in local_paths:
+            storage.discard(path)
 
     final_name = (name or "").strip() or board["name"]
     if not final_name and not board["items"]:

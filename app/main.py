@@ -1,10 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
-from .config import ALLOWED_ORIGINS, BASE_DIR
+from .config import ALLOWED_ORIGINS, UPLOAD_DIR
 from .database import (
     Base,
     SessionLocal,
@@ -14,7 +13,7 @@ from .database import (
     set_default_search_model,
     set_default_vision_model,
 )
-from . import ai
+from . import ai, storage
 from .routers import admin, food
 
 Base.metadata.create_all(bind=engine)
@@ -101,10 +100,16 @@ def _seed_default_models() -> None:
 
 _seed_default_models()
 
-app = FastAPI(title="Myna — Hyperlocal Shop & Product Finder")
+app = FastAPI(title="Myna — Hyperlocal Food Finder API")
 
-# The frontend can now be deployed as its own static site (render.yaml) that
-# calls this API cross-origin, so CORS has to be open for it.
+# This process serves JSON and nothing else. No page, no asset, no HTML — the
+# UI is a separate deployment (see render.yaml) and reaches this over REST like
+# any other client will, a mobile app included.
+#
+# It used to serve app/static too, as a convenience for local dev. That turned
+# out to cost more than it saved: the same app was reachable at two addresses,
+# the backend's copy configured differently from the deployed one, and testing
+# the wrong one silently passed. One front door only.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
@@ -115,28 +120,14 @@ app.add_middleware(
 app.include_router(food.router)
 app.include_router(admin.router)
 
-app.mount("/uploads", StaticFiles(directory=BASE_DIR / "uploads"), name="uploads")
-app.mount("/static", StaticFiles(directory=BASE_DIR / "app" / "static"), name="static")
+# Photos go to object storage when it's configured, and are served from there.
+# The local-disk fallback is dev-only (app/storage.py), and only in that case
+# does this process have anything to serve.
+if not storage.remote_configured():
+    app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 
 @app.get("/", include_in_schema=False)
-def home():
-    """The food app — two screens, no login. See app/static/index.html.
-
-    Named index.html so the Render static site serves it at / with no
-    rewrite rule: a static host looks for index.html and nothing else.
-    """
-    return FileResponse(BASE_DIR / "app" / "static" / "index.html")
-
-
-@app.get("/admin", include_in_schema=False)
-def admin():
-    return FileResponse(BASE_DIR / "app" / "static" / "admin.html")
-
-
-# Catch-all for root-relative assets (myna-logo.svg, config.js) referenced by
-# the pages above. Registered last so the explicit routes above still win —
-# this only serves whatever those routes don't handle. Also matches what the
-# split-off static frontend does, since it publishes this same directory as
-# its site root.
-app.mount("/", StaticFiles(directory=BASE_DIR / "app" / "static"), name="assets")
+def root():
+    """Not a page. Points at the two things worth knowing about the API."""
+    return {"service": "myna-api", "docs": "/docs", "health": "/api/food/health"}

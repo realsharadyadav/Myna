@@ -1,6 +1,7 @@
 """End-to-end smoke test using FastAPI TestClient (no live server needed)."""
 import io
 import os
+import tempfile
 
 # Prevent .env from being loaded during tests — we don't want real keys.
 os.environ["MYNA_SKIP_DOTENV"] = "1"
@@ -24,11 +25,31 @@ from app.main import app
 
 client = TestClient(app)
 
+# The pages are a separate deployment now, so the backend has no route that
+# returns them. Frontend assertions read the files where they live; putting
+# them behind an HTTP call was always incidental, and re-adding a route just to
+# keep the tests happy would re-create the second front door we removed.
+from pathlib import Path as _P
+INDEX_HTML = _P("app/static/index.html").read_text()
+ADMIN_HTML = _P("app/static/admin.html").read_text()
+
 # ---------------------------------------------------------------------------
-# 1. Pages
+# 1. The backend serves JSON and nothing else
 # ---------------------------------------------------------------------------
-assert client.get("/").status_code == 200
-assert client.get("/admin").status_code == 200
+# This is the separation itself, asserted rather than assumed. The UI is a
+# different deployment and reaches this over REST like a mobile app would; if
+# any HTML creeps back in, the app becomes reachable at two addresses again and
+# testing the wrong one starts passing silently.
+root = client.get("/")
+assert root.status_code == 200
+assert root.headers["content-type"].startswith("application/json"), root.headers
+assert root.json()["service"] == "myna-api"
+for page in ("/admin", "/index.html", "/admin.html", "/config.js", "/myna-logo.svg"):
+    assert client.get(page).status_code == 404, page
+# Nothing in the app package may reach for the static directory either — that
+# is the import that would quietly bring the pages back.
+import app.main as _main
+assert not any("static" in str(r.path) for r in _main.app.routes), _main.app.routes
 # The general-purpose product search and the shopkeeper self-onboarding page
 # were removed with the food pivot — they must not answer any more.
 assert client.get("/classic").status_code == 404
@@ -38,10 +59,8 @@ for gone in ("/api/search", "/api/search/shops", "/api/search/one-tap",
              "/api/search/dishes", "/api/catalog", "/api/admin/items",
              "/api/admin/shops", "/api/admin/import/template"):
     assert client.get(gone).status_code == 404, gone
-# The static catch-all answers unknown GETs, so a removed POST route surfaces
-# as 405 rather than 404 — either way, nothing handles it.
 assert client.post("/api/shops", json={"name": "x", "lat": 1.0, "long": 1.0}).status_code in (404, 405)
-print("PASS pages load, removed pages and APIs are gone")
+print("PASS backend is API-only; removed pages and APIs are gone")
 
 # ---------------------------------------------------------------------------
 # 2. Rounds: schedule maths for a thela that moves
@@ -445,7 +464,7 @@ assert client.get("/api/food/near", params={
 assert both["corrections"].get("chawmin") == "chowmein", both["corrections"]
 assert client.get("/api/food/near", params={
     "lat": 19.0760, "long": 72.8777, "q": "momos"}).json()["corrections"] == {}
-page = client.get("/").text
+page = INDEX_HTML
 assert 'id="fixnote"' in page and "CORRECTIONS" in page
 # A phone in dark mode used to ignore an explicit "light" choice: a media
 # query can't be overridden by an attribute set later, so the override has to
@@ -454,7 +473,7 @@ assert 'id="fixnote"' in page and "CORRECTIONS" in page
 assert ':root[data-theme="dark"]' in page
 assert ':root:not([data-theme="light"])' in page
 assert 'myna_theme' in page and 'id="themeBtn"' in page
-assert 'myna_theme' in client.get("/admin").text
+assert 'myna_theme' in ADMIN_HTML
 # A dead or mis-set API base used to surface as "check your connection", which
 # blamed the user for a deploy mistake and hid it from everyone. The client
 # probes health so it can name the real problem.
@@ -516,7 +535,7 @@ assert "semantic_ready" in st and "active_model" in st
 assert st["semantic_ready"] is _emb2.semantic_ready()
 if not st["semantic_ready"]:
     assert "GEMINI_API_KEY" in st["reason"]
-assert 'Semantic search ON' in client.get("/admin").text
+assert 'Semantic search ON' in ADMIN_HTML
 print("PASS semantic readiness is reported, not assumed")
 
 # 47g. Freshness votes. An unexplained "nahi mila" outvoting "haan hai" marks a
@@ -617,7 +636,7 @@ assert any(v["shop_id"] == junk_id for v in back["vendors"])
 assert all(r["shop_id"] != junk_id for r in client.get("/api/admin/reports").json())
 assert client.get("/api/admin/stats").json()["hidden_shops"] == 0
 # The owner panel has a screen for it, not just an endpoint.
-panel = client.get("/admin").text
+panel = ADMIN_HTML
 assert "id=\"tab-reports\"" in panel and "loadReports()" in panel
 assert "/api/admin/reports" in panel and "visibility" in panel
 assert "Restore &amp; clear reports" in panel and "reportPill" in panel
@@ -693,24 +712,34 @@ assert 'loadSampleData' in panel and 'Load 50 sample jagah' in panel
 client.post("/api/admin/data/clear")
 print("PASS sample thele (placed near you, varied, wipe-first option)")
 
-# 47k-3. Navigation + the shopkeeper page can hold more than one shop.
-panel = client.get("/admin").text
+# 47k-3. Navigation between the two pages.
+panel = ADMIN_HTML
 assert 'class="pagelinks"' in panel and 'clearAllData()' in panel
-for path in ('href="/"', 'href="/admin"'):
+# Links must be filenames, not the /admin rewrite: the static host maps that,
+# a plain file server (./run.sh ui) does not, and a link that only works on one
+# of them is a link that breaks in exactly one environment.
+for path in ('href="/"', 'href="/admin.html"'):
     assert path in panel, path
+assert 'href="/admin"' not in panel.replace('href="/admin.html"', '')
+assert 'href="/admin.html"' in INDEX_HTML
 # /docs is a developer surface — the owner panel shouldn't point at it. The
-# route still exists, it's just not advertised here.
+# route still exists on the backend, it's just not advertised here.
 assert 'href="/docs"' not in panel
 assert client.get("/docs").status_code == 200
 # The removed pages must not be linked from anywhere either.
 assert "/classic" not in panel and "/shopkeeper" not in panel
-assert 'class="ownerlink"' in client.get("/").text
-# The food app is served by the Render static site too, which has no API of its
-# own — so it must read the backend URL from config.js rather than assume
-# same-origin. Getting this wrong breaks every fetch in production only.
-home_page = client.get("/").text
+assert 'class="ownerlink"' in INDEX_HTML
+# The pages are served by a host with no API of its own, so they must read the
+# backend's URL from config.js. Assuming same-origin breaks every fetch, and
+# only in production.
+home_page = INDEX_HTML
 assert 'src="/config.js"' in home_page
 assert 'window.MYNA_API_BASE' in home_page
+# config.js must not name a deployed host: production overwrites this file at
+# build time, so anything hardcoded here is a stale address waiting to ship.
+config_js = _P("app/static/config.js").read_text()
+assert "onrender.com" not in config_js, config_js
+assert "localhost" in config_js and ":8000" in config_js
 print("PASS page navigation")
 
 # 4k-4. Vendors tab: the one management surface, in the food app's terms.
@@ -761,11 +790,175 @@ assert {"kind", "label", "emoji", "mobile"} <= set(kinds["kinds"][0])
 assert "Momos" in kinds["popular"]
 assert [r["reason"] for r in kinds["seen_reasons"]][0] == "closed_today"  # gentlest first
 assert {"fake", "joke", "duplicate"} <= {r["reason"] for r in kinds["report_reasons"]}
-page = client.get("/").text
+page = INDEX_HTML
 assert 'id="fab"' in page and "/api/food/near" in page and "/api/food/add" in page
 assert "Kya khaana hai?" in page and "Abhi hai ✓" in page
 assert "/report" in page and 'class="flag"' in page and "Kyun nahi mila?" in page
 print("PASS food reference data + UI")
+
+# ---------------------------------------------------------------------------
+# 48. Photo storage: a kept photo has to outlive the deploy that made it
+# ---------------------------------------------------------------------------
+# Render's free filesystem is ephemeral, so a photo written to local disk 404s
+# after the next push while the listing still points at it. The fix is object
+# storage; these tests cover the split that makes it safe.
+import types as _types
+from pathlib import Path as _Path
+
+from app import storage as _store
+
+
+class _FakeUpload:
+    """Enough of UploadFile for save_temp."""
+    def __init__(self, filename, data=b"\xff\xd8\xff-jpeg-ish"):
+        self.filename = filename
+        self.file = io.BytesIO(data)
+
+
+# 48a. Temp files never land in the publicly-served directory. They exist for
+# the seconds the vision model needs them and must not be reachable over HTTP
+# even then — someone's photo of a menu is not ours to publish.
+tmp_path = _store.save_temp(_FakeUpload("board.jpg"))
+from app.config import UPLOAD_DIR as _UPLOAD_DIR
+assert _UPLOAD_DIR not in _Path(tmp_path).parents, tmp_path
+assert _Path(tmp_path).exists()
+# A hostile or odd extension is normalised rather than trusted.
+assert _store.save_temp(_FakeUpload("x.svg")).endswith(".jpg")
+assert _store.save_temp(_FakeUpload(None)).endswith(".jpg")
+assert _store.save_temp(_FakeUpload("a.PNG")).endswith(".png")
+
+# 48b. discard never raises — cleanup running in a finally block must not be
+# able to turn a successful add into a 500.
+_store.discard(tmp_path)
+assert not _Path(tmp_path).exists()
+_store.discard(tmp_path)          # already gone
+_store.discard("/nope/nothing")   # never existed
+
+# 48c. Unconfigured: publish falls back to local disk and says so, so the owner
+# panel can warn instead of implying the photo is safe.
+assert _store.remote_configured() is False
+assert _store.backend_name() == "local-disk"
+local_src = _store.save_temp(_FakeUpload("card.jpg", b"card-bytes"))
+local_url = _store.publish(local_src)
+assert local_url.startswith("/uploads/"), local_url
+# publish copies rather than moves, so the caller's cleanup of the temp file
+# doesn't delete the published photo along with it.
+_store.discard(local_src)
+assert (_UPLOAD_DIR / _Path(local_url).name).read_bytes() == b"card-bytes"
+assert _store.publish("/gone/missing.jpg") == ""
+
+# 48d. Configured: the upload is signed the way Cloudinary specifies — params
+# sorted, joined, secret appended, sha1 — and the returned URL is the remote
+# one. A wrong signature fails every upload with a 401 that looks like a
+# network blip, so it's worth pinning.
+import hashlib as _hashlib
+
+_store.CLOUDINARY_CLOUD_NAME = "democloud"
+_store.CLOUDINARY_API_KEY = "key123"
+_store.CLOUDINARY_API_SECRET = "secret456"
+assert _store.remote_configured() is True
+assert _store.backend_name() == "cloudinary"
+
+expected_sig = _hashlib.sha1(b"folder=myna&timestamp=1700000000secret456").hexdigest()
+assert _store._signature({"folder": "myna", "timestamp": "1700000000"}) == expected_sig
+# Order of the dict must not change the signature.
+assert _store._signature({"timestamp": "1700000000", "folder": "myna"}) == expected_sig
+
+_posted = {}
+
+
+def _fake_post(url, data=None, files=None, timeout=None):
+    _posted["url"] = url
+    _posted["data"] = data
+    _posted["files"] = files
+    return _types.SimpleNamespace(
+        raise_for_status=lambda: None,
+        json=lambda: {"secure_url": "https://res.cloudinary.com/democloud/myna/abc.jpg"},
+    )
+
+
+_real_post = _store.httpx.post
+_store.httpx.post = _fake_post
+try:
+    remote_src = _store.save_temp(_FakeUpload("card.jpg", b"remote-bytes"))
+    remote_url = _store.publish(remote_src)
+finally:
+    _store.httpx.post = _real_post
+assert remote_url == "https://res.cloudinary.com/democloud/myna/abc.jpg", remote_url
+assert _posted["url"] == "https://api.cloudinary.com/v1_1/democloud/image/upload"
+assert _posted["data"]["api_key"] == "key123"
+assert _posted["data"]["folder"] == "myna"
+assert "api_secret" not in _posted["data"], "the secret signs the request, it is never sent"
+assert _posted["files"]["file"][0].endswith(".jpg")
+# Nothing was written to local disk on the remote path.
+assert not (_UPLOAD_DIR / _Path(remote_src).name).exists()
+
+# 48e. Remote configured but the upload fails: return no photo rather than
+# falling back to disk. A disk URL would work today and 404 after the next
+# deploy — a broken image is worse than none, because it looks like our bug in
+# a card that is otherwise fine.
+def _failing_post(url, data=None, files=None, timeout=None):
+    raise _store.httpx.ConnectError("cloudinary unreachable")
+
+
+_store.httpx.post = _failing_post
+try:
+    before = set(_UPLOAD_DIR.iterdir())
+    assert _store.publish(remote_src) == ""
+    assert set(_UPLOAD_DIR.iterdir()) == before
+finally:
+    _store.httpx.post = _real_post
+    _store.discard(remote_src)
+
+# 48f. A non-JSON / malformed reply is a failure, not a crash.
+_store.httpx.post = lambda *a, **k: _types.SimpleNamespace(
+    raise_for_status=lambda: None, json=lambda: (_ for _ in ()).throw(ValueError("nope")))
+try:
+    quiet_src = _store.save_temp(_FakeUpload("card.jpg"))
+    assert _store.publish(quiet_src) == ""
+finally:
+    _store.httpx.post = _real_post
+    _store.discard(quiet_src)
+
+_store.CLOUDINARY_CLOUD_NAME = _store.CLOUDINARY_API_KEY = _store.CLOUDINARY_API_SECRET = ""
+print("PASS photos: temp files stay private, kept photos go to object storage")
+
+# 48f-2. The add flow end to end with retention on. Five photos in, one photo
+# kept, four temp files gone — the earlier bug was the opposite of every part
+# of that: the kept one was written straight to a disk that gets wiped.
+_tmp_dir = _Path(tempfile.gettempdir()) / "myna-uploads"
+_before_tmp = set(_tmp_dir.iterdir()) if _tmp_dir.exists() else set()
+assert client.patch("/api/admin/settings", json={"retain_uploaded_images": True}).json()[
+    "retain_uploaded_images"] is True
+res = client.post("/api/food/add", data={
+    "lat": 19.0760, "long": 72.8777, "name": "Photo Rakhne Wala", "kind": "chinese",
+}, files=[("photos", (f"p{i}.jpg", _img(), "image/jpeg")) for i in range(5)])
+assert res.status_code == 200, res.text
+kept = res.json()["vendor"]
+assert res.json()["photo_count"] == 5
+assert kept["photo_url"].startswith("/uploads/"), kept["photo_url"]
+# Exactly one file kept, not five: the other four were read for their text.
+assert len(list(_UPLOAD_DIR.glob("*"))) >= 1
+# And nothing was left behind in temp.
+_after_tmp = set(_tmp_dir.iterdir()) if _tmp_dir.exists() else set()
+assert _after_tmp == _before_tmp, _after_tmp - _before_tmp
+# With retention off, no photo is stored at all.
+client.patch("/api/admin/settings", json={"retain_uploaded_images": False})
+res = client.post("/api/food/add", data={
+    "lat": 19.0760, "long": 72.8777, "name": "Photo Nahi Rakhne Wala",
+}, files={"photo": ("p.jpg", _img(), "image/jpeg")})
+assert res.json()["vendor"]["photo_url"] == ""
+assert (set(_tmp_dir.iterdir()) if _tmp_dir.exists() else set()) == _before_tmp
+print("PASS add flow keeps one photo, leaves no temp files")
+
+# 48g. The owner panel reports which backend is live. The retention toggle on
+# its own implies photos are safe; on local-disk they are not, and that
+# difference is invisible unless the panel says it.
+settings = client.get("/api/admin/settings").json()
+assert settings["photo_storage"] == "local-disk"
+assert "photoStore" in ADMIN_HTML
+assert "CLOUDINARY_CLOUD_NAME" in ADMIN_HTML and "wiped on every deploy" in ADMIN_HTML
+print("PASS owner panel names the photo backend")
 
 
 print("\nALL TESTS PASSED")

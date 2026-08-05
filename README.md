@@ -20,10 +20,13 @@ Vendor phone numbers are deliberately never captured by the add flow — you can
 ./run.sh
 ```
 
-Then open:
-- **The food app:** http://localhost:8000
-- **Owner panel:** http://localhost:8000/admin
+Two processes, the same split as production — the API on `:8000`, the pages on `:5173`. `./run.sh api` and `./run.sh ui` run them separately.
+
+- **The food app:** http://localhost:5173
+- **Owner panel:** http://localhost:5173/admin.html
 - **API docs:** http://localhost:8000/docs
+
+The backend serves no HTML. That's deliberate: it means there is exactly one way the UI reaches it, the same way a mobile app will.
 
 ## The food app
 
@@ -123,11 +126,13 @@ Hiding is reversible and **never deletes**. Flagged listings go to the **Reports
 
 Four screens, and the owner panel's dashboard links to all of them. The food app carries a small **Owner panel** link in its header.
 
-| Path | What it is |
-|---|---|
-| `/` | The thela app — the customer-facing product |
-| `/admin` | Owner panel: Dashboard, Thele, Reports, AI Settings |
-| `/docs` | Interactive API docs — still served, deliberately not linked from the panel (it's a developer surface) |
+| Path | Where | What it is |
+|---|---|---|
+| `/` | front end | The thela app — the customer-facing product |
+| `/admin.html` | front end | Owner panel: Dashboard, Jagah, Reports, AI Settings |
+| `/docs` | backend | Interactive API docs — deliberately not linked from the panel (it's a developer surface) |
+
+The front-end host also rewrites `/admin` → `/admin.html`, but nothing links to it that way: a plain file server has no rewrites, so a link that depends on one works in production and 404s in dev.
 
 The owner panel has exactly one management surface — the **Vendors** tab: every listing with its kind, menu size, round count, how many people confirmed it, and whether it's live, reported or hidden. Rename fixes the common case (a misread signboard) in one prompt; delete takes the menu and rounds with it. It replaced a generic shops table that showed shopkeeper names and phone numbers — columns this product no longer has, since nobody registers their own listing and numbers are never captured.
 
@@ -148,7 +153,10 @@ Vendor kinds and food categories live in `app/food.py` — thela, chaat, chinese
 | `DATABASE_URL` | `sqlite:///./myna.db` | Postgres URL supplied by hosting platform, or a manual override. |
 | `EXA_API_KEY` | _(empty)_ | Web search grounding (`app/web_search.py`) — for trending / weather suggestions later. Falls back to keyless DuckDuckGo. |
 | `MYNA_TIMEZONE` | `Asia/Kolkata` | Timezone that thela round timings are read in. |
-| `UPLOAD_DIR` | `./uploads` | Where photos are stored. Swap for Cloudinary/Supabase in production. |
+| `CLOUDINARY_CLOUD_NAME` | _(empty)_ | Photo storage. All three needed; without them kept photos fall back to local disk. |
+| `CLOUDINARY_API_KEY` | _(empty)_ | ↑ |
+| `CLOUDINARY_API_SECRET` | _(empty)_ | ↑ |
+| `UPLOAD_DIR` | `./uploads` | Where the local-disk fallback writes. |
 
 > **Without any API key the app still runs** — the photo read just fails, and you type the vendor's name yourself on the review screen. Set any provider key to turn the one-photo flow on.
 
@@ -156,7 +164,7 @@ Vendor kinds and food categories live in `app/food.py` — thela, chaat, chinese
 
 ```
 app/
-  main.py            FastAPI app, lightweight migrations, static/upload mounts
+  main.py            FastAPI app + lightweight migrations. JSON only — no pages
   config.py          Env-driven settings
   database.py        SQLAlchemy engine/session + DB-stored settings
   models.py          shops (vendors) + stops (rounds) + items (menu) + reports
@@ -170,15 +178,16 @@ app/
   vision_check.py    Generates a test board and checks a model really reads it
   web_search.py      Exa/DuckDuckGo grounding — unused today, kept for planned
                      trending + weather-based suggestions (tested, not dead)
-  storage.py         Image upload saving
+  storage.py         Temp files for the vision read; Cloudinary for kept photos
   routers/
     food.py          Add, near, seen votes, reports, menu items, reference data
     admin.py         Stats, vendors, review queue, AI settings, clear-all
-  static/
-    khana.html       The food app (served at /)
+  static/            The front end — its own deploy, never served by the API
+    index.html       The food app
     admin.html       Owner panel
-uploads/             Saved photos (gitignored)
-run.sh               Creates venv, installs deps, starts uvicorn
+    config.js        Backend origin (overwritten by the static site's build)
+uploads/             Local-disk photo fallback, dev only (gitignored)
+run.sh               Creates venv, then runs the API and the UI
 test_smoke.py        End-to-end smoke test — no live server needed
 ```
 
@@ -188,15 +197,17 @@ One-click deploy using the included `render.yaml` blueprint:
 
 1. Push this repo to GitHub, then in Render: **New → Blueprint** → select the repo.
 2. Render creates the web service and a **free PostgreSQL DB** automatically.
-3. After deploy, go to the service's **Environment** tab and add your API keys (`ANTHROPIC_API_KEY` / `GROQ_API_KEY` / `GEMINI_API_KEY`) — they're marked `sync: false` in the blueprint.
-4. Open `https://<backend>.onrender.com/admin` to pick the default model, and use **AI Settings → Test with a sample photo** to prove it can actually read one.
+3. After deploy, open the **`myna`** service's **Environment** tab and add your keys (`ANTHROPIC_API_KEY` / `GROQ_API_KEY` / `GEMINI_API_KEY`, plus the `CLOUDINARY_*` trio if you want photos kept) — all are marked `sync: false` in the blueprint, so Render never sets them for you.
+4. Open `https://<frontend>.onrender.com/admin.html` to pick the default model, and use **AI Settings → Test with a sample photo** to prove it can actually read one. The panel is part of the front end; the backend URL has no pages on it.
 
-**Two services, by design.** The backend is a plain JSON API with no coupling to any client — nothing is server-rendered, and the web app, a future mobile app and anything else all talk to the same `/api/*` endpoints over CORS. Which host serves the HTML is a deployment choice and changes none of that. The static front end exists so the browser isn't stuck behind the free backend's ~30 s cold start.
+**Two services, by design.** The backend is a plain JSON API with no idea what a client looks like — nothing is server-rendered, and the web app, a future mobile app and anything else all reach the same `/api/*` endpoints over CORS. The static front end also keeps the browser out from behind the free backend's ~30 s cold start.
 
 | | `myna` (backend) | `myna-app` (front end) |
 |---|---|---|
-| The pages | ✅ — one `uvicorn` is a complete local dev environment | ✅ |
+| The pages | ❌ 404 — it serves JSON, `/` included | ✅ |
 | `/api/*`, `/docs` | ✅ | ❌ 404 — a static host has neither |
+
+The backend used to serve the pages too, as a local-dev convenience. It cost more than it saved: the same app answered at two addresses with different configuration, so testing the wrong one passed silently — which is exactly how "search purana hi dikh raha hai" survived a working deploy. One front door.
 
 Splitting the deploy is fine. Letting the two halves **drift apart** is what actually broke, and the blueprint guards each way now:
 
@@ -207,7 +218,7 @@ Splitting the deploy is fine. Letting the two halves **drift apart** is what act
 Two things that were genuine code bugs can no longer fail: the pages read `window.MYNA_API_BASE` instead of assuming same-origin (they hardcoded an empty base, which broke the app on the static host completely), and the web app is named `index.html` so a static host has a root document at all.
 
 > **Free-tier notes:**
-> - Uploads go to the app's local `uploads/` folder, which **resets on every redeploy** (no persistent disk on free plan). Fine for a pilot; attach a disk or switch to Cloudinary/Supabase when you need permanence.
+> - **Set the Cloudinary keys if you turn photo retention on.** Without them a kept photo is written to the instance's local disk, which Render wipes on every deploy — the listing survives, the picture 404s. The owner panel names the live backend next to the toggle so this isn't invisible. Photos the AI reads are temp files either way and are always deleted.
 > - The free Postgres DB expires after **90 days** — upgrade to a paid tier to keep it.
 > - Service **sleeps after ~15 min idle**; first request takes ~30 s to wake up.
 
