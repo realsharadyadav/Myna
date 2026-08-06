@@ -424,13 +424,16 @@ assert any(v["shop_id"] == food_id for v in by_name["vendors"])
 miss = client.get("/api/food/near", params={
     "lat": 19.0760, "long": 72.8777, "q": "zzzznotadish"}).json()
 assert miss["count"] == 0
-# Far away is out of range, and the kind filter is exclusive.
+# Far away still shows up — nothing is excluded for distance alone — but
+# sorts behind anything closer, and the kind filter is exclusive.
 far = client.get("/api/food/near", params={"lat": 28.6139, "long": 77.2090}).json()
-assert all(v["shop_id"] != food_id for v in far["vendors"])
+assert any(v["shop_id"] == food_id for v in far["vendors"])
+far_card = next(v for v in far["vendors"] if v["shop_id"] == food_id)
+assert far_card["distance_km"] > 1000, far_card
 kinds = client.get("/api/food/near", params={
     "lat": 19.0760, "long": 72.8777, "kind": "sweets"}).json()
 assert all(v["shop_id"] != food_id for v in kinds["vendors"])
-print("PASS near: browse, dish search, name search, radius, kind filter")
+print("PASS near: browse, dish search, name search, no distance cutoff, kind filter")
 
 # 4f-2. Two dishes, two vendors — each returned for its own word, and a typo
 # on one of them doesn't cost you the other.
@@ -702,7 +705,7 @@ res = client.post("/api/admin/data/sample",
                   json={"lat": 19.0760, "long": 72.8777, "count": 12, "replace": True}).json()
 assert res["created"] == 12 and res["items"] > 0
 listing = client.get("/api/food/near", params={
-    "lat": 19.0760, "long": 72.8777, "radius_km": 10}).json()
+    "lat": 19.0760, "long": 72.8777}).json()
 assert listing["count"] >= 1, listing["count"]
 # Loading again appends rather than replacing, unless asked.
 client.post("/api/admin/data/sample", json={"lat": 19.076, "long": 72.8777, "count": 5})

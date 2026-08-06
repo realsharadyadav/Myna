@@ -39,10 +39,6 @@ from ..geo import forward_geocode, haversine_km, ip_geolocate, reverse_geocode
 
 router = APIRouter(prefix="/api/food", tags=["food"])
 
-# How far "paas me" means by default. A thela is a walk, not a drive.
-DEFAULT_RADIUS_KM = 3.0
-MAX_RADIUS_KM = 25.0
-
 # A listing nobody has confirmed in this long is shown as stale rather than
 # hidden — a cart that moved is still a useful lead about where food is.
 FRESH_DAYS = 2
@@ -697,26 +693,26 @@ def plan(
     q: str,
     lat: float,
     long: float,
-    radius_km: float = DEFAULT_RADIUS_KM,
     db: Session = Depends(get_db),
 ):
     """Type what you want to do — "biryani", "birthday party", "leaking tap"
     — and get the list of things it takes, each matched to the nearest shop
-    nearby that has it.
+    that has it, however far that turns out to be.
 
     The list itself comes from an LLM grounded with a web search
     (ai.plan_items); everything after that reuses the exact matching a normal
     search uses (resolve_terms, semantic_hits, _matches), so a hardware shop
     that lists "cement" shows up for a generated "cement" line the same way it
     would from the search box. A shop is only ever nearer, never partial —
-    the point is "who has this", not a ranked list per item.
+    the point is "who has this", not a ranked list per item. No distance
+    cutoff: the one hardware shop in the whole town is still the answer to
+    "who has cement" even if it's 20 km off, just shown as such.
     """
     items, error = ai.plan_items(q, model=get_default_search_model(db))
     if not items:
         return {"query": q, "items": [],
                 "error": error or "Samajh nahi aaya iske liye kya chahiye."}
 
-    radius = max(0.1, min(radius_km or DEFAULT_RADIUS_KM, MAX_RADIUS_KM))
     terms = [it["name"] for it in items]
     resolved, _corrections = resolve_terms(db, terms)
     semantic = semantic_hits(db, terms)
@@ -731,7 +727,7 @@ def plan(
             if not matched:
                 continue
             card = vendor_view(shop, lat, long, matched)
-            if card["trust"] == "closed" or card["distance_km"] > radius:
+            if card["trust"] == "closed":
                 continue
             if best is None or card["distance_km"] < best["distance_km"]:
                 best = card
@@ -747,12 +743,16 @@ def near(
     q: str = "",
     kind: str = "",
     family: str = "",
-    radius_km: float = DEFAULT_RADIUS_KM,
     open_now: bool = False,
     limit: int = 50,
     db: Session = Depends(get_db),
 ):
     """The home screen. No query = everything nearby; a query filters it.
+
+    Nothing is excluded for being far — a small town might have only one shop
+    that sells cement, and hiding it past some cutoff would answer "who has
+    this" with nothing instead of with the truth. Distance decides order, not
+    inclusion; `limit` bounds the response instead.
 
     Ranking depends on whether the listing's presence is perishable, because
     two different questions are being asked through one box:
@@ -767,7 +767,6 @@ def near(
       and these listings carry no hours anyway, so "open" is unknown rather
       than false.
     """
-    radius = max(0.1, min(radius_km or DEFAULT_RADIUS_KM, MAX_RADIUS_KM))
     terms = food.split_query(q)
     resolved, corrections = resolve_terms(db, terms)
     semantic = semantic_hits(db, terms)
@@ -789,8 +788,6 @@ def near(
             continue
         card = vendor_view(shop, lat, long, matched)
         if card["trust"] == "closed":
-            continue
-        if card["distance_km"] > radius:
             continue
         # "Abhi khula" can only filter listings that know their own hours.
         # Dropping the durable ones here would answer "who is open" by hiding

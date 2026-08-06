@@ -54,7 +54,7 @@ GPS, a search box, and cards. Each card is a jagah: kind icon, distance, what's 
 - **Search a dish** — "momos", "chai", "chole bhature". Matches the menu, the jagah's name and its kind together, so a cart called *Momo Point* that never listed an item still turns up.
 - **Several dishes at once** — "momos aur chawmin" returns two jagah, each shown for its own word: the momos cart for "momos", the chowmein cart for "chawmin". Matches are reported per *typed* word, so a card can say why it's there.
 - **Ranking follows the family.** For a thela the question is "what can I get *right now*": open beats closed, a doubtful listing sinks, and only then does distance decide — sorting purely by distance would put a Sunday-only cart above one standing at the corner. For a shop or a capability the question is "who has this at all", so match quality and distance decide; a hardware shop carries no timings, and burying it at 8 PM would answer the wrong question. `open_now` therefore only filters the listings that know their own hours.
-- **Filters** — "Abhi khula 🔥" and a radius that cycles 3 → 10 → 1 km. A thela is a walk, not a drive.
+- **Filters** — "Abhi khula 🔥". Nothing is excluded for being far; distance only decides order, so the one shop in town that has what you need still shows up even from across the city.
 - **Theme** — follows the phone, with a toggle that overrides it, shared with the owner panel through one `myna_theme` key. The override needs its own CSS rule rather than only a media query: an attribute set later can't beat `@media (prefers-color-scheme: dark)`, so a phone in dark mode ignored an explicit "light" entirely.
 - Hinglish in Roman script throughout — it's how the food is named out loud, it needs no font support on a cheap phone, and it's what people type.
 
@@ -145,7 +145,7 @@ Still prefixed `/api/food/*`. Renaming it (and `app/food.py`, and `Shop.food_kin
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/api/food/near?lat&long&q&kind&family&radius_km&open_now&limit` | The home screen. No `q` = everything nearby. `family` narrows to `food`/`goods`/`services`. Returns `corrections` alongside `vendors` |
+| `GET` | `/api/food/near?lat&long&q&kind&family&open_now&limit` | The home screen. No `q` = everything nearby, nothing excluded for distance — sorted nearest-first instead. `family` narrows to `food`/`goods`/`services`. Returns `corrections` alongside `vendors` |
 | `POST` | `/api/food/add` | Photo add (multipart: repeated `photos` — or a single `photo` — plus `lat`, `long`, optional `name`/`kind`/`address`/`device_id`/`day_of_week`/`start_time`/`end_time`) |
 | `POST` | `/api/food/survey` | Survey add: one shop plus everything it sells and repairs in a single request. `shop_id` adds to an existing shop; duplicate items are skipped |
 | `GET` | `/api/food/geocode/reverse?lat&long` | Coordinates → address, so the add screens can show and correct it before saving |

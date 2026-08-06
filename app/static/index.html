@@ -260,7 +260,6 @@
     <!-- Only meaningful for listings that carry hours, so it hides itself on
          the tabs where nothing does. -->
     <button class="chip" id="openNow" aria-pressed="false">Abhi khula 🔥</button>
-    <button class="chip" id="radius" data-km="3">3 km ke andar</button>
   </div>
 
   <!-- The search box answers "who has X". This answers "what do I even need"
@@ -426,7 +425,6 @@ const deviceId = (() => {
 let pos = null;          // {lat, long}
 let query = "";
 let openOnly = false;
-let radiusKm = 3;
 let activeChip = "";
 let family = "";          // "" = Sab; otherwise food | goods | services
 let files = [];
@@ -667,7 +665,7 @@ async function load() {
   const p = await ensureLocation();
   $("list").innerHTML = `<div class="empty"><span class="spinner"></span> Dhoondh rahe hain…</div>`;
   const params = new URLSearchParams({
-    lat: p.lat, long: p.long, q: query, radius_km: radiusKm, family,
+    lat: p.lat, long: p.long, q: query, family,
     open_now: openOnly ? "true" : "false",
   });
   try {
@@ -783,12 +781,6 @@ $("q").addEventListener("input", (e) => {
 $("openNow").addEventListener("click", (e) => {
   openOnly = !openOnly;
   e.target.setAttribute("aria-pressed", String(openOnly));
-  load();
-});
-
-$("radius").addEventListener("click", (e) => {
-  radiusKm = { 1: 3, 3: 10, 10: 1 }[radiusKm] ?? 3;
-  e.target.textContent = `${radiusKm} km ke andar`;
   load();
 });
 
@@ -909,7 +901,7 @@ async function runPlan() {
   $("planGo").disabled = true;
   $("planResult").innerHTML = `<div class="empty"><span class="spinner"></span> Soch rahe hain…</div>`;
   const p = await ensureLocation();
-  const params = new URLSearchParams({ q: goal, lat: p.lat, long: p.long, radius_km: radiusKm });
+  const params = new URLSearchParams({ q: goal, lat: p.lat, long: p.long });
   try {
     const res = await fetch(`${API}/api/food/plan?${params}`);
     const data = await res.json();
