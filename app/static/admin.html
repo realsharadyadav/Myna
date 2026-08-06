@@ -116,6 +116,15 @@
   h3, h4 { color: var(--text-soft); font-weight: 700; }
   h3 { font-size: .9rem; margin-bottom: 12px; }
   h4 { font-size: .82rem; margin: 16px 0 10px; }
+  /* Groups cards on the Settings tab into named sections instead of one flat
+     stack — "AI models", "Photo storage", "AI providers" read as different
+     concerns even though they used to sit under one unlabelled list. */
+  .section-heading {
+    font-size: .78rem; font-weight: 800; text-transform: uppercase;
+    letter-spacing: .06em; color: var(--text-soft); margin: 26px 0 10px;
+    padding-left: 2px;
+  }
+  .section-heading:first-child { margin-top: 4px; }
 
   .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
   .stat-card {
@@ -196,6 +205,22 @@
 
   .items-drawer { margin-top: 10px; padding: 14px; background: color-mix(in srgb, var(--input-bg) 70%, transparent); border-radius: 16px; border: 1px solid var(--cell-border); }
   .items-drawer table { font-size: .8rem; }
+
+  .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; margin-top: 14px; }
+  .photo-card { position: relative; border-radius: 14px; overflow: hidden; border: 1px solid var(--cell-border); background: var(--input-bg); }
+  .photo-card img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+  .photo-card .info { padding: 8px 10px; }
+  .photo-card .info .name { font-size: .8rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .photo-card .info .meta { font-size: .7rem; color: var(--text-soft); margin-top: 2px; }
+  .photo-card .del-photo {
+    position: absolute; top: 8px; right: 8px; width: 30px; height: 30px; border-radius: 50%;
+    background: rgba(0,0,0,.55); color: #fff; border: none; display: grid; place-items: center;
+    cursor: pointer; backdrop-filter: blur(2px);
+  }
+  .photo-card .del-photo:hover { background: var(--danger); }
+  .photo-card .del-photo .ic { width: 15px; height: 15px; }
+  .uploader-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--cell-border); font-size: .84rem; }
+  .uploader-row:last-child { border-bottom: none; }
 
   .msg { text-align: center; color: var(--msg); padding: 26px 0; }
   .default-row { background: color-mix(in srgb, #f5a623 8%, transparent); }
@@ -434,9 +459,10 @@
 <main>
   <div class="tabs">
     <button class="active" onclick="showTab('dashboard', this)" title="Dashboard" aria-label="Dashboard"><svg class="ic" aria-hidden="true"><use href="#i-target"/></svg><span class="tab-text">Dashboard</span></button>
-    <button onclick="showTab('vendors', this)" title="Jagah" aria-label="Jagah"><svg class="ic" aria-hidden="true"><use href="#i-store"/></svg><span class="tab-text">Jagah</span></button>
+    <button onclick="showTab('vendors', this)" title="Places" aria-label="Places"><svg class="ic" aria-hidden="true"><use href="#i-store"/></svg><span class="tab-text">Places</span></button>
+    <button onclick="showTab('photos', this)" title="Photos" aria-label="Photos"><svg class="ic" aria-hidden="true"><use href="#i-image"/></svg><span class="tab-text">Photos</span></button>
     <button onclick="showTab('reports', this)" title="Reported listings" aria-label="Reported listings"><svg class="ic" aria-hidden="true"><use href="#i-alert"/></svg><span class="tab-text">Reports</span><span class="tab-pill" id="reportPill" hidden></span></button>
-    <button onclick="showTab('settings', this)" title="AI settings" aria-label="AI settings"><svg class="ic" aria-hidden="true"><use href="#i-spark"/></svg><span class="tab-text">AI Settings</span></button>
+    <button onclick="showTab('settings', this)" title="Settings" aria-label="Settings"><svg class="ic" aria-hidden="true"><use href="#i-spark"/></svg><span class="tab-text">Settings</span></button>
   </div>
 
   <!-- ==================== DASHBOARD ==================== -->
@@ -448,13 +474,13 @@
     <div class="card" style="margin-top:16px">
       <h3>All pages</h3>
       <div class="pagelinks">
-        <a href="/" target="_blank"><b>🍜 Khaane ka app</b><span>Paas me kya mil raha hai — the customer app</span></a>
+        <a href="/" target="_blank"><b>🍜 Customer app</b><span>What's near me — the customer-facing app</span></a>
         <a href="/admin.html"><b>⚙️ Owner panel</b><span>You are here</span></a>
       </div>
     </div>
 
     <div class="card" style="margin-top:16px">
-      <h3>Nayi add hui jagah</h3>
+      <h3>Recently added places</h3>
       <div class="table-scroll">
         <table>
           <thead><tr><th>ID</th><th>Name</th><th>Registered</th></tr></thead>
@@ -466,17 +492,17 @@
     <!-- Wiping test data is a routine thing to want while piloting, and doing
          it by hand meant deleting shops one at a time. -->
     <div class="card" style="margin-top:16px">
-      <h3>Load sample jagah</h3>
+      <h3>Load sample places</h3>
       <p class="count" style="margin:6px 0 14px">
-        Generates 50 demo jagah around <b>your current location</b>, with menus,
+        Generates 50 demo places around <b>your current location</b>, with menus,
         prices, rounds and a spread of freshness — so search, ranking and the
         reports queue all have something real-shaped to work on.
-        Sample data far from you would tell you nothing about &ldquo;paas me kya
-        mil raha hai&rdquo;.
+        Sample data far from you would tell you nothing about &ldquo;what&rsquo;s
+        near me&rdquo;.
       </p>
       <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center">
         <button class="ghost" style="width:auto; padding:10px 22px" onclick="loadSampleData(false)">
-          <svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg> Load 50 sample jagah
+          <svg class="ic" aria-hidden="true"><use href="#i-plus"/></svg> Load 50 sample places
         </button>
         <button class="ghost" style="width:auto; padding:10px 22px" onclick="loadSampleData(true)">
           <svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg> Wipe first, then load 50
@@ -488,7 +514,7 @@
     <div class="card danger-zone" style="margin-top:16px">
       <h3>Clear all data</h3>
       <p class="count" style="margin:6px 0 14px">
-        Deletes every jagah, dish, round and report. AI settings are kept.
+        Deletes every place, dish, round and report. AI settings are kept.
         This cannot be undone.
       </p>
       <button class="ghost danger-btn" style="width:auto; padding:10px 22px" onclick="clearAllData()">
@@ -506,13 +532,13 @@
   <div id="tab-vendors" style="display:none">
     <div class="card">
       <div class="toolbar">
-        <input id="vendorSearch" type="text" placeholder="Naam ya address se dhoondho…" onkeydown="if(event.key==='Enter')loadVendors()">
+        <input id="vendorSearch" type="text" placeholder="Search by name or address…" onkeydown="if(event.key==='Enter')loadVendors()">
         <select id="vendorKind" onchange="loadVendors()"><option value="">All kinds</option></select>
         <button onclick="loadVendors()">Search</button>
       </div>
       <div class="table-scroll">
         <table>
-          <thead><tr><th>ID</th><th>Jagah</th><th>Kind</th><th>Menu</th><th>Rounds</th><th>Confirmed</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>ID</th><th>Place</th><th>Kind</th><th>Menu</th><th>Rounds</th><th>Confirmed</th><th>Status</th><th></th></tr></thead>
           <tbody id="vendorTable"></tbody>
         </table>
       </div>
@@ -520,16 +546,40 @@
     </div>
   </div>
 
+  <!-- ==================== PHOTOS ====================
+       Anyone can add any place with no account — the same thing that makes
+       the app usable in a village with no signup friction also means nothing
+       stops a photo of something other than a shop board. This is the review
+       surface: every kept photo, who added it, and a way to pull one without
+       necessarily deleting a listing that might otherwise be legitimate. -->
+  <div id="tab-photos" style="display:none">
+    <div class="card" style="margin-bottom:16px">
+      <h3>Top uploaders</h3>
+      <p class="count" style="margin:6px 0 14px">
+        Many photos from one device is unusual — start review there.
+      </p>
+      <div id="uploaderList" class="count">Loading…</div>
+    </div>
+    <div class="card">
+      <div class="toolbar">
+        <input id="photoSearch" type="text" placeholder="Search by place name…" onkeydown="if(event.key==='Enter')loadPhotos()">
+        <button onclick="loadPhotos()">Search</button>
+      </div>
+      <div id="photoGrid" class="photo-grid"></div>
+      <div class="count" style="margin-top:10px" id="photoCount"></div>
+    </div>
+  </div>
+
   <!-- ==================== REPORTS ====================
        The review queue behind the food app's flag button. Three strangers
        tapping ⚑ hides a listing, which is fast enough for obvious junk and
-       therefore also fast enough to catch a real jagah by mistake — so
+       therefore also fast enough to catch a real place by mistake — so
        hiding never deletes, and this screen is where that gets undone. -->
   <div id="tab-reports" style="display:none">
     <div class="card">
       <div class="toolbar">
         <label class="checkbox" style="display:inline-flex; align-items:center; gap:6px; font-size:.85rem">
-          <input type="checkbox" id="reportHiddenOnly" onchange="loadReports()"> Sirf hidden jagah
+          <input type="checkbox" id="reportHiddenOnly" onchange="loadReports()"> Hidden places only
         </label>
         <button class="ghost" onclick="loadReports()" style="width:auto; padding:8px 16px"><svg class="ic" aria-hidden="true"><use href="#i-refresh"/></svg> Refresh</button>
       </div>
@@ -540,13 +590,14 @@
   <!-- ==================== SETTINGS ==================== -->
   <div id="tab-settings" style="display:none">
 
+    <h2 class="section-heading">AI models</h2>
     <!-- What each model is for, in plain words, one setting per card. -->
     <div class="card setting" id="visionCard">
       <div class="setting-head">
         <span class="setting-ico"><svg class="ic" aria-hidden="true"><use href="#i-camera"/></svg></span>
         <div>
           <h3>Reading photos (OCR)</h3>
-          <p class="setting-why">Used when someone photographs a jagah&rsquo;s board — the model reads the name, the menu and the rates off it.</p>
+          <p class="setting-why">Used when someone photographs a shop&rsquo;s board — the model reads the name, the menu and the rates off it.</p>
         </div>
       </div>
       <div id="visionWarn"></div>
@@ -587,6 +638,7 @@
       <p class="setting-why" id="embedStatus"></p>
     </div>
 
+    <h2 class="section-heading">Photo storage</h2>
     <div class="card setting">
       <div class="setting-head">
         <span class="setting-ico"><svg class="ic" aria-hidden="true"><use href="#i-image"/></svg></span>
@@ -604,6 +656,7 @@
       <p class="setting-why" id="photoStore"></p>
     </div>
 
+    <h2 class="section-heading">AI providers</h2>
     <div class="card setting">
       <div class="setting-head">
         <span class="setting-ico"><svg class="ic" aria-hidden="true"><use href="#i-bolt"/></svg></span>
@@ -714,11 +767,12 @@ const API = window.MYNA_API_BASE || '';
 function showTab(name, btn) {
   document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  ['dashboard', 'vendors', 'reports', 'settings'].forEach(t => {
+  ['dashboard', 'vendors', 'photos', 'reports', 'settings'].forEach(t => {
     document.getElementById('tab-' + t).style.display = t === name ? '' : 'none';
   });
   if (name === 'dashboard') loadStats();
   if (name === 'vendors') { loadVendorKinds(); loadVendors(); }
+  if (name === 'photos') { loadUploaders(); loadPhotos(); }
   if (name === 'reports') loadReports();
   if (name === 'settings') loadSettings();
 }
@@ -732,13 +786,13 @@ function showTab(name, btn) {
 // rather than as one number (three "duplicate" is a merge, three "fake" is a
 // delete), and restoring is offered as prominently as deleting.
 
-// Hinglish reason keys, spelled out for whoever is reviewing.
+// Reason keys, spelled out for whoever is reviewing.
 const REPORT_LABELS = {
-  fake: 'Aisi koi dukaan hai hi nahi',
-  joke: 'Mazaak / bakwaas entry',
-  wrong: 'Jankari galat hai',
-  duplicate: 'Ye pehle se listed hai',
-  offensive: 'Galat ya offensive content',
+  fake: "This shop doesn't exist",
+  joke: 'Joke / nonsense entry',
+  wrong: 'Information is wrong',
+  duplicate: 'Already listed elsewhere',
+  offensive: 'Offensive content',
 };
 
 async function loadReports() {
@@ -751,8 +805,8 @@ async function loadReports() {
     updateReportPill(rows.length);
     if (!rows.length) {
       box.innerHTML = `<p class="msg" style="padding:8px 0">${hiddenOnly
-        ? 'Abhi koi jagah hidden nahi hai.'
-        : 'Koi reported jagah nahi. Kuch review karne ko nahi hai.'}</p>`;
+        ? 'No places are hidden right now.'
+        : 'No reported places. Nothing to review.'}</p>`;
       return;
     }
     box.innerHTML = rows.map(reportCard).join('');
@@ -774,7 +828,7 @@ function reportCard(r) {
   // real, flagged by three others, is very different from one nobody has ever
   // confirmed. Deleting without that on screen is guesswork.
   const evidence = [
-    r.seen_yes ? `${r.seen_yes}× confirmed as real` : 'kisi ne confirm nahi kiya',
+    r.seen_yes ? `${r.seen_yes}× confirmed as real` : 'nobody has confirmed it',
     r.shutdown_count ? `${r.shutdown_count}× reported shut for good` : '',
     r.added_by ? `added by ${esc(r.added_by.slice(0, 10))}…` : 'added anonymously',
   ].filter(Boolean).join(' · ');
@@ -784,8 +838,8 @@ function reportCard(r) {
     <div style="display:flex; gap:10px; align-items:flex-start; flex-wrap:wrap">
       <div style="min-width:0; flex:1">
         <h3 style="margin:0">${esc(r.name)}
-          ${r.hidden ? '<span class="badge off" style="margin-left:8px">Search se hidden</span>'
-                     : '<span class="badge on" style="margin-left:8px">Abhi bhi visible</span>'}
+          ${r.hidden ? '<span class="badge off" style="margin-left:8px">Hidden from search</span>'
+                     : '<span class="badge on" style="margin-left:8px">Still visible</span>'}
         </h3>
         <p class="count" style="margin:4px 0 0">
           #${r.shop_id} · ${esc(r.kind_label)}${r.address ? ' · ' + esc(r.address) : ''}
@@ -839,9 +893,9 @@ function browserLocation() {
 }
 
 async function loadSampleData(replace) {
-  if (replace && !confirm('Delete everything first, then load 50 sample jagah?')) return;
+  if (replace && !confirm('Delete everything first, then load 50 sample places?')) return;
   const out = document.getElementById('sampleResult');
-  out.textContent = 'Location le rahe hain…';
+  out.textContent = 'Getting location…';
   const pos = await browserLocation();
   out.textContent = 'Generating…';
   try {
@@ -851,8 +905,8 @@ async function loadSampleData(replace) {
       body: JSON.stringify({ count: 50, replace, ...(pos || {}) }),
     });
     const data = await res.json();
-    out.textContent = `${data.created} jagah, ${data.items} dishes, ${data.rounds} rounds`
-      + (pos ? ' around you.' : ' around Mumbai (location nahi mili).');
+    out.textContent = `${data.created} places, ${data.items} dishes, ${data.rounds} rounds`
+      + (pos ? ' around you.' : ' around Mumbai (location not found).');
     loadStats();
   } catch (e) {
     out.textContent = 'Could not load sample data — try again.';
@@ -862,14 +916,14 @@ async function loadSampleData(replace) {
 // Two confirms, because this is unrecoverable and the button sits one tab away
 // from everything else you do all day.
 async function clearAllData() {
-  if (!confirm('Delete ALL jagah, dishes, rounds and reports?\n\nThis cannot be undone.')) return;
+  if (!confirm('Delete ALL places, dishes, rounds and reports?\n\nThis cannot be undone.')) return;
   if (!confirm('Really clear everything? Last chance.')) return;
   const out = document.getElementById('clearResult');
   out.textContent = 'Clearing…';
   try {
     const res = await fetch(API + '/api/admin/data/clear', { method: 'POST' });
     const data = await res.json();
-    out.textContent = `Cleared ${data.shops} jagah, ${data.items} dishes, ${data.stops} rounds, ${data.reports} reports.`;
+    out.textContent = `Cleared ${data.shops} places, ${data.items} dishes, ${data.stops} rounds, ${data.reports} reports.`;
     loadStats();
   } catch (e) {
     out.textContent = 'Clear failed — try again.';
@@ -880,6 +934,69 @@ function gotoReports() {
   const btn = [...document.querySelectorAll('.tabs button')]
     .find(b => b.getAttribute('aria-label') === 'Reported listings');
   if (btn) showTab('reports', btn);
+}
+
+function gotoPhotos() {
+  const btn = [...document.querySelectorAll('.tabs button')]
+    .find(b => b.getAttribute('aria-label') === 'Photos');
+  if (btn) showTab('photos', btn);
+}
+
+// ---------------------------------------------------------------------------
+// Photos — moderation grid
+// ---------------------------------------------------------------------------
+async function loadPhotos() {
+  const grid = document.getElementById('photoGrid');
+  const q = document.getElementById('photoSearch').value.trim();
+  grid.innerHTML = '<p class="msg" style="padding:8px 0">Loading…</p>';
+  try {
+    const res = await fetch(API + '/api/admin/photos?q=' + encodeURIComponent(q) + '&limit=100');
+    const photos = await res.json();
+    document.getElementById('photoCount').textContent = `${photos.length} photo${photos.length === 1 ? '' : 's'}`;
+    grid.innerHTML = photos.map(photoCard).join('')
+      || '<p class="msg" style="padding:8px 0">No photos found.</p>';
+  } catch (e) {
+    grid.innerHTML = '<p class="msg" style="padding:8px 0; color:#e74c3c">Could not load photos.</p>';
+  }
+}
+
+function photoCard(p) {
+  const uploader = p.added_by ? esc(p.added_by.slice(0, 10)) + '…' : 'anonymous';
+  const when = new Date(p.created_at).toLocaleDateString();
+  return `
+  <div class="photo-card">
+    <img src="${esc(p.photo_url)}" alt="${esc(p.name)}" loading="lazy">
+    <button class="del-photo" title="Remove photo" aria-label="Remove photo" onclick="deletePhoto(${p.shop_id}, '${esc(p.name).replace(/'/g, "\\'")}')">
+      <svg class="ic" aria-hidden="true"><use href="#i-trash"/></svg>
+    </button>
+    <div class="info">
+      <div class="name">${p.hidden ? '🚫 ' : ''}${esc(p.name)}</div>
+      <div class="meta">${uploader} · ${when}</div>
+    </div>
+  </div>`;
+}
+
+async function deletePhoto(shopId, name) {
+  if (!confirm(`Remove the photo for "${name}"? The listing stays — only the photo goes.`)) return;
+  await fetch(`${API}/api/admin/photos/${shopId}`, { method: 'DELETE' });
+  loadPhotos();
+  loadUploaders();
+}
+
+async function loadUploaders() {
+  const box = document.getElementById('uploaderList');
+  try {
+    const res = await fetch(API + '/api/admin/photos/uploaders');
+    const rows = await res.json();
+    box.innerHTML = rows.length
+      ? rows.map(r => `<div class="uploader-row">
+          <span>${esc(r.device_id.slice(0, 14))}…</span>
+          <span><b>${r.photo_count}</b> photo${r.photo_count === 1 ? '' : 's'}</span>
+        </div>`).join('')
+      : 'No uploads yet.'
+  } catch (e) {
+    box.innerHTML = 'Could not load.';
+  }
 }
 
 function updateReportPill(count) {
@@ -896,8 +1013,11 @@ async function loadStats() {
   const data = await res.json();
   const reported = data.reported_shops || 0;
   document.getElementById('statsGrid').innerHTML = `
-    <div class="stat-card"><div class="num">${data.total_shops}</div><div class="label">Jagah</div></div>
+    <div class="stat-card"><div class="num">${data.total_shops}</div><div class="label">Places</div></div>
     <div class="stat-card"><div class="num">${data.total_items}</div><div class="label">Items</div></div>
+    <div class="stat-card clickable" onclick="gotoPhotos()" title="Open photo review">
+      <div class="num">${data.total_photos || 0}</div><div class="label">Photos</div>
+    </div>
     ${reported ? `<div class="stat-card alert clickable" onclick="gotoReports()" title="Open the review queue">
       <div class="num">${reported}</div>
       <div class="label">Reported${data.hidden_shops ? ` · ${data.hidden_shops} hidden` : ''}</div>
@@ -906,7 +1026,7 @@ async function loadStats() {
   updateReportPill(reported);
   document.getElementById('recentShops').innerHTML = data.recent_shops.map(s =>
     `<tr><td>${s.shop_id}</td><td>${esc(s.name)}</td><td>${new Date(s.created_at).toLocaleString()}</td></tr>`
-  ).join('') || '<tr><td colspan="3" class="msg">Abhi koi jagah nahi.</td></tr>';
+  ).join('') || '<tr><td colspan="3" class="msg">No places yet.</td></tr>';
 }
 
 // ---------------------------------------------------------------------------
@@ -918,7 +1038,7 @@ async function loadVendors() {
   const res = await fetch(API + '/api/admin/vendors?q=' + encodeURIComponent(q)
     + '&kind=' + encodeURIComponent(kind));
   const vendors = await res.json();
-  document.getElementById('vendorCount').textContent = `${vendors.length} jagah`;
+  document.getElementById('vendorCount').textContent = `${vendors.length} places`;
   document.getElementById('vendorTable').innerHTML = vendors.map(v => `
     <tr>
       <td>${v.shop_id}</td>
@@ -934,15 +1054,15 @@ async function loadVendors() {
             : '<span class="badge on">Live</span>')}</td>
       <td>
         <button class="btn-icon" onclick="renameVendor(${v.shop_id}, '${esc(v.name).replace(/'/g, "\\'")}')" title="Rename" aria-label="Rename"><svg class="ic" aria-hidden="true"><use href="#i-edit"/></svg></button>
-        <button class="del btn-icon" onclick="deleteVendor(${v.shop_id})" title="Jagah delete karo" aria-label="Jagah delete karo"><svg class="ic" aria-hidden="true"><use href="#i-trash"/></svg></button>
+        <button class="del btn-icon" onclick="deleteVendor(${v.shop_id})" title="Delete place" aria-label="Delete place"><svg class="ic" aria-hidden="true"><use href="#i-trash"/></svg></button>
       </td>
-    </tr>`).join('') || '<tr><td colspan="8" class="msg">Abhi koi jagah list nahi hai.</td></tr>';
+    </tr>`).join('') || '<tr><td colspan="8" class="msg">No places listed yet.</td></tr>';
 }
 
 // A misread signboard is the common fix, so renaming is one prompt rather than
 // a whole edit form.
 async function renameVendor(id, current) {
-  const name = prompt('Jagah ka naam:', current);
+  const name = prompt('Place name:', current);
   if (name === null || !name.trim()) return;
   await fetch(`${API}/api/admin/shops/${id}`, {
     method: 'PATCH',
@@ -953,7 +1073,7 @@ async function renameVendor(id, current) {
 }
 
 async function deleteVendor(id) {
-  if (!confirm('Ye jagah aur iska poora menu delete karein?')) return;
+  if (!confirm('Delete this place and its entire menu?')) return;
   await fetch(`${API}/api/admin/shops/${id}`, { method: 'DELETE' });
   loadVendors();
   loadStats();
@@ -1064,7 +1184,7 @@ function renderVisionWarning() {
   const meta = llmModels.find(m => m.label === label);
   const box = document.getElementById('visionWarn');
   if (!llmModels.length) {
-    box.innerHTML = '<div class="note info"><b>No AI provider connected</b>Photo reading is off — jagah can still be added by typing a name.</div>';
+    box.innerHTML = '<div class="note info"><b>No AI provider connected</b>Photo reading is off — a place can still be added by typing a name.</div>';
     return;
   }
   if (!label) { box.innerHTML = ''; return; }

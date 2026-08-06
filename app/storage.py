@@ -16,6 +16,7 @@ keys it will silently start losing photos again, so backend_name() reports
 which path is live and the owner panel shows it next to the retention toggle.
 """
 import hashlib
+import re
 import tempfile
 import time
 import uuid
@@ -105,6 +106,48 @@ def publish(path: str) -> str:
         # and 404s after the next deploy. No photo is the honest answer.
         return ""
     return _write_to_upload_dir(raw)
+
+
+_CLOUDINARY_PUBLIC_ID = re.compile(r"/image/upload/(?:v\d+/)?(?P<public_id>.+?)\.\w+$")
+
+
+def delete(url: str) -> bool:
+    """Remove a published photo from wherever publish() put it.
+
+    Deleting the shop it belonged to must not leave the picture live forever
+    on Cloudinary's side — that's a stranger's photo sitting in our account
+    with nothing in our own database pointing at it, or worse, reachable by
+    anyone who kept the link. Never raises; a photo outliving its listing by
+    a few minutes on a failed API call is a much smaller problem than a
+    delete endpoint that 500s.
+    """
+    if not url:
+        return True
+    if url.startswith("/uploads/"):
+        try:
+            (UPLOAD_DIR / Path(url).name).unlink(missing_ok=True)
+            return True
+        except OSError:
+            return False
+    if remote_configured() and "res.cloudinary.com" in url:
+        return _delete_from_cloudinary(url)
+    return False
+
+
+def _delete_from_cloudinary(url: str) -> bool:
+    match = _CLOUDINARY_PUBLIC_ID.search(url)
+    if not match:
+        return False
+    public_id = match.group("public_id")
+    signed = {"public_id": public_id, "timestamp": str(int(time.time()))}
+    data = {**signed, "api_key": CLOUDINARY_API_KEY, "signature": _signature(signed)}
+    destroy_url = f"https://api.cloudinary.com/v1_1/{CLOUDINARY_CLOUD_NAME}/image/destroy"
+    try:
+        response = httpx.post(destroy_url, data=data, timeout=_UPLOAD_TIMEOUT)
+        response.raise_for_status()
+        return response.json().get("result") == "ok"
+    except (httpx.HTTPError, ValueError):
+        return False
 
 
 def _write_to_upload_dir(raw: bytes) -> str:

@@ -43,9 +43,14 @@ def stats(db: Session = Depends(get_db)):
         db.query(func.count(models.Shop.shop_id))
         .filter(models.Shop.hidden == 1).scalar()
     )
+    photo_count = (
+        db.query(func.count(models.Shop.shop_id))
+        .filter(models.Shop.photo_url != "").scalar()
+    )
     return {
         "total_shops": shop_count,
         "total_items": item_count,
+        "total_photos": photo_count or 0,
         "reported_shops": reported_count or 0,
         "hidden_shops": hidden_count or 0,
         "recent_shops": [
@@ -127,14 +132,84 @@ def delete_shop(shop_id: int, db: Session = Depends(get_db)):
     """Delete one listing and everything on it.
 
     Uses session delete, not a bulk query delete, so the cascade actually runs
-    and the menu, rounds and reports go with it.
+    and the menu, rounds and reports go with it. The photo goes too — leaving
+    it live on Cloudinary after its listing is gone is exactly the kind of
+    photo nothing in this app can find or moderate again.
     """
     shop = db.get(models.Shop, shop_id)
     if not shop:
         raise HTTPException(404, "Shop not found")
+    storage.delete(shop.photo_url)
     db.delete(shop)
     db.commit()
     embeddings.invalidate_cache()
+
+
+# ---------------------------------------------------------------------------
+# Photos — what got uploaded, who uploaded it, and a way to take one down
+# ---------------------------------------------------------------------------
+# Anyone can add any jagah with no account, which is also what makes the app
+# usable in a village with no signup friction. The tradeoff is that nothing
+# stops a photo of something other than a shop board — so this is the review
+# surface: every kept photo, who added it (an anonymous device id, not an
+# account — same as everywhere else in this app), and a way to pull the
+# picture without necessarily deleting a listing that might otherwise be
+# legitimate.
+
+@router.get("/photos", response_model=list[schemas.AdminPhoto])
+def list_photos(
+    q: str = Query("", description="Search by vendor name"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(60, ge=1, le=200),
+    db: Session = Depends(get_db),
+):
+    query = db.query(models.Shop).filter(models.Shop.photo_url != "")
+    if q.strip():
+        query = query.filter(models.Shop.name.ilike(f"%{q.strip()}%"))
+    shops = (
+        query.order_by(models.Shop.created_at.desc()).offset(skip).limit(limit).all()
+    )
+    return [
+        {
+            "shop_id": s.shop_id,
+            "name": s.name,
+            "photo_url": s.photo_url,
+            "added_by": s.added_by or "",
+            "hidden": bool(s.hidden),
+            "created_at": s.created_at,
+        }
+        for s in shops
+    ]
+
+
+@router.get("/photos/uploaders")
+def photo_uploaders(db: Session = Depends(get_db)):
+    """Who has uploaded the most photos — the fastest way to spot one device
+    dumping junk images rather than reviewing them one at a time."""
+    rows = (
+        db.query(models.Shop.added_by, func.count(models.Shop.shop_id))
+        .filter(models.Shop.photo_url != "", models.Shop.added_by != "")
+        .group_by(models.Shop.added_by)
+        .order_by(func.count(models.Shop.shop_id).desc())
+        .limit(20)
+        .all()
+    )
+    return [{"device_id": device_id, "photo_count": count} for device_id, count in rows]
+
+
+@router.delete("/photos/{shop_id}", status_code=204)
+def delete_photo(shop_id: int, db: Session = Depends(get_db)):
+    """Take down just the photo — the listing (name, menu, location) stays.
+
+    Separate from deleting the shop: a real vendor with an inappropriate or
+    wrong photo is still a real listing worth keeping.
+    """
+    shop = db.get(models.Shop, shop_id)
+    if not shop:
+        raise HTTPException(404, "Shop not found")
+    storage.delete(shop.photo_url)
+    shop.photo_url = ""
+    db.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -332,6 +407,13 @@ def _wipe_everything(db: Session) -> dict:
     for deleted shops were being left behind as orphans that nothing could
     reach or clean up. Deleting them here is what makes "clear" actually clear.
     """
+    # Grab photo URLs before the bulk DELETE below — a bulk query delete
+    # never loads the rows, so there's nothing left to read photo_url off of
+    # once it's run.
+    photo_urls = [
+        url for (url,) in db.query(models.Shop.photo_url)
+        .filter(models.Shop.photo_url != "").all()
+    ]
     counts = {
         "reports": db.query(models.ShopReport).delete(),
         "stops": db.query(models.ShopStop).delete(),
@@ -339,6 +421,8 @@ def _wipe_everything(db: Session) -> dict:
         "shops": db.query(models.Shop).delete(),
     }
     db.commit()
+    for url in photo_urls:
+        storage.delete(url)
     embeddings.invalidate_cache()
     return counts
 
