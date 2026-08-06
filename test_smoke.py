@@ -792,7 +792,7 @@ assert [r["reason"] for r in kinds["seen_reasons"]][0] == "closed_today"  # gent
 assert {"fake", "joke", "duplicate"} <= {r["reason"] for r in kinds["report_reasons"]}
 page = INDEX_HTML
 assert 'id="fab"' in page and "/api/food/near" in page and "/api/food/add" in page
-assert "Kya khaana hai?" in page and "Abhi hai ✓" in page
+assert "Kya chahiye?" in page and "Abhi hai ✓" in page
 assert "/report" in page and 'class="flag"' in page and "Kyun nahi mila?" in page
 
 # Adding a jagah must work from the gallery, not only from the live camera.

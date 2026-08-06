@@ -277,6 +277,7 @@ def list_kinds():
         "kinds": food.kind_list(),
         "families": food.family_list(),
         "popular": food.POPULAR,
+        "popular_by_family": food.POPULAR_BY_FAMILY,
         "categories": food.CATEGORY_NAMES,
         "seen_reasons": food.seen_reason_list(),
         "report_reasons": food.report_reason_list(),

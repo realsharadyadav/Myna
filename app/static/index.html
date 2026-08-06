@@ -98,6 +98,10 @@
   .dish { font-size: .82rem; padding: .28rem .6rem; border-radius: .55rem;
           background: rgba(127,127,127,.1); }
   .dish.hit { background: var(--brand); color: var(--brand-ink); font-weight: 600; }
+  /* A capability reads as an outline rather than a filled chip — it isn't a
+     thing on a shelf, and the card shouldn't imply you can pick it up. */
+  .dish.svc { background: none; border: 1px dashed var(--line); }
+  .dish.svc.hit { background: var(--brand); border-color: var(--brand); }
   .dish .rs { color: var(--muted); }
   .dish.hit .rs { color: var(--brand-ink); opacity: .75; }
 
@@ -201,7 +205,7 @@
 
 <div class="wrap">
   <header>
-    <h1>Kya khaana hai? 🍜</h1>
+    <h1>Kya chahiye? 🔎</h1>
     <p class="sub" id="locline">Location le rahe hain…</p>
     <div class="headlinks">
       <button class="themebtn" id="themeBtn" aria-label="Theme badlo" title="Theme badlo"></button>
@@ -210,12 +214,19 @@
   </header>
 
   <div class="searchbar">
-    <input id="q" type="search" placeholder="Momos, chai, chowmein…" autocomplete="off" enterkeyhint="search">
+    <input id="q" type="search" placeholder="Momos, water tanki, ghadi repair…"
+           autocomplete="off" enterkeyhint="search">
   </div>
+
+  <!-- Families, not categories: which of the three questions is being asked.
+       Filled from /api/food/kinds so the taxonomy lives in one place. -->
+  <div class="chips" id="families"></div>
 
   <div class="chips" id="chips"></div>
 
   <div class="chips">
+    <!-- Only meaningful for listings that carry hours, so it hides itself on
+         the tabs where nothing does. -->
     <button class="chip" id="openNow" aria-pressed="false">Abhi khula 🔥</button>
     <button class="chip" id="radius" data-km="3">3 km ke andar</button>
   </div>
@@ -224,20 +235,28 @@
   <div id="list"></div>
 </div>
 
-<button class="fab" id="fab">+ Jagah add karo</button>
+<!-- Two paths: photo for food/goods (board has the name), survey for services
+     (shops don't advertise what they repair; it's typed on-site). -->
+<div style="position: fixed; left: 50%; transform: translateX(-50%); bottom: 1.25rem;
+            z-index: 20; display: flex; gap: .5rem;">
+  <button class="fab" id="fab" style="flex: 1; margin: 0; transform: none;
+          padding: .95rem 1rem; font-size: .95rem; width: auto;">📷 Add karo</button>
+  <a href="/survey.html" class="fab" style="flex: 1; text-decoration: none; display: flex;
+     align-items: center; justify-content: center; margin: 0; transform: none;
+     padding: .95rem 1rem; font-size: .95rem;">📋 Survey</a>
+</div>
 
 <!-- ── Add sheet: photo → GPS → ho gaya ───────────────────────────────── -->
 <section class="sheet" id="addSheet" hidden>
   <div class="wrap">
     <div class="sheet-head">
-      <h2>Nayi jagah add karo 📸</h2>
+      <h2>Photo se add karo 📸</h2>
       <button class="x" id="closeAdd" aria-label="Band karo">&times;</button>
     </div>
 
     <div id="addStep1">
-      <p class="sub"><b>Pehli photo board ki lo</b> — naam wahin se aata hai. Uske baad
-        jitni chaaho: menu ka rate list, tawa, jo bhi ban raha hai. Sabko mila ke
-        ek listing banayenge.</p>
+      <p class="sub" id="addHint"><b>Pehli photo board ki lo</b> — naam wahin se aata hai.
+        Uske baad jitni chaaho: menu, rate, jo bhi likha hai. Sabko mila ke ek listing banayenge.</p>
       <!-- Two inputs, not one. `capture` is what opens the camera directly on a
            phone, and there is no way to say "camera, but let them pick the
            gallery too" — the attribute skips the picker entirely. This screen
@@ -275,11 +294,11 @@
           <input id="mname" type="text" placeholder="Sharma Chinese Corner">
         </div>
         <div class="field">
-          <label for="mkind">Kis type ka hai</label>
+          <label for="mkind">Kya bikta hai / kya hota hai</label>
           <select id="mkind"><option value="">Photo se pata kar lo</option></select>
         </div>
-        <div class="field">
-          <label>Thela kab aata hai</label>
+        <div class="field" id="hoursField" hidden>
+          <label>Kab aata/khula hai</label>
           <div class="two">
             <select id="mday">
               <option value="-1">Roz</option>
@@ -349,6 +368,7 @@ let query = "";
 let openOnly = false;
 let radiusKm = 3;
 let activeChip = "";
+let family = "";          // "" = Sab; otherwise food | goods | services
 let files = [];
 let CORRECTIONS = {};   // {typed: spelling actually searched}
 
@@ -381,7 +401,11 @@ function dishHtml(dish, matched) {
   const terms = matched.flatMap((m) => [m, CORRECTIONS[m]].filter(Boolean));
   const hit = terms.some((m) => dish.name.toLowerCase().includes(m));
   const price = dish.price > 0 ? ` <span class="rs">₹${Math.round(dish.price)}</span>` : "";
-  return `<span class="dish${hit ? " hit" : ""}">${esc(dish.name)}${price}</span>`;
+  // "Who can fix this" and "who sells this" are different answers, so they
+  // can't look identical in the same row of chips.
+  const svc = dish.kind === "service";
+  return `<span class="dish${hit ? " hit" : ""}${svc ? " svc" : ""}">${
+    svc ? "🔧 " : ""}${esc(dish.name)}${price}</span>`;
 }
 
 function esc(s) {
@@ -423,8 +447,15 @@ function cardHtml(v) {
       <a class="btn brand tiny" href="${maps}" target="_blank" rel="noopener">
         <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M21.7 11.3 12.7 2.3a1 1 0 0 0-1.4 0l-9 9a1 1 0 0 0 0 1.4l9 9a1 1 0 0 0 1.4 0l9-9a1 1 0 0 0 0-1.4ZM13 15v-2.5h-3V15H8v-3.5a1 1 0 0 1 1-1h4V8l3.2 3.2L13 15Z"/></svg>
         Raasta</a>
-      <button class="btn tiny seen-yes">Abhi hai ✓</button>
-      <button class="btn tiny seen-no">Nahi mila ✕</button>
+      ${v.perishable
+        // A thela is worth only as much as its last sighting, so both votes
+        // are the loudest thing on the card.
+        ? `<button class="btn tiny seen-yes">Abhi hai ✓</button>
+           <button class="btn tiny seen-no">Nahi mila ✕</button>`
+        // A shop isn't. Asking passers-by to re-confirm weekly that the
+        // hardware shop still exists is work for no information — but it can
+        // genuinely shut down, and that has to stay one tap away.
+        : `<button class="btn tiny seen-no">Band ho gaya?</button>`}
     </div>
     <div class="panel" hidden></div>
   </article>`;
@@ -455,7 +486,7 @@ async function load() {
   }
   $("list").innerHTML = `<div class="empty"><span class="spinner"></span> Dhoondh rahe hain…</div>`;
   const params = new URLSearchParams({
-    lat: p.lat, long: p.long, q: query, radius_km: radiusKm,
+    lat: p.lat, long: p.long, q: query, radius_km: radiusKm, family,
     open_now: openOnly ? "true" : "false",
   });
   try {
@@ -580,17 +611,84 @@ $("radius").addEventListener("click", (e) => {
   load();
 });
 
+let POPULAR = {};   // {family: [chip, …]}, plus "" for the Sab tab
+let FAMILIES = {};  // {family: {emoji, label, perishable}}
+
+function renderChips() {
+  const list = POPULAR[family] || POPULAR[""] || [];
+  $("chips").innerHTML = list
+    .map((p) => `<button class="chip" data-q="${esc(p)}"
+                   aria-pressed="${String(p === activeChip)}">${esc(p)}</button>`)
+    .join("");
+  // "Abhi khula" can only mean something where listings carry hours. On the
+  // Saamaan and Kaam tabs nothing does, so the filter would look broken.
+  $("openNow").hidden = family === "goods" || family === "services";
+}
+
 async function loadChips() {
   try {
     const data = await (await fetch(`${API}/api/food/kinds`)).json();
-    $("chips").innerHTML = data.popular
-      .map((p) => `<button class="chip" data-q="${esc(p)}" aria-pressed="false">${esc(p)}</button>`)
-      .join("");
+    const byFamily = data.popular_by_family || {};
+    // The Sab tab interleaves the families rather than showing one after the
+    // other: a single row is all that's visible without scrolling, and a
+    // straight concatenation would make it look like a food-only app again.
+    const lists = Object.values(byFamily);
+    const mixed = [];
+    for (let i = 0; lists.some((l) => l[i] !== undefined); i++) {
+      for (const l of lists) if (l[i] !== undefined) mixed.push(l[i]);
+    }
+    POPULAR = { ...byFamily, "": mixed.length ? mixed : data.popular || [] };
+
+    // Store families by id for quick lookup when kind changes
+    (data.families || []).forEach((f) => {
+      FAMILIES[f.family] = { emoji: f.emoji, label: f.label, perishable: f.perishable };
+    });
+
+    $("families").innerHTML =
+      `<button class="chip" data-family="" aria-pressed="true">Sab</button>` +
+      (data.families || [])
+        .map((f) => `<button class="chip" data-family="${esc(f.family)}" aria-pressed="false">
+             ${f.emoji} ${esc(f.label)}</button>`)
+        .join("");
+
+    // Include family in kind data so we can look up perishability later
+    const kindsByFamily = {};
+    (data.kinds || []).forEach((k) => {
+      kindsByFamily[k.kind] = k.family;
+    });
+
     $("mkind").innerHTML = `<option value="">Photo se pata kar lo</option>` +
-      data.kinds.map((k) => `<option value="${k.kind}">${k.emoji} ${esc(k.label)}</option>`).join("");
+      data.kinds.map((k) => `<option value="${k.kind}" data-family="${esc(k.family)}">
+             ${k.emoji} ${esc(k.label)}</option>`).join("");
+
+    // Show/hide hours field based on whether selected kind is perishable
+    $("mkind").addEventListener("change", () => {
+      const selected = $("mkind").selectedOptions[0];
+      const fam = selected?.dataset?.family || "";
+      const isPerishable = FAMILIES[fam]?.perishable ?? true;  // default to true (safer)
+      $("hoursField").hidden = !isPerishable;
+    });
+
     REASONS = { seen: data.seen_reasons || [], report: data.report_reasons || [] };
+    renderChips();
   } catch { /* chips are a nicety — the search box works without them */ }
 }
+
+$("families").addEventListener("click", (e) => {
+  const tab = e.target.closest(".chip");
+  if (!tab) return;
+  family = tab.dataset.family;
+  [...$("families").children].forEach((c) =>
+    c.setAttribute("aria-pressed", String(c.dataset.family === family)));
+  // A chip from the previous tab is not on this one, so keep it only if it is.
+  if (activeChip && !(POPULAR[family] || []).includes(activeChip)) {
+    activeChip = "";
+    query = "";
+    $("q").value = "";
+  }
+  renderChips();
+  load();
+});
 
 $("chips").addEventListener("click", (e) => {
   const chip = e.target.closest(".chip");

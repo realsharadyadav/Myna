@@ -884,9 +884,29 @@ def correct_term(term: str, known: set[str] | None = None) -> str:
     return hit[0] if hit else word
 
 
-# Chips on the home screen — what people actually walk out to buy.
-POPULAR = [
-    "Momos", "Chowmein", "Golgappe", "Chai", "Samosa", "Maggi", "Roll",
-    "Chole bhature", "Dosa", "Paratha", "Jalebi", "Vada pav", "Biryani",
-    "Pav bhaji", "Lassi", "Ice cream",
-]
+# Chips on the home screen — what people actually walk out to get.
+#
+# Split per family because the chip row follows the tab: someone on "Saamaan"
+# is not helped by a chip for jalebi. Every chip has to be a word the category
+# table already knows, or it lands in the fallback bucket and the chip quietly
+# searches for something the app can't classify (test_smoke.py asserts this).
+POPULAR_BY_FAMILY: dict[str, list[str]] = {
+    "food": [
+        "Momos", "Chowmein", "Golgappe", "Chai", "Samosa", "Maggi", "Roll",
+        "Chole bhature", "Dosa", "Paratha", "Jalebi", "Vada pav", "Biryani",
+        "Pav bhaji", "Lassi", "Ice cream",
+    ],
+    "goods": [
+        "Water tanki", "Cement", "Pipe", "Paint", "Wire", "Bulb", "Switch",
+        "Charger", "Inverter", "Solar panel", "Battery", "Copy", "Dawai",
+        "Bucket", "Chappal", "Beej",
+    ],
+    "services": [
+        "Ghadi repair", "Mobile repair", "Puncture", "Motor winding", "Welding",
+        "Silai", "Xerox", "Painting", "Servicing",
+    ],
+}
+
+# The food list under its old name — the chip row falls back to this when no
+# family tab is active, and it keeps the original meaning for existing callers.
+POPULAR = POPULAR_BY_FAMILY["food"]
