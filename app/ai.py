@@ -5,7 +5,7 @@ from pathlib import Path
 
 import httpx
 
-from . import images
+from . import images, web_search
 from .config import (
     ANTHROPIC_API_KEY,
     GROQ_API_KEY,
@@ -502,13 +502,17 @@ def _call_vision(image_path: str, prompt: str, db_default: str = "", model: str 
     return text
 
 
-def _parse_items(text: str) -> list[dict]:
-    """Pull a list of {name, category} out of a vision model's reply.
+def _parse_items(text: str, second_key: str = "category") -> list[dict]:
+    """Pull a list of {name, <second_key>} out of a model's reply.
 
     Models drift: some return bare JSON, some fence it in ```json, some ignore
     the format and write "Tata Salt 1kg | Grocery" a line at a time. All three
-    are worth accepting — the shopkeeper doesn't care which model is behind
-    the button, only that their shelf photo turned into a list.
+    are worth accepting — the caller doesn't care which model is behind the
+    button, only that a photo or a prompt turned into a list.
+
+    `second_key` lets one parser serve both shapes this app needs: "category"
+    for a shelf photo, "note" for a generated shopping list — the JSON key
+    asked for in the prompt should match what's passed here.
     """
     if not text:
         return []
@@ -526,25 +530,28 @@ def _parse_items(text: str) -> list[dict]:
             for entry in data:
                 if isinstance(entry, dict):
                     name = str(entry.get("name") or entry.get("item") or "").strip()
-                    category = str(entry.get("category") or "").strip()
+                    second = str(
+                        entry.get(second_key) or entry.get("category")
+                        or entry.get("note") or ""
+                    ).strip()
                 elif isinstance(entry, str):
-                    name, category = entry.strip(), ""
+                    name, second = entry.strip(), ""
                 else:
                     continue
                 if name:
-                    out.append({"name": name, "category": category})
+                    out.append({"name": name, second_key: second})
 
     if not out:
-        # Line-oriented fallback: "name | category", one per line, tolerating
+        # Line-oriented fallback: "name | second", one per line, tolerating
         # bullets and numbering.
         for line in text.splitlines():
             line = re.sub(r"^\s*(?:[-*•]|\d+[.)])\s*", "", line).strip()
             if not line or line.startswith(("```", "[", "]", "{")):
                 continue
-            name, _, category = line.partition("|")
+            name, _, second = line.partition("|")
             name = name.strip().strip('"')
             if name:
-                out.append({"name": name, "category": category.strip().strip('",')})
+                out.append({"name": name, second_key: second.strip().strip('",')})
 
     # Same product photographed twice in one frame is one line in the shop's
     # list, so fold case-insensitive duplicates while keeping the first
@@ -623,6 +630,66 @@ def suggest_item(image_path: str, db_default: str = "", model: str = "") -> tupl
     if not items:
         return "", ""
     return items[0]["name"], items[0]["category"]
+
+
+# ---------------------------------------------------------------------------
+# Shopping-list planning: "biryani" / "birthday party" / "leaking tap" -> items
+# ---------------------------------------------------------------------------
+
+_PLAN_PROMPT_TEMPLATE = (
+    "You are helping someone in a small Indian town or village figure out "
+    "what to buy, or what work to get done locally, for something they want "
+    "to do.\n\n"
+    'They typed: "{goal}"\n\n'
+    "{context_section}"
+    "List every item they would realistically need to buy, or every repair/"
+    "service they'd need done, to accomplish this — ingredients for a dish, "
+    "supplies for an event, parts for a repair, tools for a task, whatever "
+    "actually fits what they typed. Use plain everyday words a local shop or "
+    "repairperson would recognise (Hinglish is fine — \"atta\" not \"wheat "
+    "flour\", \"ghadi\" not \"clock\").\n\n"
+    "Reply with ONLY a JSON array, no other text, in this shape:\n"
+    '[{"name": "onion", "note": "2-3, chopped"}, '
+    '{"name": "biryani masala", "note": ""}]\n\n'
+    "Rules:\n"
+    "- One entry per distinct item or service; do not repeat.\n"
+    '- "note" is a short optional detail (quantity, size, why) — leave it '
+    '"" when there\'s nothing worth adding.\n'
+    "- 5 to 20 entries is normal for most requests; don't pad the list.\n"
+    "- If what they typed isn't something with a shopping or task list at "
+    "all, reply []."
+)
+
+
+def plan_items(goal: str, db_default: str = "", model: str = "") -> tuple[list[dict], str]:
+    """Turn a free-text goal into the items/services needed for it.
+
+    Grounded with a web search first — the model's own knowledge covers a
+    recipe fine but is thin on anything that changes ("what's needed for
+    Ganesh Chaturthi pooja this year"), and a search snippet costs nothing
+    next to the LLM call itself. web_search.context_block already degrades to
+    "" on any failure, so this never blocks on the search being down.
+
+    Returns (items, error) where items is [{"name", "note"}], in the order
+    the model listed them. Error is set only when nothing came back at all.
+    """
+    goal = (goal or "").strip()
+    if not goal:
+        return [], "Kya banana ya karna hai, likho."
+    context = web_search.context_block(goal)
+    context_section = f"Web search turned up:\n{context}\n\n" if context else ""
+    # .replace(), not .format(): the template's JSON example is full of
+    # literal braces that .format would choke on trying to parse as fields.
+    prompt = _PLAN_PROMPT_TEMPLATE.replace("{goal}", goal).replace(
+        "{context_section}", context_section
+    )
+    reply = call_text(prompt, db_default, max_tokens=800, model=model)
+    if not reply:
+        return [], "No AI model is set up for this yet."
+    items = _parse_items(reply, second_key="note")
+    if not items:
+        return [], "Samajh nahi aaya iske liye kya chahiye. Alag tarike se try karo."
+    return items, ""
 
 
 # ---------------------------------------------------------------------------

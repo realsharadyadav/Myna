@@ -674,6 +674,54 @@ def _matches(shop: models.Shop, terms: list[str],
     return matched
 
 
+@router.get("/plan", response_model=schemas.PlanResponse)
+def plan(
+    q: str,
+    lat: float,
+    long: float,
+    radius_km: float = DEFAULT_RADIUS_KM,
+    db: Session = Depends(get_db),
+):
+    """Type what you want to do — "biryani", "birthday party", "leaking tap"
+    — and get the list of things it takes, each matched to the nearest shop
+    nearby that has it.
+
+    The list itself comes from an LLM grounded with a web search
+    (ai.plan_items); everything after that reuses the exact matching a normal
+    search uses (resolve_terms, semantic_hits, _matches), so a hardware shop
+    that lists "cement" shows up for a generated "cement" line the same way it
+    would from the search box. A shop is only ever nearer, never partial —
+    the point is "who has this", not a ranked list per item.
+    """
+    items, error = ai.plan_items(q, model=get_default_search_model(db))
+    if not items:
+        return {"query": q, "items": [],
+                "error": error or "Samajh nahi aaya iske liye kya chahiye."}
+
+    radius = max(0.1, min(radius_km or DEFAULT_RADIUS_KM, MAX_RADIUS_KM))
+    terms = [it["name"] for it in items]
+    resolved, _corrections = resolve_terms(db, terms)
+    semantic = semantic_hits(db, terms)
+    shops = [s for s in db.query(models.Shop).all() if not s.hidden]
+
+    out_items = []
+    for it in items:
+        term = it["name"]
+        best = None
+        for shop in shops:
+            matched = _matches(shop, [term], resolved, semantic)
+            if not matched:
+                continue
+            card = vendor_view(shop, lat, long, matched)
+            if card["trust"] == "closed" or card["distance_km"] > radius:
+                continue
+            if best is None or card["distance_km"] < best["distance_km"]:
+                best = card
+        out_items.append({"name": it["name"], "note": it.get("note", ""), "shop": best})
+
+    return {"query": q, "items": out_items, "error": ""}
+
+
 @router.get("/near", response_model=schemas.NearResponse)
 def near(
     lat: float,

@@ -187,6 +187,31 @@
   .note { font-size: .85rem; color: var(--muted); margin: .7rem 0 0; }
   .err { color: var(--bad); font-size: .9rem; margin: .7rem 0 0; }
   .fixnote { font-size: .82rem; color: var(--muted); margin: 0 0 .6rem; }
+
+  .planlink {
+    display: block; width: 100%; text-align: left; background: none;
+    border: 1.5px dashed var(--line); color: var(--muted); border-radius: .7rem;
+    padding: .6rem .8rem; font-size: .85rem; margin: 0 0 .8rem; cursor: pointer;
+  }
+  .planlink:hover { border-color: var(--brand); color: var(--ink); }
+  .plan-list { list-style: none; margin: 1rem 0 0; padding: 0; }
+  .plan-item {
+    background: var(--card); border: 1px solid var(--line); border-radius: .8rem;
+    padding: .7rem .8rem; margin-bottom: .5rem;
+  }
+  .plan-item label { display: flex; align-items: baseline; gap: .5rem; cursor: pointer; }
+  .plan-item input[type="checkbox"] { width: 1.05rem; height: 1.05rem; flex: none; accent-color: var(--brand); }
+  .plan-name { font-weight: 600; }
+  .plan-item input:checked ~ .plan-name { text-decoration: line-through; color: var(--muted); font-weight: 400; }
+  .plan-note { color: var(--muted); font-size: .82rem; }
+  .plan-shop {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-top: .4rem; padding-top: .4rem; border-top: 1px solid var(--line);
+    font-size: .82rem;
+  }
+  .plan-shop-name { color: var(--ink); font-weight: 600; }
+  .plan-shop-dist { color: var(--muted); }
+  .plan-shop-none { color: var(--muted); font-style: italic; }
   .empty { text-align: center; color: var(--muted); padding: 3rem 1rem; }
   .spinner { display: inline-block; width: 1rem; height: 1rem; border: 2px solid var(--line);
              border-top-color: var(--brand); border-radius: 50%; animation: spin .7s linear infinite;
@@ -238,9 +263,33 @@
     <button class="chip" id="radius" data-km="3">3 km ke andar</button>
   </div>
 
+  <!-- The search box answers "who has X". This answers "what do I even need"
+       — type a dish, an event, a repair, anything — and turns it into the
+       list of X's, each checked against the same nearby shops. -->
+  <button class="planlink" id="planOpen">🧾 Kya banana/karwana hai? Plan banao</button>
+
   <p class="fixnote" id="fixnote" hidden></p>
   <div id="list"></div>
 </div>
+
+<!-- ── Plan sheet: type a goal → AI shopping list → nearby shop per item ─── -->
+<section class="sheet" id="planSheet" hidden>
+  <div class="wrap">
+    <div class="sheet-head">
+      <h2>Purchase list banao 🧾</h2>
+      <button class="x" id="closePlan" aria-label="Band karo">&times;</button>
+    </div>
+    <p class="sub">Kya banana hai ya karwana hai? Jaise "biryani", "birthday
+      party", "nal se paani tapak raha hai" — jo bhi chahiye uski list bana
+      denge, aur paas ki dukaan bhi dikha denge jahan mil sakta hai.</p>
+    <div class="searchbar">
+      <input id="planQ" type="text" placeholder="Jo bhi banana/karna hai likho…"
+             autocomplete="off" enterkeyhint="go">
+    </div>
+    <button class="btn brand wide" id="planGo" style="margin-top:.6rem">Plan banao</button>
+    <div id="planResult"></div>
+  </div>
+</section>
 
 <!-- Two paths: photo for food/goods (board has the name), survey for services
      (shops don't advertise what they repair; it's typed on-site). -->
@@ -802,6 +851,65 @@ $("chips").addEventListener("click", (e) => {
   query = activeChip;
   $("q").value = activeChip;
   load();
+});
+
+// ── Plan a purchase: goal → AI shopping list → nearby shop per item ────────
+function planItemHtml(it) {
+  const shop = it.shop;
+  const maps = shop ? `https://www.google.com/maps/dir/?api=1&destination=${shop.lat},${shop.long}` : "";
+  const shopHtml = shop
+    ? `<div class="plan-shop">
+         <span>🏪 <span class="plan-shop-name">${esc(shop.name)}</span> · ${shop.distance_km} km</span>
+         <a href="${maps}" target="_blank" rel="noopener">Raasta</a>
+       </div>`
+    : `<div class="plan-shop plan-shop-none">Paas me koi dukaan nahi mili</div>`;
+  return `<li class="plan-item">
+    <label>
+      <input type="checkbox">
+      <span class="plan-name">${esc(it.name)}</span>
+      ${it.note ? `<span class="plan-note">— ${esc(it.note)}</span>` : ""}
+    </label>
+    ${shopHtml}
+  </li>`;
+}
+
+async function runPlan() {
+  const goal = $("planQ").value.trim();
+  if (!goal) return;
+  $("planGo").disabled = true;
+  $("planResult").innerHTML = `<div class="empty"><span class="spinner"></span> Soch rahe hain…</div>`;
+  const p = await ensureLocation();
+  if (!p) {
+    $("planGo").disabled = false;
+    $("planResult").innerHTML = `<div class="empty">Location on karo, tabhi paas ki
+      dukaan dikha payenge.</div>`;
+    return;
+  }
+  const params = new URLSearchParams({ q: goal, lat: p.lat, long: p.long, radius_km: radiusKm });
+  try {
+    const res = await fetch(`${API}/api/food/plan?${params}`);
+    const data = await res.json();
+    if (!data.items.length) {
+      $("planResult").innerHTML = `<div class="empty">${esc(data.error ||
+        "Kuch samajh nahi aaya. Alag tarike se try karo.")}</div>`;
+    } else {
+      $("planResult").innerHTML = `<ul class="plan-list">${data.items.map(planItemHtml).join("")}</ul>`;
+    }
+  } catch {
+    $("planResult").innerHTML = `<div class="empty">${await failureMessage()}</div>`;
+  } finally {
+    $("planGo").disabled = false;
+  }
+}
+
+$("planOpen").addEventListener("click", () => {
+  $("planSheet").hidden = false;
+  $("planQ").focus();
+});
+$("closePlan").addEventListener("click", () => { $("planSheet").hidden = true; });
+$("planGo").addEventListener("click", runPlan);
+$("planQ").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); runPlan(); }
 });
 
 // ── Add flow ────────────────────────────────────────────────────────────────

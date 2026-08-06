@@ -165,6 +165,23 @@ class NearResponse(BaseModel):
     vendors: list[FoodVendorOut]
 
 
+class PlanItemOut(BaseModel):
+    """One line of an AI-generated shopping list, plus the nearest shop that
+    has it, if any nearby listing matched."""
+    name: str
+    note: str = ""
+    shop: Optional[FoodVendorOut] = None
+
+
+class PlanResponse(BaseModel):
+    """"biryani" / "birthday party" / "leaking tap" -> the shopping list for
+    it. `error` is set only when nothing could be generated at all — a
+    generated item with no matching shop nearby is still a normal item."""
+    query: str = ""
+    items: list[PlanItemOut] = []
+    error: str = ""
+
+
 class QuickAddResponse(BaseModel):
     """What the one-photo add flow returns: the vendor it just created."""
     created: bool
@@ -232,5 +249,15 @@ class AdminVendor(BaseModel):
     round_count: int
     seen_yes: int
     report_count: int
+    hidden: bool
+    created_at: datetime
+
+
+class AdminPhoto(BaseModel):
+    """One kept photo, for the owner panel's moderation grid."""
+    shop_id: int
+    name: str
+    photo_url: str
+    added_by: str
     hidden: bool
     created_at: datetime
