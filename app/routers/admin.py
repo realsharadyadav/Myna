@@ -1,3 +1,5 @@
+from datetime import timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
@@ -58,7 +60,10 @@ def stats(db: Session = Depends(get_db)):
             {
                 "shop_id": s.shop_id,
                 "name": s.name,
-                "created_at": s.created_at.isoformat(),
+                # Naive but always UTC (models.py: datetime.utcnow) — tagged
+                # here so the browser's `new Date(...)` converts it instead of
+                # reading the missing offset as already-local time.
+                "created_at": s.created_at.replace(tzinfo=timezone.utc).isoformat(),
             }
             for s in recent_shops
         ],

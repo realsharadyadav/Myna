@@ -1,7 +1,20 @@
-from datetime import datetime
-from typing import Optional
+from datetime import datetime, timezone
+from typing import Annotated, Optional
 
-from pydantic import BaseModel
+from pydantic import AfterValidator, BaseModel
+
+
+def _as_utc(dt: datetime) -> datetime:
+    """Every `created_at` in this app comes from `datetime.utcnow()` — naive,
+    but always UTC. Serialized as-is, a browser's `new Date(...)` reads the
+    missing offset as *local* time instead, so admin.html showed a shop as
+    created hours off from when it actually was. Tagging it here makes the
+    JSON carry the offset, so the browser converts it correctly instead of
+    guessing."""
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+UtcDatetime = Annotated[datetime, AfterValidator(_as_utc)]
 
 
 class ShopUpdate(BaseModel):
@@ -23,7 +36,7 @@ class ShopOut(BaseModel):
     photo_url: str
     shop_type: str = "fixed"
     food_kind: str = "other"
-    created_at: datetime
+    created_at: UtcDatetime
 
     class Config:
         from_attributes = True
@@ -234,7 +247,7 @@ class ReportedVendor(BaseModel):
     shutdown_count: int
     reasons: dict[str, int]      # {"fake": 2, "duplicate": 1}
     notes: list[str]
-    created_at: datetime
+    created_at: UtcDatetime
 
 
 class AdminVendor(BaseModel):
@@ -250,7 +263,7 @@ class AdminVendor(BaseModel):
     seen_yes: int
     report_count: int
     hidden: bool
-    created_at: datetime
+    created_at: UtcDatetime
 
 
 class AdminPhoto(BaseModel):
@@ -260,4 +273,4 @@ class AdminPhoto(BaseModel):
     photo_url: str
     added_by: str
     hidden: bool
-    created_at: datetime
+    created_at: UtcDatetime
