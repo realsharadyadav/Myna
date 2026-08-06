@@ -24,17 +24,18 @@ them. A vendor claiming their own listing later is what unlocks that field.
 import re
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from sqlalchemy.orm import Session
 
 from .. import ai, embeddings, food, models, schedule, schemas, storage
+from ..config import DEFAULT_LAT, DEFAULT_LONG
 from ..database import (
     get_db,
     get_default_search_model,
     get_default_vision_model,
     get_retain_uploaded_images,
 )
-from ..geo import forward_geocode, haversine_km, reverse_geocode
+from ..geo import forward_geocode, haversine_km, ip_geolocate, reverse_geocode
 
 router = APIRouter(prefix="/api/food", tags=["food"])
 
@@ -281,6 +282,23 @@ def geocode_forward(q: str):
         return {"lat": None, "long": None}
     lat, long = result
     return {"lat": lat, "long": long}
+
+
+@router.get("/geocode/ip", response_model=dict)
+def geocode_ip(request: Request):
+    """Best-effort location from the visitor's IP, used when the browser
+    won't give GPS — permission denied, no hardware, or the prompt is simply
+    the thing standing between someone and the home screen. Always answers
+    with *something*: an IP that won't resolve (private range, VPN, lookup
+    down) gets the default city instead, so browsing never dead-ends on a
+    permission nobody had to grant."""
+    xff = request.headers.get("x-forwarded-for", "")
+    client_ip = xff.split(",")[0].strip() if xff else (request.client.host if request.client else "")
+    result = ip_geolocate(client_ip) if client_ip else None
+    if result is None:
+        return {"lat": DEFAULT_LAT, "long": DEFAULT_LONG, "source": "default"}
+    lat, long = result
+    return {"lat": lat, "long": long, "source": "ip"}
 
 
 @router.get("/kinds", response_model=dict)

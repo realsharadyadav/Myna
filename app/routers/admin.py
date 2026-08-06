@@ -3,6 +3,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from .. import ai, embeddings, food, models, sample_food, schemas, storage, vision_check
+from ..config import DEFAULT_LAT, DEFAULT_LONG
 from ..database import (
     get_db,
     get_default_embedding_model,
@@ -448,8 +449,8 @@ def load_sample_data(payload: dict | None = None, db: Session = Depends(get_db))
     """
     payload = payload or {}
     try:
-        lat = float(payload.get("lat") or 19.0760)
-        long = float(payload.get("long") or 72.8777)
+        lat = float(payload.get("lat") or DEFAULT_LAT)
+        long = float(payload.get("long") or DEFAULT_LONG)
     except (TypeError, ValueError):
         raise HTTPException(422, "lat/long must be numbers")
     count = max(1, min(int(payload.get("count") or 50), 200))

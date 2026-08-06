@@ -50,6 +50,12 @@ TIMEZONE = os.getenv("MYNA_TIMEZONE", "Asia/Kolkata")
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/reverse"
 NOMINATIM_USER_AGENT = "myna-hyperlocal-finder/1.0"
 
+# Fallback location for a visitor whose browser won't give GPS and whose IP
+# won't resolve either (private range, VPN, lookup down). Mumbai — browsing
+# should never dead-end just because location permission was denied.
+DEFAULT_LAT = float(os.getenv("MYNA_DEFAULT_LAT", "19.0760"))
+DEFAULT_LONG = float(os.getenv("MYNA_DEFAULT_LONG", "72.8777"))
+
 # CORS: the frontend (app/static, published as its own Render static site —
 # see render.yaml) now calls this API cross-origin. "*" (default) keeps
 # everything open — there's no auth/cookies here, so a permissive policy

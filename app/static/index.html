@@ -450,12 +450,47 @@ function getLocation() {
   });
 }
 
+// Same city the backend falls back to (app/config.py DEFAULT_LAT/LONG) —
+// used only if even the IP-lookup request itself can't reach the API.
+const DEFAULT_LAT = 19.0760;
+const DEFAULT_LONG = 72.8777;
+
+// City-level fix from the visitor's IP, server-side (avoids a third-party
+// call straight from the browser and keeps the IP-geolocation key/quota, if
+// any is ever added, off the client). The endpoint itself never 404s/500s on
+// a bad lookup — it answers with the default city instead — so this only
+// returns null if the network/API is unreachable altogether.
+async function ipLocation() {
+  try {
+    const res = await fetch(`${API}/api/food/geocode/ip`);
+    const data = await res.json();
+    if (data.lat != null && data.long != null) {
+      return { lat: data.lat, long: data.long, approx: true, precise: data.source === "ip" };
+    }
+  } catch { /* API unreachable — caller falls back to the hardcoded default */ }
+  return null;
+}
+
+// Never blocks browsing on location permission: GPS first, then an IP-based
+// city-level fix, then the hardcoded default — the search always runs, it
+// just gets more precise the more the browser is willing to give up.
 async function ensureLocation() {
   if (pos) return pos;
-  pos = await getLocation();
-  const text = pos ? "📍 Aapke aas-paas" : "📍 Location nahi mili — GPS on karo";
-  $("locline").textContent = text;
-  $("gps").textContent = pos ? "📍 Location mil gayi" : "📍 Location nahi mili — photo se ya pata daal ke bhi try kar sakte ho";
+
+  const gps = await getLocation();
+  if (gps) {
+    pos = { ...gps, approx: false };
+    $("locline").textContent = "📍 Aapke aas-paas";
+    $("gps").textContent = "📍 Location mil gayi";
+    return pos;
+  }
+
+  const ip = await ipLocation();
+  pos = ip || { lat: DEFAULT_LAT, long: DEFAULT_LONG, approx: true, precise: false };
+  $("locline").textContent = pos.precise
+    ? "📍 Aapke area ke aas-paas (andazan — GPS on karke sateek karo)"
+    : "📍 Mumbai ke aas-paas dikha rahe hain — apna sheher dekhne ke liye GPS on karo ya pata daalo";
+  $("gps").textContent = "📍 Sateek location ke liye GPS on karo, ya photo/pata se bhi try kar sakte ho";
   return pos;
 }
 
@@ -630,11 +665,6 @@ async function failureMessage() {
 
 async function load() {
   const p = await ensureLocation();
-  if (!p) {
-    $("list").innerHTML = `<div class="empty">Location on karke page refresh karo —
-      paas ka khaana dikhane ke liye zaroori hai.</div>`;
-    return;
-  }
   $("list").innerHTML = `<div class="empty"><span class="spinner"></span> Dhoondh rahe hain…</div>`;
   const params = new URLSearchParams({
     lat: p.lat, long: p.long, q: query, radius_km: radiusKm, family,
@@ -879,12 +909,6 @@ async function runPlan() {
   $("planGo").disabled = true;
   $("planResult").innerHTML = `<div class="empty"><span class="spinner"></span> Soch rahe hain…</div>`;
   const p = await ensureLocation();
-  if (!p) {
-    $("planGo").disabled = false;
-    $("planResult").innerHTML = `<div class="empty">Location on karo, tabhi paas ki
-      dukaan dikha payenge.</div>`;
-    return;
-  }
   const params = new URLSearchParams({ q: goal, lat: p.lat, long: p.long, radius_km: radiusKm });
   try {
     const res = await fetch(`${API}/api/food/plan?${params}`);
@@ -924,7 +948,10 @@ $("fab").addEventListener("click", async () => {
   files = [];
   showStep(1);
   const p = await ensureLocation();
-  $("locField").hidden = !!p;
+  // A shop's pin is data other people rely on, so only a real GPS fix
+  // counts here — an approximate/IP-city fallback still needs the manual
+  // address field, unlike browsing where "roughly here" is good enough.
+  $("locField").hidden = !p.approx;
 });
 
 $("locateAddr").addEventListener("click", async () => {
@@ -1038,7 +1065,7 @@ async function onPicked(e) {
   // Read EXIF off the original file, before shrink() re-encodes it through a
   // canvas and drops all metadata including this. Only matters if GPS hasn't
   // already given a fix — a photo's location shouldn't override a live one.
-  if (!pos) {
+  if (!pos || pos.approx) {
     const exifPos = await readExifGps(picked[0]);
     if (exifPos) {
       pos = exifPos;
@@ -1063,11 +1090,13 @@ $("pick").addEventListener("change", onPicked);
 $("submitAdd").addEventListener("click", async () => {
   // GPS, then a photo's own EXIF tag, then whatever the user typed into the
   // address/pincode field — in that order, since GPS and EXIF ask nothing of
-  // the person adding a jagah and the typed field does.
+  // the person adding a jagah and the typed field does. An IP-city-level
+  // approximation (ensureLocation()'s browsing fallback) is never precise
+  // enough to plant a shop's pin, so it doesn't count as "found" here.
   let p = await ensureLocation();
-  if (!p && files[0]) p = await readExifGps(files[0]);
-  if (!p) p = await forwardGeocode($("maddr").value);
-  if (!p) {
+  if (p.approx && files[0]) p = (await readExifGps(files[0])) || p;
+  if (p.approx) p = (await forwardGeocode($("maddr").value)) || p;
+  if (p.approx) {
     $("addErr2").textContent = "Location nahi mil paayi — neeche pata ya pincode daal do.";
     $("addErr2").hidden = false;
     $("moreFields").open = true;

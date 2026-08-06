@@ -1,3 +1,4 @@
+import ipaddress
 import math
 
 import httpx
@@ -58,5 +59,34 @@ def forward_geocode(query: str) -> tuple[float, float] | None:
         if not results:
             return None
         return float(results[0]["lat"]), float(results[0]["lon"])
+    except Exception:
+        return None
+
+
+def ip_geolocate(ip: str) -> tuple[float, float] | None:
+    """Approximate lat/long from a client IP via ipapi.co (free, keyless).
+
+    This is what stands in for GPS when a visitor's browser has denied
+    location or has no hardware for it at all — city-level accuracy is
+    plenty to point "paas me" at the right part of town. Private/loopback
+    addresses (localhost, LAN, most dev setups) never resolve to a real
+    place, so those are skipped without a network call. Never raises — the
+    caller falls back to a default location on any None."""
+    try:
+        addr = ipaddress.ip_address(ip)
+        if addr.is_private or addr.is_loopback or addr.is_reserved:
+            return None
+    except ValueError:
+        return None
+    try:
+        resp = httpx.get(f"https://ipapi.co/{ip}/json/", timeout=5.0)
+        resp.raise_for_status()
+        data = resp.json()
+        if data.get("error"):
+            return None
+        lat, long = data.get("latitude"), data.get("longitude")
+        if lat is None or long is None:
+            return None
+        return float(lat), float(long)
     except Exception:
         return None
