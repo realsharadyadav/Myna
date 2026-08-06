@@ -450,7 +450,8 @@ def load_sample_data(payload: dict | None = None, db: Session = Depends(get_db))
 
     Coordinates come from the caller's browser: sample data a thousand
     kilometres away answers nothing about "paas me kya mil raha hai". Falls
-    back to Mumbai when the browser won't say.
+    back to the app's default location (config.DEFAULT_LAT/LONG) when the
+    browser won't say.
     """
     payload = payload or {}
     try:

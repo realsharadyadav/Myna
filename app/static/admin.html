@@ -906,7 +906,7 @@ async function loadSampleData(replace) {
     });
     const data = await res.json();
     out.textContent = `${data.created} places, ${data.items} dishes, ${data.rounds} rounds`
-      + (pos ? ' around you.' : ' around Mumbai (location not found).');
+      + (pos ? ' around you.' : ' around the default location (GPS not found).');
     loadStats();
   } catch (e) {
     out.textContent = 'Could not load sample data — try again.';

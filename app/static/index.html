@@ -54,6 +54,11 @@
               font-size: 1rem; line-height: 1; }
   h1 { font-size: 1.35rem; margin: 0 0 .15rem; letter-spacing: -.02em; }
   .sub { color: var(--muted); font-size: .9rem; margin: 0; }
+  .loclink {
+    background: none; border: none; color: var(--brand); font-size: .82rem;
+    font-weight: 650; cursor: pointer; padding: .2rem 0 0; margin: 0;
+  }
+  .loclink:disabled { opacity: .55; cursor: default; }
 
   .searchbar { display: flex; gap: .5rem; margin: .85rem 0 .6rem; }
   .searchbar input {
@@ -239,6 +244,7 @@
   <header>
     <h1>Kya chahiye? 🔎</h1>
     <p class="sub" id="locline">Location le rahe hain…</p>
+    <button class="loclink" id="locRefresh" hidden>📍 Location update karo</button>
     <div class="headlinks">
       <button class="themebtn" id="themeBtn" aria-label="Theme badlo" title="Theme badlo"></button>
       <a class="ownerlink" href="/admin.html">⚙️ Owner panel</a>
@@ -433,62 +439,79 @@ let CORRECTIONS = {};   // {typed: spelling actually searched}
 // ── Location ────────────────────────────────────────────────────────────────
 // High accuracy asks for a GPS-hardware fix, which routinely times out
 // indoors or on a desktop with no GPS chip at all — even after the browser's
-// own permission prompt says "allowed". A low-accuracy (network/wifi) fix
-// resolves faster and almost always succeeds, and it's precise enough for a
-// few-km search radius. If it still fails, EXIF-from-photo and typed
-// address/pincode below pick up the slack rather than blocking the add.
-function getLocation() {
+// own permission prompt says "allowed". Chrome's "allowed" only means the
+// *site* may ask; the network-based fix underneath it still fails on plenty
+// of wired/VPN/corporate connections with no Wi-Fi to triangulate against.
+// So this tries fast network positioning first, and if that comes back
+// empty, retries once against the device's own GPS chip (slower, but it
+// succeeds in exactly the cases the first attempt can't) before giving up.
+function getLocation(highAccuracy, timeout) {
   return new Promise((resolve) => {
     if (!navigator.geolocation) return resolve(null);
     navigator.geolocation.getCurrentPosition(
       (p) => resolve({ lat: p.coords.latitude, long: p.coords.longitude }),
       () => resolve(null),
-      { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 }
+      { enableHighAccuracy: highAccuracy, timeout, maximumAge: highAccuracy ? 0 : 300000 }
     );
   });
 }
 
-// Same city the backend falls back to (app/config.py DEFAULT_LAT/LONG) —
+async function getLocationRetrying() {
+  return (await getLocation(false, 8000)) || (await getLocation(true, 12000));
+}
+
+// Same place the backend falls back to (app/config.py DEFAULT_LAT/LONG) —
 // used only if even the IP-lookup request itself can't reach the API.
-const DEFAULT_LAT = 19.0760;
-const DEFAULT_LONG = 72.8777;
+const DEFAULT_LAT = 26.13;
+const DEFAULT_LONG = 83.75;
+const DEFAULT_LOCATION_NAME = "Salempur, Deoria";
 
 // City-level fix from the visitor's IP, server-side (avoids a third-party
 // call straight from the browser and keeps the IP-geolocation key/quota, if
 // any is ever added, off the client). The endpoint itself never 404s/500s on
-// a bad lookup — it answers with the default city instead — so this only
+// a bad lookup — it answers with the default location instead — so this only
 // returns null if the network/API is unreachable altogether.
 async function ipLocation() {
   try {
     const res = await fetch(`${API}/api/food/geocode/ip`);
     const data = await res.json();
     if (data.lat != null && data.long != null) {
-      return { lat: data.lat, long: data.long, approx: true, precise: data.source === "ip" };
+      return {
+        lat: data.lat, long: data.long, approx: true,
+        precise: data.source === "ip", name: data.name || "",
+      };
     }
   } catch { /* API unreachable — caller falls back to the hardcoded default */ }
   return null;
 }
 
-// Never blocks browsing on location permission: GPS first, then an IP-based
-// city-level fix, then the hardcoded default — the search always runs, it
-// just gets more precise the more the browser is willing to give up.
-async function ensureLocation() {
-  if (pos) return pos;
+// Never blocks browsing on location permission: GPS first (network fix, then
+// a device-GPS retry), then an IP-based city-level fix, then the hardcoded
+// default — the search always runs, it just gets more precise the more the
+// browser is willing to give up. `force` re-asks GPS even if a position is
+// already cached, for the manual "update location" button.
+async function ensureLocation(force) {
+  if (pos && !force) return pos;
 
-  const gps = await getLocation();
+  const gps = await getLocationRetrying();
   if (gps) {
     pos = { ...gps, approx: false };
     $("locline").textContent = "📍 Aapke aas-paas";
     $("gps").textContent = "📍 Location mil gayi";
+    $("locRefresh").hidden = false;
     return pos;
   }
 
   const ip = await ipLocation();
-  pos = ip || { lat: DEFAULT_LAT, long: DEFAULT_LONG, approx: true, precise: false };
+  pos = ip || {
+    lat: DEFAULT_LAT, long: DEFAULT_LONG, approx: true,
+    precise: false, name: DEFAULT_LOCATION_NAME,
+  };
   $("locline").textContent = pos.precise
     ? "📍 Aapke area ke aas-paas (andazan — GPS on karke sateek karo)"
-    : "📍 Mumbai ke aas-paas dikha rahe hain — apna sheher dekhne ke liye GPS on karo ya pata daalo";
-  $("gps").textContent = "📍 Sateek location ke liye GPS on karo, ya photo/pata se bhi try kar sakte ho";
+    : `📍 GPS nahi mila — ${pos.name || DEFAULT_LOCATION_NAME} ke aas-paas dikha rahe hain`;
+  $("gps").textContent = "📍 GPS nahi mila — photo/pata se bhi try kar sakte ho";
+  $("locRefresh").hidden = false;
   return pos;
 }
 
@@ -776,6 +799,16 @@ $("q").addEventListener("input", (e) => {
   $("list").innerHTML = `<div class="empty"><span class="spinner"></span> Dhoondh rahe hain…</div>`;
   $("fixnote").hidden = true;
   timer = setTimeout(load, 350);
+});
+
+$("locRefresh").addEventListener("click", async (e) => {
+  e.target.disabled = true;
+  const prevText = e.target.textContent;
+  e.target.textContent = "📍 Dhoond rahe hain…";
+  await ensureLocation(true);
+  e.target.disabled = false;
+  e.target.textContent = prevText;
+  load();
 });
 
 $("openNow").addEventListener("click", (e) => {

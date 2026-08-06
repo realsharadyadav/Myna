@@ -28,7 +28,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Uplo
 from sqlalchemy.orm import Session
 
 from .. import ai, embeddings, food, models, schedule, schemas, storage
-from ..config import DEFAULT_LAT, DEFAULT_LONG
+from ..config import DEFAULT_LAT, DEFAULT_LOCATION_NAME, DEFAULT_LONG
 from ..database import (
     get_db,
     get_default_search_model,
@@ -292,9 +292,10 @@ def geocode_ip(request: Request):
     client_ip = xff.split(",")[0].strip() if xff else (request.client.host if request.client else "")
     result = ip_geolocate(client_ip) if client_ip else None
     if result is None:
-        return {"lat": DEFAULT_LAT, "long": DEFAULT_LONG, "source": "default"}
+        return {"lat": DEFAULT_LAT, "long": DEFAULT_LONG, "source": "default",
+                "name": DEFAULT_LOCATION_NAME}
     lat, long = result
-    return {"lat": lat, "long": long, "source": "ip"}
+    return {"lat": lat, "long": long, "source": "ip", "name": ""}
 
 
 @router.get("/kinds", response_model=dict)
