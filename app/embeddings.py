@@ -264,8 +264,17 @@ def fetch_embedding_models() -> list[dict]:
 # ---------------------------------------------------------------------------
 
 def item_text(item) -> str:
-    """The text we embed for an item — name plus category for context."""
-    return f"{item.name} — {item.category}" if item.category else item.name
+    """The text we embed for an item — name plus category for context.
+
+    A service gets an explicit repair framing appended, so "kaun theek karega"
+    reaches a capability someone recorded as bare "Ghadi". Product text is left
+    byte-identical to what earlier versions embedded, so every existing vector
+    stays valid and no backfill is forced by this change.
+    """
+    base = f"{item.name} — {item.category}" if item.category else item.name
+    if getattr(item, "kind", None) == "service":
+        return f"{base} — repair service, servicing and fixing"
+    return base
 
 
 def _effective_model(db=None) -> str:

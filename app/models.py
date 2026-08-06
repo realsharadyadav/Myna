@@ -120,6 +120,14 @@ class Item(Base):
     # Rupees. 0 = the board didn't show a price (never guessed by the AI), so
     # the card shows nothing rather than a made-up number.
     price = Column(Float, default=0.0)
+    # "product" = a thing on the shelf; "service" = something the shop does for
+    # you (watch repair, RO servicing, silai). See food.ITEM_KINDS.
+    #
+    # Stock is true for about a week; a capability is true for years. Keeping
+    # them in one table but distinguishable is what lets "who repairs watches"
+    # be answered by the same search that answers "who sells wire", without
+    # pretending a repair goes out of stock.
+    kind = Column(String, default="product", index=True)
     photo_url = Column(String, default="")
     # Semantic-search vector (local BAAI/bge-small-en-v1.5 by default, or
     # Gemini text-embedding-004 if selected), JSON list of floats.

@@ -86,6 +86,12 @@ def _seen_text(shop: models.Shop, now: datetime | None = None) -> str:
         return "Aaj band bataya gaya"
     if (shop.shutdown_count or 0) >= 2 and shop.shutdown_count > (shop.seen_yes or 0):
         return "Log keh rahe hain ab lagta hi nahi"
+    # A shop is not a thela: "kisi ne confirm nahi kiya" reads like a warning
+    # about a listing that needs no confirming. Nobody is going to re-verify
+    # weekly that the hardware shop still exists, and nothing is wrong when
+    # they don't.
+    if not food.is_perishable(shop.food_kind):
+        return ""
     if not shop.last_seen_at:
         return "Abhi tak kisi ne confirm nahi kiya"
     days = (now - shop.last_seen_at).days
@@ -116,6 +122,13 @@ def _trust(shop: models.Shop, now: datetime | None = None) -> str:
     wrongness = _wrongness(shop)
     if wrongness >= 2 and wrongness > (shop.seen_yes or 0):
         return "doubtful"
+    # Votes still count against a durable listing — a shop really can shut for
+    # good, and that's the 'closed'/'doubtful' path above. What doesn't apply
+    # is the clock: a hardware shop nobody has confirmed in three weeks is not
+    # stale information, it's just a shop. Ageing it would bury the only record
+    # of who stocks a water tanki under fresher listings that don't.
+    if not food.is_perishable(shop.food_kind):
+        return "ok"
     if not shop.last_seen_at:
         return "new"
     days = (now - shop.last_seen_at).days
@@ -194,6 +207,9 @@ def vendor_view(
         "food_kind": food.normalise_kind(shop.food_kind),
         "kind_label": food.kind_label(shop.food_kind),
         "kind_emoji": food.kind_emoji(shop.food_kind),
+        "family": food.kind_family(shop.food_kind),
+        "family_label": food.family_label(shop.food_kind),
+        "perishable": food.is_perishable(shop.food_kind),
         "address": shop.address or "",
         "phone": shop.phone or "",
         "photo_url": shop.photo_url or "",
@@ -211,6 +227,7 @@ def vendor_view(
                 "name": item.name,
                 "category": item.category or "",
                 "price": item.price or 0.0,
+                "kind": food.normalise_item_kind(item.kind),
             }
             for item in shop.items
         ],
@@ -244,11 +261,21 @@ def health():
     return {"ok": True, "app": "myna"}
 
 
+@router.get("/geocode/reverse", response_model=dict)
+def geocode_reverse(lat: float, long: float):
+    """Coordinates → a street address, for the add screens to show and let the
+    user correct. The survey endpoint fills this in itself when it's left
+    blank; doing it here too is what makes the address *editable* before the
+    shop is saved rather than after."""
+    return {"address": reverse_geocode(lat, long)}
+
+
 @router.get("/kinds", response_model=dict)
 def list_kinds():
     """Vendor kinds, chips and the reason lists, so the client hardcodes none."""
     return {
         "kinds": food.kind_list(),
+        "families": food.family_list(),
         "popular": food.POPULAR,
         "categories": food.CATEGORY_NAMES,
         "seen_reasons": food.seen_reason_list(),
@@ -394,6 +421,96 @@ def quick_add(
     }
 
 
+@router.post("/survey", response_model=schemas.SurveyResponse)
+def survey_add(payload: schemas.SurveyAdd, db: Session = Depends(get_db)):
+    """A whole shop and everything it sells or repairs, in one request.
+
+    This is the add flow for everything the camera can't do. `/add` reads a
+    food board; a hardware shop has no board listing its stock, and nowhere
+    does any shop advertise what it can repair — so the information that is
+    hardest to find is precisely the information no photo contains. Someone has
+    to stand there and type it.
+
+    One request rather than one per item because that someone is walking a
+    village on 2G. Items already listed here (same name + kind, case-insensitive)
+    are skipped rather than duplicated, so a client that queued this while
+    offline can safely send it twice.
+    """
+    kind = food.normalise_kind(payload.kind) if payload.kind else "dukaan"
+    family = food.kind_family(kind)
+
+    if payload.shop_id is not None:
+        shop = db.get(models.Shop, payload.shop_id)
+        if not shop:
+            raise HTTPException(404, "Ye dukaan nahi mili")
+        created = False
+    else:
+        name = (payload.name or "").strip()
+        if not name:
+            raise HTTPException(422, "Dukaan ka naam chahiye")
+        shop = models.Shop(
+            name=name,
+            shopkeeper=(payload.shopkeeper or "").strip(),
+            lat=payload.lat,
+            long=payload.long,
+            # Only geocode when the surveyor didn't already capture an address:
+            # Nominatim is rate-limited, and this runs once per shop on a walk.
+            address=(payload.address or "").strip() or reverse_geocode(payload.lat, payload.long),
+            phone=(payload.phone or "").strip(),
+            shop_type="mobile" if food.is_mobile_kind(kind) else "fixed",
+            food_kind=kind,
+            added_by=(payload.device_id or "").strip(),
+            # They're standing in front of it, so it starts confirmed rather
+            # than as an unverified claim.
+            seen_yes=1,
+            seen_no=0,
+            last_seen_at=datetime.utcnow(),
+        )
+        db.add(shop)
+        db.flush()
+        created = True
+
+    existing = {
+        ((it.name or "").strip().lower(), food.normalise_item_kind(it.kind))
+        for it in db.query(models.Item).filter(models.Item.shop_id == shop.shop_id)
+    }
+    fresh: list[models.Item] = []
+    skipped = 0
+    for entry in payload.items:
+        name = (entry.name or "").strip()
+        if not name:
+            continue
+        item_kind = food.suggest_item_kind(name, entry.kind)
+        key = (name.lower(), item_kind)
+        if key in existing:
+            skipped += 1
+            continue
+        existing.add(key)
+        fresh.append(models.Item(
+            shop_id=shop.shop_id,
+            name=name,
+            category=food.normalise_category(entry.category, name, family),
+            price=entry.price or 0.0,
+            kind=item_kind,
+        ))
+
+    if fresh:
+        embeddings.embed_items(fresh, db)
+        db.add_all(fresh)
+
+    db.commit()
+    db.refresh(shop)
+    if fresh:
+        embeddings.invalidate_cache()
+
+    return {
+        "created": created,
+        "vendor": vendor_view(shop, payload.lat, payload.long),
+        "items_added": len(fresh),
+        "items_skipped": skipped,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Browse / search: "paas me kya mil raha hai"
 # ---------------------------------------------------------------------------
@@ -417,11 +534,17 @@ def _haystack(shop: models.Shop) -> str:
 
     Menu, vendor name and kind together, so "momos" finds both a cart with
     Momos on the board and one called Momo Point that never listed an item.
+
+    A capability carries the word "repair" even when its name doesn't — a shop
+    that listed the service as plain "Ghadi" should still answer someone
+    searching "ghadi repair".
     """
-    return " ".join(
-        [shop.name or "", food.kind_label(shop.food_kind)]
-        + [f"{i.name} {i.category}" for i in shop.items]
-    ).lower()
+    parts = [shop.name or "", food.kind_label(shop.food_kind)]
+    for i in shop.items:
+        parts.append(f"{i.name} {i.category}")
+        if food.normalise_item_kind(i.kind) == food.ITEM_SERVICE:
+            parts.append("repair service")
+    return " ".join(parts).lower()
 
 
 def _menu_vocabulary(db: Session) -> set[str]:
@@ -543,6 +666,7 @@ def near(
     long: float,
     q: str = "",
     kind: str = "",
+    family: str = "",
     radius_km: float = DEFAULT_RADIUS_KM,
     open_now: bool = False,
     limit: int = 50,
@@ -550,24 +674,35 @@ def near(
 ):
     """The home screen. No query = everything nearby; a query filters it.
 
-    Ranking is "what can I actually eat right now": open beats closed, a
-    doubtful listing sinks, and only then does distance decide. Sorting purely
-    by distance would put a cart that comes on Sundays above one standing at the
-    corner, which is the wrong answer to the only question being asked.
+    Ranking depends on whether the listing's presence is perishable, because
+    two different questions are being asked through one box:
+
+    - A thela: "what can I actually eat right now." Open beats closed, a
+      doubtful listing sinks, and only then does distance decide. Sorting purely
+      by distance would put a cart that comes on Sundays above one standing at
+      the corner.
+    - A shop or a capability: "who has this at all." Applying the same rule
+      would sink the one hardware shop stocking a water tanki simply because
+      it's 8 PM, which is the wrong answer to the only question being asked —
+      and these listings carry no hours anyway, so "open" is unknown rather
+      than false.
     """
     radius = max(0.1, min(radius_km or DEFAULT_RADIUS_KM, MAX_RADIUS_KM))
     terms = food.split_query(q)
     resolved, corrections = resolve_terms(db, terms)
     semantic = semantic_hits(db, terms)
     wanted_kind = food.normalise_kind(kind) if kind else ""
+    wanted_family = food.normalise_family(family)
 
     cards = []
     for shop in db.query(models.Shop).all():
         # Reported into hiding, or voted permanently shut — neither belongs in
-        # a "where do I eat now" list. Both are reversible states, not deletes.
+        # a "where do I find it now" list. Both are reversible, not deletes.
         if shop.hidden:
             continue
         if wanted_kind and food.normalise_kind(shop.food_kind) != wanted_kind:
+            continue
+        if wanted_family and food.kind_family(shop.food_kind) != wanted_family:
             continue
         matched = _matches(shop, terms, resolved, semantic)
         if terms and not matched:
@@ -577,16 +712,21 @@ def near(
             continue
         if card["distance_km"] > radius:
             continue
-        if open_now and not card["is_open_now"]:
+        # "Abhi khula" can only filter listings that know their own hours.
+        # Dropping the durable ones here would answer "who is open" by hiding
+        # every shop we simply have no timings for.
+        if open_now and card["perishable"] and not card["is_open_now"]:
             continue
         cards.append(card)
 
     # "Aaj band hai" sinks a listing to the bottom for today and no longer —
     # tomorrow the same card ranks normally again. That's the difference
-    # between a vendor's day off and a vendor who moved.
+    # between a vendor's day off and a vendor who moved. Both that and the
+    # open/closed key apply only where presence is perishable; for a shop they
+    # are constant, which leaves match quality and distance to decide.
     cards.sort(key=lambda c: (
-        1 if c["closed_today"] else 0,
-        0 if c["is_open_now"] else 1,
+        1 if (c["perishable"] and c["closed_today"]) else 0,
+        0 if (not c["perishable"] or c["is_open_now"]) else 1,
         1 if c["trust"] == "doubtful" else 0,
         -len(c["matched"]),
         c["distance_km"],
@@ -704,23 +844,26 @@ def report_listing(shop_id: int, payload: schemas.ReportCreate, db: Session = De
 
 @router.post("/{shop_id}/items", response_model=schemas.MenuItemOut)
 def add_menu_item(shop_id: int, payload: schemas.ItemCreate, db: Session = Depends(get_db)):
-    """Add one dish by hand — the escape hatch when the board wasn't readable."""
+    """Add one thing by hand — a dish when the board wasn't readable, or
+    anything a non-food shop sells or does, where there is no board at all."""
     shop = db.get(models.Shop, shop_id)
     if not shop:
         raise HTTPException(404, "Ye dukaan nahi mili")
     name = payload.name.strip()
     if not name:
-        raise HTTPException(422, "Dish ka naam chahiye")
+        raise HTTPException(422, "Naam chahiye")
+    family = food.kind_family(shop.food_kind)
     item = models.Item(
         shop_id=shop_id,
         name=name,
-        category=food.normalise_category(payload.category, name),
+        category=food.normalise_category(payload.category, name, family),
         price=payload.price or 0.0,
+        kind=food.suggest_item_kind(name, payload.kind),
     )
     embeddings.embed_item(item, db)
     db.add(item)
     db.commit()
     db.refresh(item)
     embeddings.invalidate_cache()
-    return {"item_id": item.item_id, "name": item.name,
-            "category": item.category, "price": item.price or 0.0}
+    return {"item_id": item.item_id, "name": item.name, "category": item.category,
+            "price": item.price or 0.0, "kind": item.kind}

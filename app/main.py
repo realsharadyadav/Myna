@@ -41,6 +41,12 @@ with engine.connect() as conn:
         conn.execute(text("ALTER TABLE items ADD COLUMN price FLOAT DEFAULT 0"))
         conn.execute(text("UPDATE items SET price=0 WHERE price IS NULL"))
         conn.commit()
+    # items.kind — added when the app widened past food. Everything that
+    # existed before is a dish, so it backfills to "product".
+    if "kind" not in cols:
+        conn.execute(text("ALTER TABLE items ADD COLUMN kind VARCHAR DEFAULT 'product'"))
+        conn.execute(text("UPDATE items SET kind='product' WHERE kind IS NULL OR kind=''"))
+        conn.commit()
     # shops.shop_type — added for mobile vendors (thela/cart) with stops.
     shop_cols = _columns(conn, "shops")
     if "shop_type" not in shop_cols:

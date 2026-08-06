@@ -58,6 +58,48 @@ class ItemCreate(BaseModel):
     name: str
     category: Optional[str] = ""
     price: Optional[float] = 0.0
+    # "product" | "service". Left blank it's inferred from the name, so
+    # "watch repair" lands as a service without the client having to say so.
+    kind: Optional[str] = ""
+
+
+# ---------------------------------------------------------------------------
+# Survey add: mapping a village on foot
+# ---------------------------------------------------------------------------
+# The photo add flow reads a board, which only works where there is one. A
+# hardware shop has no board listing its stock, and no shop anywhere has a
+# board listing what it can repair — so the things hardest to find are exactly
+# the things no camera can capture. They get typed, on the spot, by whoever
+# walked in and asked.
+
+class SurveyItem(BaseModel):
+    name: str
+    category: Optional[str] = ""
+    price: Optional[float] = 0.0
+    # Blank means "work it out from the name".
+    kind: Optional[str] = ""
+
+
+class SurveyAdd(BaseModel):
+    # Set to add to a shop already mapped rather than creating a second copy
+    # of it — the surveyor walking back past a shop they did an hour ago.
+    shop_id: Optional[int] = None
+    name: str
+    kind: Optional[str] = ""
+    shopkeeper: Optional[str] = ""
+    lat: float
+    long: float
+    address: Optional[str] = ""
+    phone: Optional[str] = ""
+    device_id: Optional[str] = ""
+    items: list[SurveyItem] = []
+
+
+class SurveyResponse(BaseModel):
+    created: bool           # False when an existing shop was added to
+    vendor: "FoodVendorOut"
+    items_added: int
+    items_skipped: int      # already listed here (same name + kind)
 
 
 # ---------------------------------------------------------------------------
@@ -69,6 +111,7 @@ class MenuItemOut(BaseModel):
     name: str
     category: str
     price: float = 0.0
+    kind: str = "product"
 
 
 class FoodVendorOut(BaseModel):
@@ -78,6 +121,11 @@ class FoodVendorOut(BaseModel):
     food_kind: str
     kind_label: str
     kind_emoji: str
+    # 'food' | 'goods' | 'services', and whether presence expires — the card
+    # hides the "abhi hai?" prompt for a shop that doesn't need confirming.
+    family: str = "food"
+    family_label: str = ""
+    perishable: bool = True
     address: str
     phone: str
     photo_url: str

@@ -1045,4 +1045,169 @@ assert "CLOUDINARY_CLOUD_NAME" in ADMIN_HTML and "wiped on every deploy" in ADMI
 print("PASS owner panel names the photo backend")
 
 
+# ---------------------------------------------------------------------------
+# 49. Past food: vendor families, capabilities, and the survey add
+# ---------------------------------------------------------------------------
+# Myna widened from street food to "where do I get this near me" — which for a
+# village is mostly a question about hardware, chargers and who can still
+# repair a watch. Food is one family now, not the whole app.
+from app import food as _food
+
+# 49a. Families exist, every kind is in exactly one, and the picker lists all.
+assert set(_food.KINDS) == set(_food.KIND_ORDER)
+assert {f["family"] for f in _food.family_list()} == {"food", "goods", "services"}
+for _k in _food.KINDS:
+    assert _food.KINDS[_k]["family"] in _food.FAMILIES, _k
+# Perishable is the distinction ranking reads, and it is not "is it food":
+# a sabzi thela moves like a food cart but its stock is goods.
+assert _food.is_perishable("chai") is True
+assert _food.is_perishable("hardware") is False
+assert _food.is_perishable("repair") is False
+assert _food.is_mobile_kind("sabzi") is True and _food.kind_family("sabzi") == "goods"
+# Everything that predates the widening carries food_kind='other', so that kind
+# has to stay in the food family or every existing listing silently re-ranks.
+assert _food.kind_family("other") == "food"
+print("PASS vendor families, with perishable separate from mobile")
+
+# 49b. A word may never sit in two synonym groups — that quietly merges two
+# unrelated searches, and the symptom is bad results rather than an error.
+_seen_words = {}
+for _grp in _food.SYNONYM_GROUPS:
+    for _w in _grp:
+        assert _w not in _seen_words, f"{_w!r} in two synonym groups"
+        _seen_words[_w] = True
+print("PASS no synonym word belongs to two groups")
+
+# 49c. Items are products or services, guessed from the name when unstated.
+assert _food.suggest_item_kind("Watch repair") == "service"
+assert _food.suggest_item_kind("Motor winding") == "service"
+assert _food.suggest_item_kind("Cement") == "product"
+# "fitting" is a thing in a box in a hardware shop, not a job.
+assert _food.suggest_item_kind("Tanki fitting") == "product"
+# An explicit answer always beats the guess.
+assert _food.suggest_item_kind("Cement", "service") == "service"
+assert _food.suggest_item_kind("Watch repair", "product") == "product"
+# An unrecognised goods item must not land in a food bucket.
+assert _food.suggest_category("Random Cheez", "goods") == "Aur saamaan"
+assert _food.suggest_category("Random Cheez", "food") == "Fast food"
+assert _food.suggest_category("Solar panel") == "Electrical"
+print("PASS product/service inference and family-aware categories")
+
+# 49d. Survey add: a whole shop and everything it sells *and* repairs, in one
+# request — the add flow for everything a camera can't read.
+res = client.post("/api/food/survey", json={
+    "name": "Verma Hardware", "kind": "hardware",
+    "lat": 19.0760, "long": 72.8777, "address": "Main Bazaar",
+    "device_id": "surveyor-1",
+    "items": [
+        {"name": "Water tanki 500L"}, {"name": "Cement"}, {"name": "Pipe fitting"},
+        {"name": "Watch repair"}, {"name": "Motor winding"},
+    ],
+})
+assert res.status_code == 200, res.text
+_sv = res.json()
+assert _sv["created"] is True and _sv["items_added"] == 5 and _sv["items_skipped"] == 0
+_hw_id = _sv["vendor"]["shop_id"]
+_by_name = {m["name"]: m for m in _sv["vendor"]["menu"]}
+assert _by_name["Watch repair"]["kind"] == "service"
+assert _by_name["Motor winding"]["kind"] == "service"
+assert _by_name["Cement"]["kind"] == "product"
+assert _by_name["Pipe fitting"]["kind"] == "product"
+assert _by_name["Cement"]["category"] == "Hardware"
+# The surveyor is standing in front of it, so it starts confirmed.
+assert _sv["vendor"]["seen_yes"] == 1
+assert _sv["vendor"]["family"] == "goods" and _sv["vendor"]["perishable"] is False
+print(f"PASS survey add listed a shop with products and capabilities (id={_hw_id})")
+
+# 49e. Re-sending a queued offline entry must not duplicate what's already
+# there, while still adding anything new on the same visit.
+res = client.post("/api/food/survey", json={
+    "shop_id": _hw_id, "name": "Verma Hardware",
+    "lat": 19.0760, "long": 72.8777,
+    "items": [
+        {"name": "cement"},                              # same thing, other case
+        {"name": "Watch repair", "kind": "service"},
+        {"name": "Paint"},                               # new
+    ],
+})
+_again = res.json()
+assert _again["created"] is False, _again
+assert _again["items_added"] == 1 and _again["items_skipped"] == 2, _again
+assert _again["vendor"]["shop_id"] == _hw_id
+# Same name under the other kind is a genuinely different offering.
+assert client.post("/api/food/survey", json={
+    "shop_id": _hw_id, "name": "x", "lat": 19.0760, "long": 72.8777,
+    "items": [{"name": "Cement", "kind": "service"}],    # they also lay it
+}).json()["items_added"] == 1
+assert client.post("/api/food/survey", json={
+    "shop_id": 999999, "name": "x", "lat": 1.0, "long": 1.0, "items": [],
+}).status_code == 404
+assert client.post("/api/food/survey", json={
+    "name": "  ", "lat": 1.0, "long": 1.0, "items": [],
+}).status_code == 422
+print("PASS survey re-send dedupes by name+kind, still adds what's new")
+
+# 49f. The whole point: these are findable. A repair is reachable both by its
+# own words and by the Hinglish name of the thing being repaired.
+def _near(q, **kw):
+    return client.get("/api/food/near",
+                      params={"lat": 19.0760, "long": 72.8777, "q": q, **kw}).json()
+
+for _q in ("water tanki", "tanki", "cement", "watch repair", "ghadi", "motor winding"):
+    assert any(v["shop_id"] == _hw_id for v in _near(_q)["vendors"]), _q
+# The family filter separates "who sells things" from "who eats" cleanly.
+assert any(v["shop_id"] == _hw_id for v in _near("", family="goods")["vendors"])
+assert all(v["shop_id"] != _hw_id for v in _near("", family="food")["vendors"])
+print("PASS hardware stock and repair capabilities are both searchable")
+
+# 49g. Ranking must not treat a shop like a thela. A hardware shop carries no
+# timings, so is_open_now is False forever — under the food rule that buried it
+# beneath every open cart, which is the wrong answer to "who has a water tanki".
+_food_res = client.post("/api/food/add", data={
+    "lat": 19.0760, "long": 72.8777, "name": "Raju Chai", "kind": "chai",
+    "day_of_week": -1, "start_time": "00:00", "end_time": "23:59",
+}, files={"photo": ("c.jpg", io.BytesIO(b"\xff\xd8\xff\xe0" + b"\x00" * 50), "image/jpeg")})
+_chai_id = _food_res.json()["vendor"]["shop_id"]
+client.post(f"/api/food/{_chai_id}/items", json={"name": "Water tanki 500L"})
+_ranked = [v["shop_id"] for v in _near("water tanki")["vendors"]]
+assert _hw_id in _ranked and _chai_id in _ranked, _ranked
+assert _ranked.index(_hw_id) < _ranked.index(_chai_id), (
+    "a durable shop must not sink below an open food cart on match quality")
+# "Abhi khula" is a food filter; it must not hide every shop with no hours.
+assert any(v["shop_id"] == _hw_id for v in _near("water tanki", open_now=True)["vendors"])
+print("PASS durable shops rank on match, not on whether a cart is open")
+
+# 49h. Freshness is for things that go off. Nobody re-confirms weekly that a
+# hardware shop exists, and ageing it would bury the only record of who
+# stocks a tanki under fresher listings that don't.
+_hw_card = client.get(f"/api/food/{_hw_id}").json()
+assert _hw_card["trust"] == "ok" and _hw_card["seen_text"] == ""
+# But a durable listing can still be voted permanently shut — a shop really
+# can close, and that path is unchanged.
+for _d in ("v1", "v2"):
+    client.post(f"/api/food/{_hw_id}/seen",
+                json={"yes": False, "reason": "shut_down", "device_id": _d})
+assert client.get(f"/api/food/{_hw_id}").json()["trust"] == "closed"
+assert all(v["shop_id"] != _hw_id for v in _near("water tanki")["vendors"])
+print("PASS durable listings skip time-decay but still respond to votes")
+
+# 49i. Reverse geocoding is reachable again — the survey screen shows the
+# address so it can be corrected *before* the shop is saved.
+assert client.get("/api/food/geocode/reverse",
+                  params={"lat": 19.076, "long": 72.8777}).status_code == 200
+
+# 49j. The survey page is part of the static site, not the API. The backend
+# must stay JSON-only, so this page is served like every other one.
+SURVEY_HTML = _P("app/static/survey.html").read_text()
+assert client.get("/survey").status_code == 404
+assert client.get("/survey.html").status_code == 404
+assert "/api/food/survey" in SURVEY_HTML
+# Its two load-bearing behaviours: an on-phone queue for when the network
+# drops mid-walk, and a taxonomy fetched from the API rather than copied here.
+assert "myna_survey_queue" in SURVEY_HTML and 'addEventListener("online"' in SURVEY_HTML
+assert "/api/food/kinds" in SURVEY_HTML
+assert "myna_device" in SURVEY_HTML          # same anonymous id as the app
+print("PASS survey page ships with the static site, queues offline")
+
+
 print("\nALL TESTS PASSED")

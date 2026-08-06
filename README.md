@@ -1,18 +1,34 @@
-# 🐦 Myna — Paas me kya khaane ko mil raha hai
+# 🐦 Myna — Paas me kya mil raha hai
 
-*Thela, tapri, chaat corner, dhaba — jo kisi delivery app pe nahi hai.*
+*Thela, tapri, hardware, ghadi wala — jo kisi app pe nahi hai.*
 
-Myna answers one question: **what street food can I get near me, right now?** Zomato and Swiggy list restaurants. Nobody lists the momos cart outside the market gate, the chai tapri by the station, or the golgappe wala who parks in Gali 4 every evening — which is most of what India actually eats.
+Myna answers one question: **where do I get this near me?** Two versions of it, and the second is the one nothing else answers at all:
 
-Three decisions hold the app together, and each one exists to kill a specific reason hyperlocal directories die:
+- *What street food is near me right now?* Zomato and Swiggy list restaurants. Nobody lists the momos cart outside the market gate or the golgappe wala who parks in Gali 4 every evening.
+- *Which of these hundred shops has a water tanki — and who can still repair an old watch?* In a village you find out by walking, all day, asking. Google Maps indexes shops; it does not index what is inside them, and it has never indexed what they can **do**.
+
+Four decisions hold the app together, and each one exists to kill a specific reason hyperlocal directories die:
 
 | Decision | The failure it avoids |
 |---|---|
 | **Anyone can add anyone.** No vendor account, no login, no claim step first. | Directories that wait for shopkeepers to onboard themselves launch empty and stay empty. |
-| **One photo is the whole add flow.** A food board *is* the menu and the price list, so a single frame gives the name, the kind and every dish. | Typing a menu is a form, and forms are where casual contributors quit. |
-| **The street keeps data fresh, not the vendor.** Passers-by tap "Abhi hai ✓" / "Nahi mila ✕". | Vendors never update their own listings. Stale stock is what makes users stop trusting the app. |
+| **One photo is the whole add flow** — where there's a board to read. A food board *is* the menu and the price list, so a single frame gives the name, the kind and every dish. | Typing a menu is a form, and forms are where casual contributors quit. |
+| **Capabilities are listed, not just stock.** "Ye ghadi theek karte hain" is a row, the same as a dish or a product. | Stock is true for a week; a capability is true for years. It costs nothing to keep accurate and it's the thing you genuinely cannot look up. |
+| **Freshness applies only to things that go off.** The street confirms a thela with "Abhi hai ✓" / "Nahi mila ✕"; a hardware shop is never asked to re-prove it exists. | Ageing every listing would bury the only record of who stocks a water tanki under fresher listings that don't. |
 
 Vendor phone numbers are deliberately never captured by the add flow — you can list a cart you walked past, but you can't publish that person's number without them.
+
+### Families
+
+Every vendor belongs to one family, and the family decides how its listing is ranked and kept fresh — see `app/food.py`.
+
+| Family | Kinds | Presence |
+|---|---|---|
+| 🍽️ **Khaana** | thela, chaat, chinese, chai, dhaba, sweets, juice, bakery, tiffin, restaurant | **Perishable.** Open beats closed, an unconfirmed listing goes stale, "aaj band hai" sinks it for exactly one day. |
+| 🛍️ **Saamaan** | kirana, hardware, electrical, electronics, medical, stationery, cloth, agri, sabzi | **Durable.** Ranked on match quality then distance — a shop stocking the one thing you searched for shouldn't sink because it's 8 PM. |
+| 🔧 **Kaam** | repair, mobile repair, cycle, tailor, salon | **Durable**, same as above. |
+
+`mobile` and `family` are independent: a sabzi thela moves like a food cart but sells goods.
 
 ## Quick start
 
@@ -22,21 +38,22 @@ Vendor phone numbers are deliberately never captured by the add flow — you can
 
 Two processes, the same split as production — the API on `:8000`, the pages on `:5173`. `./run.sh api` and `./run.sh ui` run them separately.
 
-- **The food app:** http://localhost:5173
+- **The app:** http://localhost:5173
+- **Village survey:** http://localhost:5173/survey.html
 - **Owner panel:** http://localhost:5173/admin.html
 - **API docs:** http://localhost:8000/docs
 
 The backend serves no HTML. That's deliberate: it means there is exactly one way the UI reaches it, the same way a mobile app will.
 
-## The food app
+## The app
 
-### Home — "Kya khaana hai?"
+### Home — "Kya chahiye?"
 
 GPS, a search box, and cards. Each card is a jagah: kind icon, distance, what's on the menu with prices, when it's there, how recently someone confirmed it, and one tap to Directions.
 
 - **Search a dish** — "momos", "chai", "chole bhature". Matches the menu, the jagah's name and its kind together, so a cart called *Momo Point* that never listed an item still turns up.
 - **Several dishes at once** — "momos aur chawmin" returns two jagah, each shown for its own word: the momos cart for "momos", the chowmein cart for "chawmin". Matches are reported per *typed* word, so a card can say why it's there.
-- **Ranking is "what can I eat right now"** — open beats closed, a doubtful listing sinks, and only then does distance decide. Sorting purely by distance would put a Sunday-only cart above one standing at the corner.
+- **Ranking follows the family.** For a thela the question is "what can I get *right now*": open beats closed, a doubtful listing sinks, and only then does distance decide — sorting purely by distance would put a Sunday-only cart above one standing at the corner. For a shop or a capability the question is "who has this at all", so match quality and distance decide; a hardware shop carries no timings, and burying it at 8 PM would answer the wrong question. `open_now` therefore only filters the listings that know their own hours.
 - **Filters** — "Abhi khula 🔥" and a radius that cycles 3 → 10 → 1 km. A thela is a walk, not a drive.
 - **Theme** — follows the phone, with a toggle that overrides it, shared with the owner panel through one `myna_theme` key. The override needs its own CSS rule rather than only a media query: an attribute set later can't beat `@media (prefers-color-scheme: dark)`, so a phone in dark mode ignored an explicit "light" entirely.
 - Hinglish in Roman script throughout — it's how the food is named out loud, it needs no font support on a cheap phone, and it's what people type.
@@ -59,6 +76,21 @@ Photos → GPS → listed. `ai.read_food_board` gets `{name, kind, items:[{name,
 Capped at **5 photos** (`MAX_PHOTOS`): every extra one is another vision call, and five is well past the point where a thela has anything new to show. Only the first photo is kept when image retention is on — it's the one shown on the card; the rest were read for their text and have done their job.
 
 Everything else is optional and behind a disclosure on the review screen: a typed name if the board was unreadable, the vendor kind, and timings for a cart that moves (`day + start + end`, which creates a round via the existing stops model). Those fields sit on the review screen and not the camera screen deliberately — you only find out the board was unreadable *after* submitting, and the error tells you to type a name, so the name field has to be reachable from where the error appears. A partial read still lists the vendor — throwing away a read menu to demand a retake is exactly the friction this flow removes.
+
+### Add — the survey screen (`/survey.html`)
+
+The photo flow reads a board. A hardware shop has no board listing its stock, and **nowhere does any shop advertise what it can repair** — so the information hardest to find is precisely the information no camera can capture. It gets typed, on the spot, by whoever walked in and asked.
+
+This screen is built for one job: mapping a village on foot, shop by shop, in an afternoon.
+
+- **Chip entry, not a form.** Type a word, press enter or comma, it's a chip and the box is ready for the next. Two boxes — *kya bikta hai* and *kya banta / theek hota hai* — which is the only place the product/service split is ever asked about explicitly. Elsewhere it's inferred from the name (`suggest_item_kind`), so "ghadi repair" lands as a service without anyone choosing.
+- **GPS is re-fixed per shop**, automatically, after each save. Shops on one street are metres apart, and a stale fix would pile a whole bazaar onto one pin.
+- **One request per shop, not per item** (`POST /api/food/survey`). The surveyor is on 2G.
+- **It works with no network at all.** A save that can't reach the server is queued in `localStorage` and uploaded when the signal returns — automatically, or by tapping the banner. Losing an afternoon's walking is the thing that would stop someone doing a second one.
+- **Re-sending is safe.** Items already on the shop (same name + kind, case-insensitive) are skipped, so a queued entry sent twice doesn't double the list. Passing `shop_id` adds to a shop already mapped instead of creating a second copy.
+- The vendor-kind picker is **fetched from `/api/food/kinds`**, so the page holds no copy of the taxonomy — adding a kind server-side makes it appear here.
+
+A shop added this way starts confirmed (`seen_yes = 1`, `last_seen_at` now): the person filling it in is standing in front of the place.
 
 ### Search — spelling, word boundaries, meaning
 
@@ -107,17 +139,21 @@ Hiding is reversible and **never deletes**. Flagged listings go to the **Reports
 - **Restore & clear reports** is offered as prominently as Delete, and it clears the reports too — restoring without that would just re-hide the listing on the next stray tap.
 - A red count sits on the tab and a dashboard tile appears whenever anything is pending, because a queue nobody can see is a queue nobody works.
 
-### Food API
+### API
+
+Still prefixed `/api/food/*`. Renaming it (and `app/food.py`, and `Shop.food_kind`) to something family-neutral is a mechanical pass deliberately left for later, so that widening the domain and moving every reference didn't land in one diff.
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/api/food/near?lat&long&q&kind&radius_km&open_now&limit` | The home screen. No `q` = everything nearby. Returns `corrections` alongside `vendors` |
+| `GET` | `/api/food/near?lat&long&q&kind&family&radius_km&open_now&limit` | The home screen. No `q` = everything nearby. `family` narrows to `food`/`goods`/`services`. Returns `corrections` alongside `vendors` |
 | `POST` | `/api/food/add` | Photo add (multipart: repeated `photos` — or a single `photo` — plus `lat`, `long`, optional `name`/`kind`/`address`/`device_id`/`day_of_week`/`start_time`/`end_time`) |
+| `POST` | `/api/food/survey` | Survey add: one shop plus everything it sells and repairs in a single request. `shop_id` adds to an existing shop; duplicate items are skipped |
+| `GET` | `/api/food/geocode/reverse?lat&long` | Coordinates → address, so the add screens can show and correct it before saving |
 | `GET` | `/api/food/{shop_id}?lat&long` | One vendor card |
 | `POST` | `/api/food/{shop_id}/seen` | `{"yes": false, "reason": "closed_today"}` — the freshness vote |
 | `POST` | `/api/food/{shop_id}/report` | `{"reason": "fake", "device_id": "…"}` — flag a bad listing |
-| `POST` | `/api/food/{shop_id}/items` | Add one dish by hand, when the board wasn't readable |
-| `GET` | `/api/food/kinds` | Vendor kinds, popular-dish chips, categories, and both reason lists |
+| `POST` | `/api/food/{shop_id}/items` | Add one thing by hand — `{"name", "category", "price", "kind"}`; `kind` is inferred from the name when blank |
+| `GET` | `/api/food/kinds` | Vendor kinds **and families**, popular chips, categories, and both reason lists |
 | `GET` | `/api/admin/vendors?q&kind&hidden` | Owner panel's vendor list |
 | `PATCH` | `/api/admin/shops/{id}` | Rename / fix a listing |
 | `DELETE` | `/api/admin/shops/{id}` | Delete a listing, menu and rounds |
@@ -132,7 +168,8 @@ Four screens, and the owner panel's dashboard links to all of them. The food app
 
 | Path | Where | What it is |
 |---|---|---|
-| `/` | front end | The thela app — the customer-facing product |
+| `/` | front end | The app — the customer-facing product |
+| `/survey.html` | front end | Village survey: map shops on foot, offline-tolerant |
 | `/admin.html` | front end | Owner panel: Dashboard, Jagah, Reports, AI Settings |
 | `/docs` | backend | Interactive API docs — deliberately not linked from the panel (it's a developer surface) |
 
@@ -144,7 +181,7 @@ The owner panel has exactly one management surface — the **Vendors** tab: ever
 
 **Clearing data** is on the dashboard under a red *Clear all data* card (two confirms). It deletes shops, items, rounds and reports; AI model choices and the retention flag survive, because someone clearing test data wants an empty map, not to redo the setup that made the map work. Deletion goes through children explicitly: a bulk `DELETE` never loads the rows, so SQLAlchemy's cascade doesn't run, and SQLite doesn't enforce foreign keys by default — which used to leave orphaned rounds and reports behind.
 
-Vendor kinds and food categories live in `app/food.py` — thela, chaat, chinese, chai, dhaba, sweets, juice, bakery, tiffin, restaurant.
+Vendor kinds, families and item categories all live in `app/food.py` — see the [Families](#families) table above.
 
 ## Configuration
 
@@ -171,9 +208,11 @@ app/
   main.py            FastAPI app + lightweight migrations. JSON only — no pages
   config.py          Env-driven settings
   database.py        SQLAlchemy engine/session + DB-stored settings
-  models.py          shops (vendors) + stops (rounds) + items (menu) + reports
+  models.py          shops (vendors) + stops (rounds) + items (stock/capability)
+                     + reports
   schemas.py         Pydantic request/response models
-  food.py            Vendor kinds, food categories, Hinglish labels, vote reasons
+  food.py            Vendor families/kinds, item categories, product-vs-service,
+                     synonyms, Hinglish labels, vote reasons
   geo.py             Haversine distance + Nominatim reverse geocode
   schedule.py        Thela rounds: "when is he here" + human timings
   ai.py              Multi-provider vision/text (Anthropic / Groq / Gemini)
@@ -185,10 +224,12 @@ app/
   images.py          Downscaling: one size for the model, a smaller one to store
   storage.py         Temp files for the vision read; Cloudinary for kept photos
   routers/
-    food.py          Add, near, seen votes, reports, menu items, reference data
+    food.py          Photo add, survey add, near, seen votes, reports, items,
+                     geocode, reference data
     admin.py         Stats, vendors, review queue, AI settings, clear-all
   static/            The front end — its own deploy, never served by the API
-    index.html       The food app
+    index.html       The app
+    survey.html      Village survey: map shops on foot, queues when offline
     admin.html       Owner panel
     config.js        Backend origin (overwritten by the static site's build)
 uploads/             Local-disk photo fallback, dev only (gitignored)

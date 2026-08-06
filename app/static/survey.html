@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Myna — Gaon map karo</title>
+<link rel="icon" href="myna-logo.svg">
+<script src="config.js"></script>
+<style>
+  /* Same system as the main app: one screen at a time, thumb-reachable
+     controls, sized in rem off a 16px root so it follows the phone's own
+     font setting. This screen is used standing up, outdoors, one-handed. */
+  :root {
+    --bg: #ffffff;
+    --card: #ffffff;
+    --ink: #1a1a1a;
+    --muted: #6b6b6b;
+    --line: #ececec;
+    --brand: #FFC400;
+    --brand-ink: #1a1a1a;
+    --ok: #1a8f4a;
+    --warn: #c96a00;
+    --bad: #c62828;
+    --shadow: 0 1px 3px rgba(0,0,0,.08), 0 8px 24px rgba(0,0,0,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121212; --card: #1e1e1e; --ink: #f2f2f2; --muted: #a0a0a0;
+      --line: #2e2e2e; --shadow: 0 1px 3px rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #121212; --card: #1e1e1e; --ink: #f2f2f2; --muted: #a0a0a0;
+    --line: #2e2e2e; --shadow: 0 1px 3px rgba(0,0,0,.4);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding-bottom: 7rem;
+  }
+  .wrap { max-width: 34rem; margin: 0 auto; padding: 0 1rem; }
+
+  header { padding: 1rem 0 .5rem; position: relative; }
+  .headlinks { position: absolute; top: .9rem; right: 0; display: flex; gap: .6rem;
+               align-items: center; }
+  .ownerlink { font-size: .78rem; color: var(--muted); text-decoration: none; }
+  .themebtn { background: none; border: none; padding: 0; cursor: pointer;
+              font-size: 1rem; line-height: 1; }
+  h1 { font-size: 1.35rem; margin: 0 0 .15rem; letter-spacing: -.02em; }
+  .sub { color: var(--muted); font-size: .9rem; margin: 0; }
+
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 1rem;
+    padding: .9rem 1rem; margin-bottom: .75rem; box-shadow: var(--shadow);
+  }
+  h2 { font-size: .95rem; margin: 0 0 .15rem; }
+  .hint { color: var(--muted); font-size: .84rem; margin: 0 0 .7rem; }
+
+  label { display: block; font-size: .78rem; color: var(--muted); margin: .7rem 0 .25rem; }
+  input[type=text], input[type=tel], select {
+    width: 100%; padding: .8rem .9rem; font-size: 1rem; color: var(--ink);
+    background: var(--card); border: 1.5px solid var(--line); border-radius: .7rem;
+  }
+  input:focus, select:focus { outline: none; border-color: var(--brand); }
+
+  .btn {
+    width: 100%; padding: .95rem; font-size: 1rem; font-weight: 650; cursor: pointer;
+    border: none; border-radius: .8rem; background: var(--brand); color: var(--brand-ink);
+  }
+  .btn:disabled { opacity: .5; }
+  .btn.ghost { background: var(--card); border: 1.5px solid var(--line); color: var(--ink);
+               font-weight: 600; width: auto; padding: .5rem .8rem; font-size: .85rem; }
+
+  .status { display: flex; align-items: center; gap: .6rem; justify-content: space-between;
+            font-size: .85rem; padding: .65rem .85rem; border-radius: .7rem;
+            margin-bottom: .75rem; }
+  .status.ok   { background: rgba(26,143,74,.13); color: var(--ok); }
+  .status.warn { background: rgba(201,106,0,.14); color: var(--warn); }
+  .status.bad  { background: rgba(198,40,40,.13); color: var(--bad); }
+
+  /* Chip entry is the whole point of this screen: type a word, it becomes a
+     chip, the box is instantly ready for the next one. Nobody fills a form
+     per item while standing in a shop. */
+  .chipbox {
+    display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; cursor: text;
+    padding: .45rem; border: 1.5px solid var(--line); border-radius: .7rem;
+    background: var(--card); min-height: 3rem;
+  }
+  .chipbox.on { border-color: var(--brand); }
+  .chipbox input { flex: 1; min-width: 8rem; border: none; background: none;
+                   padding: .35rem; font-size: 1rem; color: var(--ink); }
+  .chipbox input:focus { outline: none; }
+  .tag { display: inline-flex; align-items: center; gap: .35rem; font-size: .88rem;
+         padding: .3rem .4rem .3rem .65rem; border-radius: .55rem; font-weight: 600;
+         background: var(--brand); color: var(--brand-ink); }
+  .tag.svc { background: rgba(127,127,127,.16); color: var(--ink); }
+  .tag button { border: none; background: none; cursor: pointer; font-size: 1rem;
+                line-height: 1; padding: 0 .1rem; color: inherit; opacity: .6; }
+  .tag button:hover { opacity: 1; }
+  .sugg { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .5rem; }
+  .sugg button { font-size: .8rem; padding: .3rem .6rem; border-radius: 999px;
+                 border: 1px dashed var(--line); background: none; color: var(--muted);
+                 cursor: pointer; }
+  .sugg button:hover { color: var(--ink); border-color: var(--brand); }
+
+  .done { font-size: .85rem; color: var(--muted); text-align: center; margin: .6rem 0 0; }
+  .count { text-align: center; font-size: .8rem; color: var(--muted); margin-top: 1rem; }
+  .foot { text-align: center; margin-top: 1.2rem; font-size: .85rem; }
+  .foot a { color: var(--muted); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="headlinks">
+      <a class="ownerlink" href="index.html">App</a>
+      <button class="themebtn" id="themeBtn" aria-label="Theme badlo">🌙</button>
+    </div>
+    <h1>Gaon map karo</h1>
+    <p class="sub">Ek dukaan, ek minute. Jo bikta hai aur jo banta hai — dono.</p>
+  </header>
+
+  <div class="status ok" id="gpsBox">
+    <span id="gpsText">Location le rahe hain…</span>
+    <button class="btn ghost" id="gpsBtn">Dobara</button>
+  </div>
+
+  <div class="status warn" id="queueBox" hidden>
+    <span id="queueText"></span>
+    <button class="btn ghost" id="queueBtn">Bhejo</button>
+  </div>
+
+  <div class="card">
+    <h2>Dukaan</h2>
+    <p class="hint">Dukaan ke saamne khade hokar bharo. Sirf naam zaroori hai.</p>
+
+    <label for="shopName">Naam</label>
+    <input type="text" id="shopName" placeholder="jaise Sharma Hardware" autocomplete="off">
+
+    <label for="shopKind">Kis type ki?</label>
+    <select id="shopKind"></select>
+
+    <label for="shopkeeper">Dukaandar ka naam (optional)</label>
+    <input type="text" id="shopkeeper" placeholder="" autocomplete="off">
+
+    <label for="shopAddr">Pata</label>
+    <input type="text" id="shopAddr" placeholder="GPS se bhar jayega" autocomplete="off">
+  </div>
+
+  <div class="card">
+    <h2>Kya bikta hai?</h2>
+    <p class="hint">Naam likho, <b>enter</b> ya <b>comma</b> dabao. Mota-moti naam kaafi hai.</p>
+    <div class="chipbox" id="sellsBox">
+      <input type="text" id="sellsInput" placeholder="water tanki, cement, wire…"
+             autocomplete="off" autocapitalize="none">
+    </div>
+    <div class="sugg" id="sellsSugg"></div>
+  </div>
+
+  <div class="card">
+    <h2>Kya banta / theek hota hai?</h2>
+    <p class="hint">Ye kahin likha nahi hota. Jo dukaan aaj ghadi theek karti hai, wo agle
+      saal bhi karegi — isi liye ye sabse kaam ki jankari hai.</p>
+    <div class="chipbox" id="fixesBox">
+      <input type="text" id="fixesInput" placeholder="ghadi repair, motor winding…"
+             autocomplete="off" autocapitalize="none">
+    </div>
+    <div class="sugg" id="fixesSugg"></div>
+  </div>
+
+  <button class="btn" id="saveBtn">Save karo &amp; agli dukaan</button>
+  <p class="done" id="doneText"></p>
+  <p class="count" id="countText"></p>
+
+  <p class="foot"><a href="index.html">← App</a> · <a href="admin.html">Owner panel</a></p>
+</div>
+
+<script>
+const API = window.MYNA_API_BASE || "";
+const $ = (id) => document.getElementById(id);
+
+(() => {
+  const root = document.documentElement;
+  const apply = (t) => {
+    root.setAttribute("data-theme", t);
+    $("themeBtn").textContent = t === "dark" ? "☀️" : "🌙";
+  };
+  apply(localStorage.getItem("myna_theme") ||
+        (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));
+  $("themeBtn").addEventListener("click", () => {
+    const next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    localStorage.setItem("myna_theme", next);
+    apply(next);
+  });
+})();
+
+// Same anonymous per-device id the app uses, so a listing added on this screen
+// is attributed exactly like one added through the photo flow.
+const deviceId = (() => {
+  let id = localStorage.getItem("myna_device");
+  if (!id) {
+    id = "d" + Math.random().toString(36).slice(2) + Date.now().toString(36);
+    localStorage.setItem("myna_device", id);
+  }
+  return id;
+})();
+
+const QUEUE_KEY = "myna_survey_queue";
+const COUNT_KEY = "myna_survey_count";
+
+// ---------------------------------------------------------------------------
+// Vendor kinds come from the API, so this page never holds its own copy of the
+// taxonomy — adding a kind server-side makes it appear here.
+// ---------------------------------------------------------------------------
+let KINDS = [];
+
+async function loadKinds() {
+  const sel = $("shopKind");
+  try {
+    const res = await fetch(API + "/api/food/kinds");
+    const data = await res.json();
+    KINDS = data.kinds || [];
+    for (const fam of data.families || []) {
+      const group = document.createElement("optgroup");
+      group.label = fam.emoji + " " + fam.label;
+      for (const k of fam.kinds) {
+        const kind = KINDS.find((x) => x.kind === k);
+        if (!kind) continue;
+        const opt = document.createElement("option");
+        opt.value = kind.kind;
+        opt.textContent = kind.emoji + " " + kind.label;
+        group.appendChild(opt);
+      }
+      sel.appendChild(group);
+    }
+    // A surveyor walking a bazaar is mostly not adding food, and the photo
+    // flow already covers thele well.
+    sel.value = "dukaan";
+  } catch {
+    const opt = document.createElement("option");
+    opt.value = "dukaan";
+    opt.textContent = "🛍️ Aur koi dukaan";
+    sel.appendChild(opt);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Chip entry
+// ---------------------------------------------------------------------------
+const SUGGESTIONS = {
+  sells: ["cement", "water tanki", "pipe", "paint", "wire", "bulb", "switch",
+          "charger", "inverter battery", "solar panel", "copy", "dawai"],
+  fixes: ["ghadi repair", "mobile repair", "cycle puncture", "motor winding",
+          "welding", "silai", "RO servicing", "chabi banana", "xerox"],
+};
+const chips = { sells: [], fixes: [] };
+
+function addChip(which, raw) {
+  const name = String(raw || "").trim().replace(/[,;]+$/, "").trim();
+  if (!name) return;
+  if (chips[which].some((c) => c.toLowerCase() === name.toLowerCase())) return;
+  chips[which].push(name);
+  renderChips(which);
+}
+
+function removeChip(which, i) {
+  chips[which].splice(i, 1);
+  renderChips(which);
+}
+
+function renderChips(which) {
+  const box = $(which + "Box");
+  const input = $(which + "Input");
+  box.querySelectorAll(".tag").forEach((el) => el.remove());
+  if (input.dataset.ph === undefined) input.dataset.ph = input.placeholder;
+  // Next to a row of chips the example placeholder is just noise.
+  input.placeholder = chips[which].length ? "" : input.dataset.ph;
+  chips[which].forEach((name, i) => {
+    const tag = document.createElement("span");
+    tag.className = which === "fixes" ? "tag svc" : "tag";
+    tag.appendChild(document.createTextNode(name));
+    const x = document.createElement("button");
+    x.type = "button";
+    x.textContent = "×";
+    x.setAttribute("aria-label", name + " hatao");
+    x.addEventListener("click", (e) => { e.stopPropagation(); removeChip(which, i); });
+    tag.appendChild(x);
+    box.insertBefore(tag, input);
+  });
+  renderSugg(which);
+}
+
+function renderSugg(which) {
+  const wrap = $(which + "Sugg");
+  wrap.textContent = "";
+  const taken = new Set(chips[which].map((c) => c.toLowerCase()));
+  SUGGESTIONS[which].filter((s) => !taken.has(s)).slice(0, 6).forEach((s) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = "+ " + s;
+    b.addEventListener("click", () => addChip(which, s));
+    wrap.appendChild(b);
+  });
+}
+
+for (const which of ["sells", "fixes"]) {
+  const input = $(which + "Input");
+  const box = $(which + "Box");
+  box.addEventListener("click", () => input.focus());
+  input.addEventListener("focus", () => box.classList.add("on"));
+  input.addEventListener("blur", () => {
+    box.classList.remove("on");
+    addChip(which, input.value);
+    input.value = "";
+  });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault();
+      addChip(which, input.value);
+      input.value = "";
+    } else if (e.key === "Backspace" && !input.value && chips[which].length) {
+      removeChip(which, chips[which].length - 1);
+    }
+  });
+  input.addEventListener("paste", (e) => {
+    const text = (e.clipboardData || window.clipboardData).getData("text");
+    if (text && /[,\n]/.test(text)) {
+      e.preventDefault();
+      text.split(/[,\n]+/).forEach((p) => addChip(which, p));
+      input.value = "";
+    }
+  });
+  renderSugg(which);
+}
+
+// ---------------------------------------------------------------------------
+// GPS — re-fixed for every shop, because shops on one street are metres apart
+// ---------------------------------------------------------------------------
+let gps = null;
+
+function setGps(text, cls) {
+  $("gpsText").textContent = text;
+  $("gpsBox").className = "status " + cls;
+}
+
+function captureGps() {
+  if (!navigator.geolocation) { setGps("Is phone me GPS nahi hai.", "bad"); return; }
+  setGps("Location le rahe hain…", "warn");
+  navigator.geolocation.getCurrentPosition(async (p) => {
+    gps = { lat: p.coords.latitude, long: p.coords.longitude };
+    const acc = Math.round(p.coords.accuracy || 0);
+    setGps("📍 Mil gayi" + (acc ? ` (±${acc}m)` : ""), "ok");
+    checkReady();
+    // The address is a bonus; a slow or failed lookup must never hold up a walk.
+    try {
+      const res = await fetch(`${API}/api/food/geocode/reverse?lat=${gps.lat}&long=${gps.long}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.address && !$("shopAddr").value.trim()) $("shopAddr").value = data.address;
+      }
+    } catch {}
+  }, () => {
+    setGps("Location nahi mili — GPS on karke 'Dobara' dabao.", "bad");
+    checkReady();
+  }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+}
+$("gpsBtn").addEventListener("click", captureGps);
+
+// ---------------------------------------------------------------------------
+// Save, with an on-phone queue — village network drops constantly, and losing
+// an afternoon's walking is what would stop someone doing a second one.
+// ---------------------------------------------------------------------------
+const readQueue = () => {
+  try { return JSON.parse(localStorage.getItem(QUEUE_KEY)) || []; } catch { return []; }
+};
+
+function writeQueue(q) {
+  localStorage.setItem(QUEUE_KEY, JSON.stringify(q));
+  const n = q.length;
+  $("queueBox").hidden = n === 0;
+  $("queueText").textContent = n ? `${n} dukaan phone me rakhi hain, network ka intezaar` : "";
+}
+
+function bumpCount() {
+  localStorage.setItem(COUNT_KEY, (parseInt(localStorage.getItem(COUNT_KEY), 10) || 0) + 1);
+  renderCount();
+}
+
+function renderCount() {
+  const n = parseInt(localStorage.getItem(COUNT_KEY), 10) || 0;
+  $("countText").textContent = n ? `Is phone se ${n} dukaan map ho chuki hain` : "";
+}
+
+async function post(payload) {
+  const res = await fetch(API + "/api/food/survey", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  return res.json();
+}
+
+// Only entries whose request never left the phone are queued, so a retry
+// re-creating a shop is unlikely. If a response is lost in flight a duplicate
+// can appear, which the owner panel can merge — better than dropping the walk.
+async function flushQueue(manual) {
+  let q = readQueue();
+  if (!q.length) return;
+  if (manual) $("doneText").textContent = "Bhej rahe hain…";
+  while (q.length) {
+    try {
+      await post(q[0]);
+    } catch {
+      if (manual) $("doneText").textContent = "Abhi bhi network nahi. Phone me safe hain.";
+      return;
+    }
+    q.shift();
+    writeQueue(q);
+  }
+  if (manual) $("doneText").textContent = "✓ Sab bhej diya.";
+}
+$("queueBtn").addEventListener("click", () => flushQueue(true));
+
+function checkReady() {
+  $("saveBtn").disabled = !($("shopName").value.trim() && gps);
+}
+$("shopName").addEventListener("input", checkReady);
+
+function resetForm() {
+  ["shopName", "shopkeeper", "shopAddr"].forEach((id) => ($(id).value = ""));
+  chips.sells = [];
+  chips.fixes = [];
+  renderChips("sells");
+  renderChips("fixes");
+  $("shopName").focus();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+$("saveBtn").addEventListener("click", async () => {
+  // A half-typed word still counts — losing it to a missed blur is the kind of
+  // small betrayal that makes someone stop trusting the screen.
+  for (const which of ["sells", "fixes"]) {
+    addChip(which, $(which + "Input").value);
+    $(which + "Input").value = "";
+  }
+  const name = $("shopName").value.trim();
+  if (!name || !gps) return;
+
+  const payload = {
+    name,
+    kind: $("shopKind").value,
+    shopkeeper: $("shopkeeper").value.trim(),
+    lat: gps.lat,
+    long: gps.long,
+    address: $("shopAddr").value.trim(),
+    device_id: deviceId,
+    items: [
+      ...chips.sells.map((n) => ({ name: n, kind: "product" })),
+      ...chips.fixes.map((n) => ({ name: n, kind: "service" })),
+    ],
+  };
+
+  const btn = $("saveBtn");
+  btn.disabled = true;
+  btn.textContent = "Save ho raha hai…";
+  try {
+    const out = await post(payload);
+    $("doneText").textContent = `✓ ${name} save — ${out.items_added} cheezein listed.`;
+    bumpCount();
+    flushQueue(false);
+  } catch {
+    const q = readQueue();
+    q.push(payload);
+    writeQueue(q);
+    $("doneText").textContent = `✓ ${name} phone me save — network aate hi chala jayega.`;
+    bumpCount();
+  }
+  btn.textContent = "Save karo & agli dukaan";
+  resetForm();
+  captureGps();     // next shop is a few metres away
+  checkReady();
+});
+
+window.addEventListener("online", () => flushQueue(false));
+
+loadKinds();
+writeQueue(readQueue());
+renderCount();
+checkReady();
+flushQueue(false);
+captureGps();
+</script>
+</body>
+</html>
