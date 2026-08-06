@@ -83,12 +83,14 @@ services:
     autoDeploy: true
     # No bundler — app/static is plain HTML/JS. This only bakes the backend's
     # origin into config.js, which is the single thing the pages need to know.
-    buildCommand: printf 'window.MYNA_API_BASE = "https://%s";' "$MYNA_BACKEND_HOST" > app/static/config.js
+    buildCommand: printf 'window.MYNA_API_BASE = "https://%s.onrender.com";' "$MYNA_BACKEND_HOST" > app/static/config.js
     staticPublishPath: ./app/static
     envVars:
       # Resolved by Render from the backend service, so it cannot drift and
-      # survives the backend being recreated under a new name. `host` is the
-      # bare hostname; the scheme is added in the build command above.
+      # survives the backend being recreated under a new name. `host` is just
+      # the service slug (e.g. "myna-p33z"), not a resolvable hostname on its
+      # own — the scheme and ".onrender.com" are both added in the build
+      # command above.
       - key: MYNA_BACKEND_HOST
         fromService:
           type: web
