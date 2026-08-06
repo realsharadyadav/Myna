@@ -53,10 +53,11 @@ NOMINATIM_USER_AGENT = "myna-hyperlocal-finder/1.0"
 # Fallback location for a visitor whose browser won't give GPS and whose IP
 # won't resolve either (private range, VPN, lookup down). Lar Road, Salempur,
 # Deoria, UP 274505 — browsing should never dead-end just because location
-# permission was denied.
-DEFAULT_LAT = float(os.getenv("MYNA_DEFAULT_LAT", "26.13"))
-DEFAULT_LONG = float(os.getenv("MYNA_DEFAULT_LONG", "83.75"))
-DEFAULT_LOCATION_NAME = os.getenv("MYNA_DEFAULT_LOCATION_NAME", "Salempur, Deoria")
+# permission was denied. Fixed in code rather than env-configurable: change
+# it here directly if it ever needs to move.
+DEFAULT_LAT = 26.13
+DEFAULT_LONG = 83.75
+DEFAULT_LOCATION_NAME = "Salempur, Deoria"
 
 # CORS: the frontend (app/static, published as its own Render static site —
 # see render.yaml) now calls this API cross-origin. "*" (default) keeps
