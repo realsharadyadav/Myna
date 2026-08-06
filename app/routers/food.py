@@ -34,7 +34,7 @@ from ..database import (
     get_default_vision_model,
     get_retain_uploaded_images,
 )
-from ..geo import haversine_km, reverse_geocode
+from ..geo import forward_geocode, haversine_km, reverse_geocode
 
 router = APIRouter(prefix="/api/food", tags=["food"])
 
@@ -268,6 +268,19 @@ def geocode_reverse(lat: float, long: float):
     blank; doing it here too is what makes the address *editable* before the
     shop is saved rather than after."""
     return {"address": reverse_geocode(lat, long)}
+
+
+@router.get("/geocode/forward", response_model=dict)
+def geocode_forward(q: str):
+    """A typed address or pincode → coordinates. This is the way in when GPS
+    won't fix — indoors, a flaky lock, a desktop browser with no location
+    hardware — so adding a jagah never dead-ends on a permission the phone
+    granted but the hardware still couldn't deliver."""
+    result = forward_geocode(q)
+    if result is None:
+        return {"lat": None, "long": None}
+    lat, long = result
+    return {"lat": lat, "long": long}
 
 
 @router.get("/kinds", response_model=dict)

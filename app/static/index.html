@@ -296,6 +296,14 @@
           <label for="mname">Naam (photo se na padhe to)</label>
           <input id="mname" type="text" placeholder="Sharma Chinese Corner">
         </div>
+        <div class="field" id="locField" hidden>
+          <label for="maddr">Location nahi mili — pata ya pincode daalo</label>
+          <div class="two">
+            <input id="maddr" type="text" placeholder="Area ka naam ya pincode">
+            <button class="btn" id="locateAddr" type="button">📍 Dhoondo</button>
+          </div>
+          <p class="note" id="locNote"></p>
+        </div>
         <div class="field">
           <label for="mkind">Kya bikta hai / kya hota hai</label>
           <select id="mkind"><option value="">Photo se pata kar lo</option></select>
@@ -376,13 +384,19 @@ let files = [];
 let CORRECTIONS = {};   // {typed: spelling actually searched}
 
 // ── Location ────────────────────────────────────────────────────────────────
+// High accuracy asks for a GPS-hardware fix, which routinely times out
+// indoors or on a desktop with no GPS chip at all — even after the browser's
+// own permission prompt says "allowed". A low-accuracy (network/wifi) fix
+// resolves faster and almost always succeeds, and it's precise enough for a
+// few-km search radius. If it still fails, EXIF-from-photo and typed
+// address/pincode below pick up the slack rather than blocking the add.
 function getLocation() {
   return new Promise((resolve) => {
     if (!navigator.geolocation) return resolve(null);
     navigator.geolocation.getCurrentPosition(
       (p) => resolve({ lat: p.coords.latitude, long: p.coords.longitude }),
       () => resolve(null),
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 }
     );
   });
 }
@@ -392,8 +406,93 @@ async function ensureLocation() {
   pos = await getLocation();
   const text = pos ? "📍 Aapke aas-paas" : "📍 Location nahi mili — GPS on karo";
   $("locline").textContent = text;
-  $("gps").textContent = pos ? "📍 Location mil gayi" : "📍 Location nahi mili — GPS on karo";
+  $("gps").textContent = pos ? "📍 Location mil gayi" : "📍 Location nahi mili — photo se ya pata daal ke bhi try kar sakte ho";
   return pos;
+}
+
+// ── Location from photo EXIF (fallback when GPS won't fix) ─────────────────
+// Many phone photos carry the GPS tag from when the shot was taken. Parsed
+// by hand — no bundler here means no exif-js — and only for JPEG, which is
+// what phone cameras and the shrink() step both produce. Never throws:
+// worst case it resolves null and the manual address field takes over.
+function readExifGps(file) {
+  return new Promise((resolve) => {
+    if (!file.type || !/jpe?g/i.test(file.type)) return resolve(null);
+    const reader = new FileReader();
+    reader.onerror = () => resolve(null);
+    reader.onload = () => {
+      try {
+        const view = new DataView(reader.result);
+        if (view.getUint16(0) !== 0xffd8) return resolve(null);
+        let offset = 2;
+        while (offset < view.byteLength - 4) {
+          const marker = view.getUint16(offset);
+          if ((marker & 0xff00) !== 0xff00) break;
+          if (marker === 0xffe1) {
+            const segLen = view.getUint16(offset + 2);
+            const exifStart = offset + 4;
+            if (view.getUint32(exifStart) !== 0x45786966) { offset += 2 + segLen; continue; }
+            const tiffStart = exifStart + 6;
+            const little = view.getUint16(tiffStart) === 0x4949;
+            const ifd0Offset = tiffStart + view.getUint32(tiffStart + 4, little);
+            return resolve(readGpsIfd(view, tiffStart, ifd0Offset, little));
+          }
+          offset += 2 + view.getUint16(offset + 2);
+        }
+        resolve(null);
+      } catch { resolve(null); }
+    };
+    reader.readAsArrayBuffer(file.slice(0, 256 * 1024));
+  });
+}
+
+function readGpsIfd(view, tiffStart, ifd0Offset, little) {
+  const entries = view.getUint16(ifd0Offset, little);
+  let gpsIfdOffset = null;
+  for (let i = 0; i < entries; i++) {
+    const entryOffset = ifd0Offset + 2 + i * 12;
+    if (view.getUint16(entryOffset, little) === 0x8825) {
+      gpsIfdOffset = tiffStart + view.getUint32(entryOffset + 8, little);
+      break;
+    }
+  }
+  if (gpsIfdOffset == null) return null;
+
+  const tags = {};
+  const gpsEntries = view.getUint16(gpsIfdOffset, little);
+  for (let i = 0; i < gpsEntries; i++) {
+    const entryOffset = gpsIfdOffset + 2 + i * 12;
+    const tag = view.getUint16(entryOffset, little);
+    const valueOffset = entryOffset + 8;
+    if (tag === 1 || tag === 3) {
+      tags[tag] = String.fromCharCode(view.getUint8(valueOffset));
+    } else if (tag === 2 || tag === 4) {
+      const dataOffset = tiffStart + view.getUint32(valueOffset, little);
+      const dms = [0, 1, 2].map((j) => {
+        const num = view.getUint32(dataOffset + j * 8, little);
+        const den = view.getUint32(dataOffset + j * 8 + 4, little);
+        return den ? num / den : 0;
+      });
+      tags[tag] = dms[0] + dms[1] / 60 + dms[2] / 3600;
+    }
+  }
+  if (tags[2] == null || tags[4] == null) return null;
+  return {
+    lat: tags[1] === "S" ? -tags[2] : tags[2],
+    long: tags[3] === "W" ? -tags[4] : tags[4],
+  };
+}
+
+// ── Location from typed address / pincode (fallback of last resort) ────────
+async function forwardGeocode(query) {
+  if (!query.trim()) return null;
+  try {
+    const res = await fetch(`${API}/api/food/geocode/forward?q=${encodeURIComponent(query.trim())}`);
+    const data = await res.json();
+    return data.lat != null && data.long != null ? { lat: data.lat, long: data.long } : null;
+  } catch {
+    return null;
+  }
 }
 
 // ── Home: list vendors ──────────────────────────────────────────────────────
@@ -716,7 +815,24 @@ $("fab").addEventListener("click", async () => {
   $("addSheet").hidden = false;
   files = [];
   showStep(1);
-  await ensureLocation();
+  const p = await ensureLocation();
+  $("locField").hidden = !!p;
+});
+
+$("locateAddr").addEventListener("click", async () => {
+  const btn = $("locateAddr");
+  btn.disabled = true;
+  btn.textContent = "…";
+  const found = await forwardGeocode($("maddr").value);
+  btn.disabled = false;
+  btn.textContent = "📍 Dhoondo";
+  if (found) {
+    pos = found;
+    $("locNote").textContent = "✓ Location mil gayi";
+    $("locField").hidden = true;
+  } else {
+    $("locNote").textContent = "Nahi mila — thoda aur specific likh ke dekho.";
+  }
 });
 
 $("closeAdd").addEventListener("click", () => { $("addSheet").hidden = true; });
@@ -811,6 +927,18 @@ async function onPicked(e) {
   renderShots();
   $("shotHint").textContent = "Photo taiyaar kar rahe hain…";
 
+  // Read EXIF off the original file, before shrink() re-encodes it through a
+  // canvas and drops all metadata including this. Only matters if GPS hasn't
+  // already given a fix — a photo's location shouldn't override a live one.
+  if (!pos) {
+    const exifPos = await readExifGps(picked[0]);
+    if (exifPos) {
+      pos = exifPos;
+      $("locField").hidden = true;
+      $("gps").textContent = "📍 Location photo se mil gayi";
+    }
+  }
+
   const ready = await Promise.all(picked.map(shrink));
   // Splice the shrunk versions in place. Someone may have removed a photo
   // while this ran, so match by identity rather than by index.
@@ -825,12 +953,21 @@ $("file").addEventListener("change", onPicked);
 $("pick").addEventListener("change", onPicked);
 
 $("submitAdd").addEventListener("click", async () => {
-  const p = await ensureLocation();
+  // GPS, then a photo's own EXIF tag, then whatever the user typed into the
+  // address/pincode field — in that order, since GPS and EXIF ask nothing of
+  // the person adding a jagah and the typed field does.
+  let p = await ensureLocation();
+  if (!p && files[0]) p = await readExifGps(files[0]);
+  if (!p) p = await forwardGeocode($("maddr").value);
   if (!p) {
-    $("addErr2").textContent = "Location chahiye — GPS on karke dobara try karo.";
+    $("addErr2").textContent = "Location nahi mil paayi — neeche pata ya pincode daal do.";
     $("addErr2").hidden = false;
+    $("moreFields").open = true;
+    $("locField").hidden = false;
+    $("maddr").focus();
     return;
   }
+  pos = p;
   const btn = $("submitAdd");
   btn.disabled = true;
   btn.innerHTML = `<span class="spinner"></span> ${files.length > 1
