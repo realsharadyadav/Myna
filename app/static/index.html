@@ -141,11 +141,18 @@
   .ic { width: 1em; height: 1em; fill: currentColor; vertical-align: -0.12em;
         margin-right: .15rem; }
 
-  .fab {
+  /* The row is what's fixed and centered; the two buttons inside it are laid
+     out by flex, not by each pinning itself to the middle of the screen. */
+  .fab-row {
     position: fixed; left: 50%; transform: translateX(-50%); bottom: 1.25rem;
-    z-index: 20; padding: .95rem 1.6rem; border-radius: 999px; border: none;
-    background: var(--brand); color: var(--brand-ink); font-size: 1.05rem;
+    z-index: 20; display: flex; gap: .5rem;
+  }
+  .fab {
+    flex: 1; padding: .95rem 1.3rem; border-radius: 999px; border: none;
+    background: var(--brand); color: var(--brand-ink); font-size: .98rem;
     font-weight: 700; box-shadow: 0 6px 20px rgba(0,0,0,.22); cursor: pointer;
+    text-decoration: none; display: flex; align-items: center;
+    justify-content: center; white-space: nowrap;
   }
 
   .sheet {
@@ -237,13 +244,9 @@
 
 <!-- Two paths: photo for food/goods (board has the name), survey for services
      (shops don't advertise what they repair; it's typed on-site). -->
-<div style="position: fixed; left: 50%; transform: translateX(-50%); bottom: 1.25rem;
-            z-index: 20; display: flex; gap: .5rem;">
-  <button class="fab" id="fab" style="flex: 1; margin: 0; transform: none;
-          padding: .95rem 1rem; font-size: .95rem; width: auto;">📷 Add karo</button>
-  <a href="/survey.html" class="fab" style="flex: 1; text-decoration: none; display: flex;
-     align-items: center; justify-content: center; margin: 0; transform: none;
-     padding: .95rem 1rem; font-size: .95rem;">📋 Survey</a>
+<div class="fab-row">
+  <button class="fab" id="fab">📷 Add karo</button>
+  <a href="/survey.html" class="fab">📋 Survey</a>
 </div>
 
 <!-- ── Add sheet: photo → GPS → ho gaya ───────────────────────────────── -->
